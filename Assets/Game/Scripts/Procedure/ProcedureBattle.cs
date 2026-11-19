@@ -26,7 +26,11 @@ namespace TurnCard.Game.Procedure
             EventBus.Subscribe<BattleFinishedEvent>(OnBattleFinished);
 
             Log.Info("[战斗] A 准备打开界面");
-            m_Form = UIHost.Shared.Open<BattleForm>("UI/Battle/BattleForm");
+
+            // UIBind 保存预制体时会把窗口命名为 <类名>Window，
+            // 这里用 nameof 拼路径，类名改了路径自动跟着变，不会再对不上。
+            string resourcePath = "UI/Battle/" + nameof(BattleForm) + "Window";
+            m_Form = UIHost.Shared.Open<BattleForm>(resourcePath);
             Log.Info("[战斗] B 界面已打开");
             if (m_Form == null)
             {

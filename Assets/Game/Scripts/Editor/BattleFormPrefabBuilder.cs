@@ -15,7 +15,7 @@ namespace TurnCard.EditorTools
     public static class BattleFormPrefabBuilder
     {
         private const string PrefabFolder = "Assets/Game/Resources/UI/Battle";
-        private const string PrefabPath = PrefabFolder + "/BattleForm.prefab";
+        private const string PrefabPath = PrefabFolder + "/BattleFormWindow.prefab";
         private const string ScriptFolder = "Assets/Game/Scripts/UI/Battle";
 
         [MenuItem("Tools/TurnCard/生成战斗界面", priority = 210)]
@@ -35,7 +35,7 @@ namespace TurnCard.EditorTools
 
         private static void BuildHierarchyAndSave()
         {
-            var root = new GameObject("BattleForm", typeof(RectTransform));
+            var root = new GameObject("BattleFormWindow", typeof(RectTransform));
             var rect = (RectTransform)root.transform;
             rect.sizeDelta = new Vector2(1920f, 1080f);
 
