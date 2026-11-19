@@ -1,0 +1,339 @@
+{
+  "pixelsPerUnit": 100,
+  "maxTextureSize": 2048,
+  "entries": [
+    {
+      "path": "Cards/card_face_empty.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Cards/card_frame_bronze.png",
+      "border": [
+        12,
+        12,
+        11,
+        11
+      ]
+    },
+    {
+      "path": "Cards/card_frame_gold.png",
+      "border": [
+        12,
+        12,
+        11,
+        11
+      ]
+    },
+    {
+      "path": "Cards/card_frame_silver.png",
+      "border": [
+        12,
+        12,
+        11,
+        11
+      ]
+    },
+    {
+      "path": "Panels/list.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/space.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/space_inlay.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Ancient/brown.png",
+      "border": [
+        12,
+        12,
+        12,
+        12
+      ]
+    },
+    {
+      "path": "Panels/Ancient/brown_inlay.png",
+      "border": [
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "path": "Panels/Ancient/brown_pressed.png",
+      "border": [
+        12,
+        12,
+        12,
+        12
+      ]
+    },
+    {
+      "path": "Panels/Ancient/grey.png",
+      "border": [
+        12,
+        12,
+        12,
+        12
+      ]
+    },
+    {
+      "path": "Panels/Ancient/grey_inlay.png",
+      "border": [
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "path": "Panels/Ancient/grey_pressed.png",
+      "border": [
+        12,
+        12,
+        12,
+        12
+      ]
+    },
+    {
+      "path": "Panels/Ancient/tan.png",
+      "border": [
+        12,
+        12,
+        12,
+        12
+      ]
+    },
+    {
+      "path": "Panels/Ancient/tan_inlay.png",
+      "border": [
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "path": "Panels/Ancient/tan_pressed.png",
+      "border": [
+        12,
+        12,
+        12,
+        12
+      ]
+    },
+    {
+      "path": "Panels/Ancient/white.png",
+      "border": [
+        12,
+        12,
+        12,
+        12
+      ]
+    },
+    {
+      "path": "Panels/Ancient/white_inlay.png",
+      "border": [
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "path": "Panels/Ancient/white_pressed.png",
+      "border": [
+        12,
+        12,
+        12,
+        12
+      ]
+    },
+    {
+      "path": "Panels/Colored/blue.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Colored/blue_pressed.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Colored/green.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Colored/green_pressed.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Colored/grey.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Colored/grey_pressed.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Colored/red.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Colored/red_pressed.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Colored/yellow.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Colored/yellow_pressed.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Outline/blue.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Outline/blue_pressed.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Outline/green.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Outline/green_pressed.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Outline/red.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Outline/red_pressed.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Outline/yellow.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "path": "Panels/Outline/yellow_pressed.png",
+      "border": [
+        4,
+        4,
+        4,
+        4
+      ]
+    }
+  ]
+}

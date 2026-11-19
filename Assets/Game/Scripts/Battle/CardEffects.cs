@@ -1,0 +1,492 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using TurnCard.Game.Data;
+
+namespace TurnCard.Game.Battle
+{
+    /// <summary>执行效果时能拿到的一切上下文。</summary>
+    public sealed class CardEffectContext
+    {
+        public BattleState State;
+        public CardInstance Card;
+        public EnemyInstance Target;
+        public CardFace Face;
+
+        /// <summary>本次结算中发生翻面的敌人（供表现层播翻转动画）。</summary>
+        public EnemyInstance FlippedEnemy;
+    }
+
+    /// <summary>一条效果的实现。</summary>
+    public interface ICardEffect
+    {
+        void Apply(CardEffectContext context, string[] args);
+    }
+
+    /// <summary>
+    /// 标记一个类是一张「特殊卡」的效果实现。
+    /// 表里写 <c>special:key</c> 就会调用带同名 Key 的实现。
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class)]
+    public sealed class SpecialCardAttribute : Attribute
+    {
+        public SpecialCardAttribute(string key)
+        {
+            Key = key;
+        }
+
+        public string Key { get; }
+    }
+
+    /// <summary>
+    /// 卡牌效果执行器。
+    ///
+    /// 效果串写在配置表的两面效果列里，形如：
+    /// <code>damage:6;armor:3;draw:2;special:blood_pact</code>
+    ///
+    /// 通用效果（伤害、护甲、抽牌、治疗、能量）由内置实现处理，
+    /// 需要特殊逻辑的卡则用 <c>special:key</c> 指向一个带
+    /// <see cref="SpecialCardAttribute"/> 的类，逻辑写在那个类里。
+    /// </summary>
+    public static class CardEffects
+    {
+        private static readonly Dictionary<string, ICardEffect> Builtins =
+            new Dictionary<string, ICardEffect>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "damage", new DamageEffect() },
+                { "armor", new ArmorEffect() },
+                { "draw", new DrawEffect() },
+                { "heal", new HealEffect() },
+                { "energy", new EnergyEffect() },
+                { "losehp", new LoseHpEffect() },
+                { "flip_adjacent", new FlipAdjacentEffect() },
+                { "flip_all_others", new FlipAllOthersEffect() },
+                { "discard_all", new DiscardAllEffect() },
+                { "flip_left_discard_right", new FlipLeftDiscardRightEffect() },
+                { "flip_right_discard_left", new FlipRightDiscardLeftEffect() },
+                { "damage_per_attack", new DamagePerAttackCardsEffect() },
+                { "armor_per_skill", new ArmorPerSkillCardsEffect() },
+            };
+
+        private static Dictionary<string, ICardEffect> s_Specials;
+
+        /// <summary>解析并依次执行一面的全部效果。</summary>
+        public static void ExecuteAll(CardEffectContext context)
+        {
+            string spec = context.Face.Effects;
+            if (string.IsNullOrWhiteSpace(spec))
+            {
+                // 兼容旧表：没有效果列时，按伤害 / 护甲两个数值走默认行为
+                if (context.Face.Damage > 0)
+                {
+                    Builtins["damage"].Apply(context, new[] { context.Face.Damage.ToString() });
+                }
+
+                if (context.Face.Armor > 0)
+                {
+                    Builtins["armor"].Apply(context, new[] { context.Face.Armor.ToString() });
+                }
+
+                return;
+            }
+
+            foreach (string token in spec.Split(';'))
+            {
+                string entry = token.Trim();
+                if (entry.Length == 0)
+                {
+                    continue;
+                }
+
+                string key = entry;
+                string[] args = Array.Empty<string>();
+
+                int colon = entry.IndexOf(':');
+                if (colon >= 0)
+                {
+                    key = entry.Substring(0, colon).Trim();
+                    args = entry.Substring(colon + 1)
+                        .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                    for (int i = 0; i < args.Length; i++)
+                    {
+                        args[i] = args[i].Trim();
+                    }
+                }
+
+                if (string.Equals(key, "special", StringComparison.OrdinalIgnoreCase))
+                {
+                    // special 的参数是特殊卡的 key
+                    if (args.Length > 0 && TryGetSpecial(args[0], out ICardEffect special))
+                    {
+                        special.Apply(context, SubArgs(args));
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.LogError($"[卡牌效果] 找不到特殊卡实现：{(args.Length > 0 ? args[0] : "(空)")}");
+                    }
+
+                    continue;
+                }
+
+                if (Builtins.TryGetValue(key, out ICardEffect effect))
+                {
+                    effect.Apply(context, args);
+                }
+                else
+                {
+                    UnityEngine.Debug.LogError($"[卡牌效果] 未知效果：{key}（效果串：{spec}）");
+                }
+            }
+        }
+
+        /// <summary>已注册的通用效果名（供编辑器校验使用）。</summary>
+        public static IEnumerable<string> KnownEffectKeys()
+        {
+            return Builtins.Keys;
+        }
+
+        /// <summary>特殊卡的 key 集合（供编辑器校验使用）。</summary>
+        public static IEnumerable<string> KnownSpecialKeys()
+        {
+            if (s_Specials == null)
+            {
+                BuildSpecialIndex();
+            }
+
+            return s_Specials.Keys;
+        }
+
+        /// <summary>判断效果串里的 key 是否存在。</summary>
+        public static bool IsKnownKey(string key)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                return false;
+            }
+
+            if (string.Equals(key, "special", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return Builtins.ContainsKey(key);
+        }
+
+        private static string[] SubArgs(string[] args)
+        {
+            if (args.Length <= 1)
+            {
+                return Array.Empty<string>();
+            }
+
+            var rest = new string[args.Length - 1];
+            Array.Copy(args, 1, rest, 0, rest.Length);
+            return rest;
+        }
+
+        private static bool TryGetSpecial(string key, out ICardEffect effect)
+        {
+            if (s_Specials == null)
+            {
+                BuildSpecialIndex();
+            }
+
+            return s_Specials.TryGetValue(key, out effect);
+        }
+
+        /// <summary>扫描所有带 SpecialCard 特性的类，建立 key → 实例 的索引。</summary>
+        private static void BuildSpecialIndex()
+        {
+            s_Specials = new Dictionary<string, ICardEffect>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type[] types;
+                try
+                {
+                    types = assembly.GetTypes();
+                }
+                catch (ReflectionTypeLoadException exception)
+                {
+                    types = exception.Types;
+                }
+
+                foreach (Type type in types)
+                {
+                    if (type == null || type.IsAbstract || !typeof(ICardEffect).IsAssignableFrom(type))
+                    {
+                        continue;
+                    }
+
+                    var attribute = type.GetCustomAttribute<SpecialCardAttribute>();
+                    if (attribute == null)
+                    {
+                        continue;
+                    }
+
+                    if (s_Specials.ContainsKey(attribute.Key))
+                    {
+                        UnityEngine.Debug.LogWarning($"[卡牌效果] 特殊卡 key 重复：{attribute.Key}（{type.Name}）");
+                        continue;
+                    }
+
+                    s_Specials[attribute.Key] = (ICardEffect)Activator.CreateInstance(type);
+                }
+            }
+        }
+
+        private static int Arg(string[] args, int index, int fallback = 0)
+        {
+            if (index >= args.Length)
+            {
+                return fallback;
+            }
+
+            return int.TryParse(args[index], out int value) ? value : fallback;
+        }
+
+        private sealed class DamageEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int amount = Arg(args, 0);
+                string mode = args.Length > 1 ? args[1] : string.Empty;
+
+                if (string.Equals(mode, "all", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (EnemyInstance enemy in context.State.Enemies)
+                    {
+                        if (context.State.DamageEnemy(enemy, amount))
+                        {
+                            context.FlippedEnemy = enemy;
+                        }
+                    }
+
+                    return;
+                }
+
+                if (string.Equals(mode, "random", StringComparison.OrdinalIgnoreCase))
+                {
+                    EnemyInstance pick = PickRandomAlive(context.State);
+                    if (pick != null && context.State.DamageEnemy(pick, amount))
+                    {
+                        context.FlippedEnemy = pick;
+                    }
+
+                    return;
+                }
+
+                if (context.Target != null && context.State.DamageEnemy(context.Target, amount))
+                {
+                    context.FlippedEnemy = context.Target;
+                }
+            }
+
+            private static EnemyInstance PickRandomAlive(BattleState state)
+            {
+                int alive = 0;
+                foreach (EnemyInstance enemy in state.Enemies)
+                {
+                    if (!enemy.IsDead)
+                    {
+                        alive++;
+                    }
+                }
+
+                if (alive == 0)
+                {
+                    return null;
+                }
+
+                int index = UnityEngine.Random.Range(0, alive);
+                foreach (EnemyInstance enemy in state.Enemies)
+                {
+                    if (enemy.IsDead)
+                    {
+                        continue;
+                    }
+
+                    if (index-- == 0)
+                    {
+                        return enemy;
+                    }
+                }
+
+                return null;
+            }
+        }
+
+        private sealed class ArmorEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                context.State.GainArmor(Arg(args, 0));
+            }
+        }
+
+        private sealed class DrawEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                context.State.DrawCards(Arg(args, 0, 1));
+            }
+        }
+
+        private sealed class HealEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                context.State.HealPlayer(Arg(args, 0, 1));
+            }
+        }
+
+        private sealed class EnergyEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                context.State.GainEnergy(Arg(args, 0, 1));
+            }
+        }
+
+        private sealed class LoseHpEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                context.State.LosePlayerHp(Arg(args, 0, 1));
+            }
+        }
+
+        /// <summary>翻面手牌里紧挨着这张牌的左右两张。</summary>
+        private sealed class FlipAdjacentEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                IReadOnlyList<CardInstance> hand = context.State.Hand;
+                int index = IndexOf(hand, context.Card);
+                if (index < 0)
+                {
+                    return;
+                }
+
+                if (index > 0)
+                {
+                    context.State.RequestFlip(hand[index - 1], BattleState.FlipSource.Effect);
+                }
+
+                if (index + 1 < hand.Count)
+                {
+                    context.State.RequestFlip(hand[index + 1], BattleState.FlipSource.Effect);
+                }
+            }
+        }
+
+        /// <summary>翻面手牌里除自己以外的所有牌。</summary>
+        private sealed class FlipAllOthersEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                foreach (CardInstance other in context.State.Hand)
+                {
+                    if (!ReferenceEquals(other, context.Card))
+                    {
+                        context.State.RequestFlip(other, BattleState.FlipSource.Effect);
+                    }
+                }
+            }
+        }
+
+        /// <summary>丢弃整只手牌。</summary>
+        private sealed class DiscardAllEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                context.State.DiscardHand();
+            }
+        }
+
+        /// <summary>翻面左边相邻的一张，丢弃右边相邻的一张（缺哪边就跳过哪边）。</summary>
+        private sealed class FlipLeftDiscardRightEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                IReadOnlyList<CardInstance> hand = context.State.Hand;
+                int index = IndexOf(hand, context.Card);
+                if (index < 0)
+                {
+                    return;
+                }
+
+                if (index > 0)
+                {
+                    context.State.RequestFlip(hand[index - 1], BattleState.FlipSource.Effect);
+                }
+
+                if (index + 1 < hand.Count)
+                {
+                    context.State.DiscardCard(hand[index + 1]);
+                }
+            }
+        }
+
+        /// <summary>翻面右边相邻的一张，丢弃左边相邻的一张（缺哪边就跳过哪边）。</summary>
+        private sealed class FlipRightDiscardLeftEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                IReadOnlyList<CardInstance> hand = context.State.Hand;
+                int index = IndexOf(hand, context.Card);
+                if (index < 0)
+                {
+                    return;
+                }
+
+                if (index + 1 < hand.Count)
+                {
+                    context.State.RequestFlip(hand[index + 1], BattleState.FlipSource.Effect);
+                }
+
+                if (index > 0)
+                {
+                    context.State.DiscardCard(hand[index - 1]);
+                }
+            }
+        }
+
+        /// <summary>造成「手牌里的攻击牌数 × 参数」点伤害（统计包含自己）。</summary>
+        private sealed class DamagePerAttackCardsEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int per = Arg(args, 0, 1);
+                int count = context.State.CountHandOfType(CardType.Attack);
+                int total = per * Math.Max(1, count);
+                Builtins["damage"].Apply(context, new[] { total.ToString() });
+            }
+        }
+
+        /// <summary>获得「手牌里的技能牌数 × 参数」点护甲（统计包含自己）。</summary>
+        private sealed class ArmorPerSkillCardsEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int per = Arg(args, 0, 1);
+                int count = context.State.CountHandOfType(CardType.Skill);
+                int total = per * Math.Max(1, count);
+                Builtins["armor"].Apply(context, new[] { total.ToString() });
+            }
+        }
+
+        private static int IndexOf(IReadOnlyList<CardInstance> list, CardInstance item)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (ReferenceEquals(list[i], item))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+    }
+}

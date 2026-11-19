@@ -1,0 +1,1133 @@
+using System.Collections;
+using System.Collections.Generic;
+using DG.Tweening;
+using TMPro;
+using TurnCard.Game;
+using TurnCard.Game.Battle;
+using TurnCard.Game.Data;
+using TurnCard.Game.UI;
+using TurnCard.Game.UI.Fx;
+using UnityGameFramework.Runtime;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+namespace Window.BattleForm
+{
+    /// <summary>
+    /// 战斗界面。静态部分来自 BattleForm.prefab（UIBind 绑定），
+    /// 手牌、敌人、箭头与牌堆面板在运行时创建。
+    /// </summary>
+    public partial class BattleForm
+    {
+        private const float FlipDuration = 0.35f;
+        private const float HandSpacing = 202f;
+
+        private BattleState m_State;
+        private BattleContent m_Content;
+        private RectTransform m_FormRect;
+        private RectTransform m_FxLayer;
+        private RectTransform m_HandRoot;
+        private RectTransform m_ArrowLayer;
+        private BezierArrow m_Arrow;
+        private readonly List<EnemyView> m_EnemyViews = new List<EnemyView>();
+        private RectTransform m_EnemyArea;
+        private EnemyInstance m_LastHitEnemy;
+        private bool m_HandDirty;
+
+        private CardListViewScreen m_ListView;
+        private AudioSource m_Audio;
+        private readonly List<CardView> m_HandViews = new List<CardView>();
+        private bool m_Busy;
+
+        protected override void OnCreate()
+        {
+            UnityEngine.Debug.Log("[战斗] C OnCreate 开始");
+            InitComponents();
+            UnityEngine.Debug.Log("[战斗] D InitComponents 完成");
+
+            m_FormRect = RectTransform;
+
+            m_FxLayer = UiFactory.CreateRect(m_FormRect, "FxLayer");
+            m_FxLayer.anchorMin = Vector2.zero;
+            m_FxLayer.anchorMax = Vector2.one;
+            m_FxLayer.offsetMin = Vector2.zero;
+            m_FxLayer.offsetMax = Vector2.zero;
+            m_HandRoot = goHand != null ? (RectTransform)goHand.transform : m_FormRect;
+
+            EnsureFonts();
+            UnityEngine.Debug.Log("[战斗] E 字体完成");
+            BuildRuntime();
+            UnityEngine.Debug.Log("[战斗] F BuildRuntime 完成");
+        }
+
+        protected override void OnShow()
+        {
+            UnityEngine.Debug.Log("[战斗] G OnShow 开始");
+            StartBattle();
+        }
+
+        private void EnsureFonts()
+        {
+            UiFactory.EnsureFont(transform);
+        }
+
+        private void BuildRuntime()
+        {
+            var canvas = GetComponentInParent<Canvas>();
+
+
+            m_ArrowLayer = new GameObject("ArrowLayer", typeof(RectTransform))
+                .GetComponent<RectTransform>();
+            m_ArrowLayer.SetParent(m_FormRect, false);
+            m_ArrowLayer.anchorMin = Vector2.zero;
+            m_ArrowLayer.anchorMax = Vector2.one;
+            m_ArrowLayer.offsetMin = Vector2.zero;
+            m_ArrowLayer.offsetMax = Vector2.zero;
+
+            var arrowGo = new GameObject("Arrow", typeof(RectTransform), typeof(BezierArrow));
+            arrowGo.transform.SetParent(m_ArrowLayer, false);
+            var arrowRect = (RectTransform)arrowGo.transform;
+            arrowRect.anchorMin = Vector2.zero;
+            arrowRect.anchorMax = Vector2.one;
+            arrowRect.offsetMin = Vector2.zero;
+            arrowRect.offsetMax = Vector2.zero;
+            m_Arrow = arrowGo.GetComponent<BezierArrow>();
+            m_Arrow.color = new Color(1f, 0.85f, 0.35f, 0.95f);
+            arrowGo.SetActive(false);
+
+
+
+            m_Audio = gameObject.AddComponent<AudioSource>();
+            m_Audio.playOnAwake = false;
+
+            btnEndTurn.onClick.AddListener(OnEndTurnClicked);
+            btnDrawPile.onClick.AddListener(OpenDrawPile);
+            btnDiscardPile.onClick.AddListener(OpenDiscardPile);
+        }
+
+        /// <summary>
+        /// 按池子挑一个阵容，返回按 order 排好的敌人定义列表。
+        /// 找不到阵容时退回该池子的单个敌人，保证能进战斗。
+        /// </summary>
+        private TurnCard.Game.Data.EnemyDefinition[] ResolveEncounter(TurnCard.Game.Data.EnemyPool pool)
+        {
+            var groups = new Dictionary<int, List<TurnCard.Game.Data.EncounterEntry>>();
+            if (m_Content.Encounters != null)
+            {
+                foreach (var entry in m_Content.Encounters)
+                {
+                    if (entry == null || entry.Pool != pool)
+                    {
+                        continue;
+                    }
+
+                    if (!groups.TryGetValue(entry.Group, out var list))
+                    {
+                        list = new List<TurnCard.Game.Data.EncounterEntry>();
+                        groups[entry.Group] = list;
+                    }
+
+                    list.Add(entry);
+                }
+            }
+
+            if (groups.Count > 0)
+            {
+                var keys = new List<int>(groups.Keys);
+                int picked = keys[UnityEngine.Random.Range(0, keys.Count)];
+                var members = groups[picked];
+                members.Sort((a, b) => a.Order.CompareTo(b.Order));
+
+                var result = new List<TurnCard.Game.Data.EnemyDefinition>();
+                foreach (var member in members)
+                {
+                    foreach (var enemy in m_Content.Enemies)
+                    {
+                        if (enemy != null && enemy.Id == member.EnemyId)
+                        {
+                            result.Add(enemy);
+                            break;
+                        }
+                    }
+                }
+
+                if (result.Count > 0)
+                {
+                    return result.ToArray();
+                }
+            }
+
+            return new[] { PickEnemy(pool) };
+        }
+
+        /// <summary>
+        /// 敌人区：横向布局组，多个怪物自动排开、整体居中。
+        /// </summary>
+        private const float EnemySpacing = 36f;
+
+        /// <summary>
+        /// 敌人区：横向布局组，多个怪物从左到右排开、整体居中。
+        ///
+        /// 不用 ContentSizeFitter —— 它会按子物体原始尺寸撑开容器，
+        /// 再叠加缩放会把敌人推到画面外。这里直接按数量算好宽度。
+        /// </summary>
+        private void BuildEnemyArea()
+        {
+            if (m_EnemyArea == null)
+            {
+                var go = new GameObject("EnemyArea", typeof(RectTransform));
+                m_EnemyArea = (RectTransform)go.transform;
+                m_EnemyArea.SetParent(m_FormRect, false);
+                m_EnemyArea.anchorMin = new Vector2(0.5f, 1f);
+                m_EnemyArea.anchorMax = new Vector2(0.5f, 1f);
+                m_EnemyArea.pivot = new Vector2(0.5f, 1f);
+                m_EnemyArea.anchoredPosition = new Vector2(0f, -96f);
+            }
+
+            // 倒序按索引删除：Destroy 是「帧末才生效」的，
+            // 直接在 foreach 里删子物体容易把枚举搞乱
+            for (int c = m_EnemyArea.childCount - 1; c >= 0; c--)
+            {
+                Destroy(m_EnemyArea.GetChild(c).gameObject);
+            }
+
+            m_EnemyViews.Clear();
+
+            int count = m_State.Enemies.Count;
+            const float scale = 1.25f;
+            float cardW = CardView.CardWidth * scale;
+            float width = count * cardW + Mathf.Max(0, count - 1) * EnemySpacing;
+            m_EnemyArea.sizeDelta = new Vector2(width, CardView.CardHeight * scale);
+
+            // 手动横向排布：列表顺序就是站位顺序，也就是出手顺序（从左到右）。
+            // 这里没有用 HorizontalLayoutGroup —— 在缩放过的画布下它算出的坐标会整体偏移，
+            // 手动算位置更可控，也保证「列表第 0 个 = 最左」这条规则成立。
+            float left = -width * 0.5f + cardW * 0.5f;
+            for (int i = 0; i < count; i++)
+            {
+                var view = EnemyView.Create(m_EnemyArea, m_State.Enemies[i], scale,
+                    new Vector2(0.5f, 0.5f), Vector2.zero);
+
+                var rect = view.Rect;
+                rect.anchorMin = new Vector2(0.5f, 0.5f);
+                rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.pivot = new Vector2(0.5f, 0.5f);
+                rect.anchoredPosition = new Vector2(left + i * (cardW + EnemySpacing), 0f);
+
+                m_EnemyViews.Add(view);
+            }
+
+            // 敌人区要在背景之上、手牌之下
+            m_EnemyArea.transform.SetSiblingIndex(1);
+        }
+
+        /// <summary>
+        /// 从指定池子里随机抽一个敌人。
+        /// 池子为空时退回全部敌人，避免配置漏项直接进不了战斗。
+        /// </summary>
+        private TurnCard.Game.Data.EnemyDefinition PickEnemy(TurnCard.Game.Data.EnemyPool pool)
+        {
+            var poolList = new List<TurnCard.Game.Data.EnemyDefinition>();
+            foreach (var e in m_Content.Enemies)
+            {
+                if (e != null && e.Pool == pool)
+                {
+                    poolList.Add(e);
+                }
+            }
+
+            if (poolList.Count == 0)
+            {
+                foreach (var e in m_Content.Enemies)
+                {
+                    if (e != null)
+                    {
+                        poolList.Add(e);
+                    }
+                }
+            }
+
+            return poolList[UnityEngine.Random.Range(0, poolList.Count)];
+        }
+
+        private void StartBattle()
+        {
+            m_Content = Resources.Load<BattleContent>("BattleContent");
+            if (m_Content == null || m_Content.Cards.Length == 0)
+            {
+                txtHint.text = "缺少 BattleContent，请先生成数据表";
+                return;
+            }
+
+            UnityEngine.Debug.Log("[战斗] 1 创建 BattleState");
+            m_State = new BattleState();
+            HookState(m_State);
+
+            // 有全局进度时用牌组，没有（直接运行本场景调试）就用全部卡牌
+            TurnCard.Game.Data.CardDefinition[] deck =
+                TurnCard.Game.Run.RunState.Current.ResolveDeck(m_Content);
+            if (deck == null || deck.Length == 0)
+            {
+                deck = m_Content.Cards;
+            }
+
+            // 阵容来自配置表：同一 group 的多行按 order 从左到右排开
+            UnityEngine.Debug.Log("[战斗] 2 解析阵容");
+            var lineup = ResolveEncounter(TurnCard.Game.Data.EnemyPool.Normal);
+            UnityEngine.Debug.Log("[战斗] 3 阵容人数=" + lineup.Length);
+
+            m_State.Setup(deck, lineup);
+            UnityEngine.Debug.Log("[战斗] 4 Setup 完成");
+
+            BuildEnemyArea();
+            UnityEngine.Debug.Log("[战斗] 5 敌人区完成");
+
+            m_HandRoot.SetAsLastSibling();
+            m_ArrowLayer.SetAsLastSibling();
+
+            UnityEngine.Debug.Log("[战斗] 6 开始玩家回合");
+            m_State.StartPlayerTurn();
+            UnityEngine.Debug.Log("[战斗] 7 抽牌完成 手牌=" + m_State.Hand.Count);
+
+            BuildHand();
+            UnityEngine.Debug.Log("[战斗] 8 手牌视图完成");
+
+            RefreshHud();
+            UnityEngine.Debug.Log("[战斗] 9 刷新完成");
+        }
+
+        /// <summary>
+        /// 订阅战斗状态事件。UI 只通过事件被动刷新，
+        /// 不主动去「猜」状态什么时候变了。
+        /// </summary>
+        private void HookState(BattleState state)
+        {
+            state.DamageApplied += (enemy, amount) =>
+            {
+                m_LastHitEnemy = enemy;
+                PlayHitFeedback(amount);
+
+                // 伤害落地才扣血，所以血条必须在这一刻刷新（之前只在出手前刷过一次）
+                EnemyView hitView = ViewFor(enemy);
+                if (hitView != null)
+                {
+                    hitView.RefreshVisual();
+                }
+            };
+            state.PlayerHpChanged += _ => RefreshHud();
+            state.PlayerArmorChanged += _ => RefreshHud();
+            state.EnergyChanged += _ => RefreshHud();
+
+            // 抽牌只标脏，帧末统一重建一次。
+            // 逐张重建会让手牌视图反复销毁/创建（抽 5 张要重建 5 次），
+            // 销毁时打断正在跑的 tween，既刷警告也容易卡住。
+            state.CardDrawn += _ => m_HandDirty = true;
+
+            // 弃牌：不再整手重建，而是把被弃的那张飞向弃牌堆再销毁，
+            // 否则视图会在动画开始前就被重建掉，看起来像「瞬间消失」。
+            state.CardDiscarded += PlayDiscardAnimation;
+            state.TurnStarted += _ => BuildHand();
+
+            state.EnemyFlipped += enemy =>
+            {
+                EnemyView flipView = ViewFor(enemy);
+                if (flipView != null)
+                {
+                    flipView.PlayFlip(BattleFxSettings.Current.FlipDuration, null);
+                }
+            };
+
+            state.EnemyDied += _ =>
+            {
+                RefreshEnemyViews();
+            };
+
+            state.BattleEnded += victory =>
+            {
+                if (!m_ResultShown)
+                {
+                    m_ResultShown = true;
+                    StartCoroutine(ShowResultDelayed(victory));
+                }
+            };
+        }
+
+        private IEnumerator ShowResultDelayed(bool victory)
+        {
+            yield return new WaitForSeconds(0.6f);
+            ShowResult(victory);
+        }
+
+        private bool m_ResultShown;
+
+        private void LateUpdate()
+        {
+            if (!m_HandDirty)
+            {
+                return;
+            }
+
+            m_HandDirty = false;
+            if (m_State != null)
+            {
+                UnityEngine.Debug.Log("[战斗] 帧末重建手牌，手牌=" + m_State.Hand.Count);
+                BuildHand();
+            }
+        }
+
+        private void BuildHand()
+        {
+            UnityEngine.Debug.Log("[战斗] BuildHand 进入，手牌=" + m_State.Hand.Count);
+            ClearHand();
+            UnityEngine.Debug.Log("[战斗] BuildHand.1 清空完成");
+
+            IReadOnlyList<CardInstance> hand = m_State.Hand;
+            float startX = -(hand.Count - 1) * HandSpacing * 0.5f;
+
+            for (int i = 0; i < hand.Count; i++)
+            {
+                UnityEngine.Debug.Log("[战斗] BuildHand.2 创建第 " + i + " 张");
+                CardView view = CardView.Create(m_HandRoot, hand[i], 1f);
+                UnityEngine.Debug.Log("[战斗] BuildHand.3 第 " + i + " 张创建成功");
+
+                view.SetHome(new Vector2(startX + i * HandSpacing, 0f));
+                view.Clicked += OnCardClicked;
+                view.DragMoved += OnCardDragMoved;
+                view.DragFinished += OnCardDragFinished;
+                m_HandViews.Add(view);
+
+                // 从抽牌堆位置错峰飞入
+                UnityEngine.Debug.Log("[战斗] BuildHand.4 第 " + i + " 张启动飞入");
+                view.PlayDeal(HandLocalOfDrawPile(), 0.3f, i * 0.045f);
+                UnityEngine.Debug.Log("[战斗] BuildHand.5 第 " + i + " 张完成");
+            }
+
+            UnityEngine.Debug.Log("[战斗] BuildHand.6 刷新交互");
+            RefreshInteractivity();
+            UnityEngine.Debug.Log("[战斗] BuildHand 完成");
+        }
+
+        private void ClearHand()
+        {
+            foreach (CardView view in m_HandViews)
+            {
+                if (view == null)
+                {
+                    continue;
+                }
+
+                view.Clicked -= OnCardClicked;
+                view.DragMoved -= OnCardDragMoved;
+                view.DragFinished -= OnCardDragFinished;
+                Destroy(view.gameObject);
+            }
+
+            m_HandViews.Clear();
+        }
+
+        /// <summary>
+        /// 回合结束时手牌飞向弃牌堆再销毁（规则：回合结束手牌全部弃掉，Q2）。
+        /// 注意这只在回合结束发生，出牌本身不会移除卡牌。
+        /// </summary>
+        /// <summary>
+        /// 一张牌被弃掉时的表现：从当前位置飞向弃牌堆并缩小淡出。
+        /// 由 <c>CardDiscarded</c> 事件驱动，出牌效果弃牌与回合结束弃牌共用。
+        /// </summary>
+        private void PlayDiscardAnimation(CardInstance card)
+        {
+            CardView view = FindView(card);
+            if (view == null)
+            {
+                return;
+            }
+
+            m_HandViews.Remove(view);
+            view.Interactable = false;
+
+            Vector2 target = btnDiscardPile != null
+                ? HandLocalOf(btnDiscardPile.transform.position)
+                : new Vector2(820f, -130f);
+
+            view.PlayOut(target, null, 0.22f);
+        }
+
+        private void ScatterHandToDiscard()
+        {
+            if (m_HandViews.Count == 0)
+            {
+                return;
+            }
+
+            var views = new List<CardView>(m_HandViews);
+            m_HandViews.Clear();
+
+            Vector2 discardLocal = btnDiscardPile != null
+                ? HandLocalOf(btnDiscardPile.transform.position)
+                : new Vector2(820f, -130f);
+
+            foreach (CardView view in views)
+            {
+                if (view == null)
+                {
+                    continue;
+                }
+
+                view.Interactable = false;
+                view.PlayOut(discardLocal, null, 0.22f);
+            }
+        }
+
+        private void OnCardClicked(CardView view)
+        {
+            if (m_Busy)
+            {
+                return;
+            }
+
+            StartCoroutine(PlayCardRoutine(view, null));
+        }
+
+        private void OnCardDragMoved(CardView view, PointerEventData eventData)
+        {
+            if (view == null || m_State == null)
+            {
+                return;
+            }
+
+            EnemyView hovered = ViewUnder(eventData.position);
+            foreach (EnemyView enemyView in m_EnemyViews)
+            {
+                if (enemyView != null)
+                {
+                    enemyView.SetHighlight(ReferenceEquals(enemyView, hovered));
+                }
+            }
+
+            if (m_Busy)
+            {
+                HideArrow();
+                return;
+            }
+
+            // 拖着牌就一直显示箭头：没悬停敌人时指向鼠标，悬停时吸附到那只敌人
+            Vector2 to = hovered != null ? (Vector2)hovered.Rect.position : eventData.position;
+            ShowArrow(((RectTransform)view.transform).position, to);
+        }
+
+        private void OnCardDragFinished(CardView view, PointerEventData eventData)
+        {
+            if (view == null || m_State == null)
+            {
+                return;
+            }
+
+            foreach (EnemyView enemyView in m_EnemyViews)
+            {
+                if (enemyView != null)
+                {
+                    enemyView.SetHighlight(false);
+                }
+            }
+
+            HideArrow();
+
+            EnemyView hovered = ViewUnder(eventData.position);
+            if (hovered != null && !hovered.Enemy.IsDead && !m_Busy)
+            {
+                StartCoroutine(PlayCardRoutine(view, hovered.Enemy));
+                return;
+            }
+
+            view.SetLifted(false);
+            view.SnapHome();
+        }
+
+        /// <summary>按 CardInstance 找对应的手牌视图。</summary>
+        private CardView FindView(CardInstance card)
+        {
+            foreach (CardView v in m_HandViews)
+            {
+                if (v != null && ReferenceEquals(v.Card, card))
+                {
+                    return v;
+                }
+            }
+
+            return null;
+        }
+
+        private IEnumerator PlayCardRoutine(CardView view, EnemyInstance target)
+        {
+            // 打出前的这一面才是结算用的面（结算会把卡翻到另一面）
+            CardFace playedFace = view.Card.Face;
+            int damage = playedFace.Damage;
+
+            PlayResult result = m_State.PlayCard(view.Card, target,
+                out EnemyInstance flippedEnemy, out bool battleEnded);
+
+            if (result != PlayResult.Ok)
+            {
+                ShowHint(DescribeFailure(result));
+                view.SetLifted(false);
+                view.SnapHome();
+                yield break;
+            }
+
+            m_Busy = true;
+            HideArrow();
+            view.SetLifted(false);
+            view.SnapHome();
+            RefreshHud();
+
+            // 翻面与效果同时进行：
+            //   1) 先把队列里的翻面全部提交（逻辑翻面 + 瞬发伤害入队），动画只是启动，不等待
+            //   2) 紧接着进入下面的弹道循环 —— 翻面动画和弹道动画同一时间在跑
+            //   3) 出牌结束前再补齐剩余翻面时长，避免动画没播完就能操作
+            BattleFxSettings fx = BattleFxSettings.Current;
+            float flipEndTime = Time.time;
+
+            m_State.BeginDeferDamage();
+            try
+            {
+                while (m_State.IsResolvingFlips)
+                {
+                    BattleState.PendingFlip flip = m_State.PendingFlips[0];
+                    // 这张牌可能已经被弃掉（比如「白」弃掉整手牌），视图不存在就只结算逻辑
+                    CardView targetView = FindView(flip.Card);
+
+                    m_State.CommitNextFlip();   // ← 逻辑翻面发生在这里，瞬发由此入队
+
+                    if (targetView != null)
+                    {
+                        targetView.PlayFlip(fx.FlipDuration, null);
+                        TurnCard.Game.Audio.Sfx.Flip(targetView.Card.Side == CardFaceSide.Back);
+                        flipEndTime = Mathf.Max(flipEndTime, Time.time + fx.FlipDuration);
+                    }
+
+                    if (m_State.LastInstantFlipEnemy != null)
+                    {
+                        EnemyView flippedView = ViewFor(m_State.LastInstantFlipEnemy);
+                        m_State.ClearLastInstantFlipEnemy();
+                        if (flippedView != null)
+                        {
+                            flippedView.PlayFlip(FlipDuration, null);
+                            flipEndTime = Mathf.Max(flipEndTime, Time.time + FlipDuration);
+                        }
+                    }
+
+                    RefreshEnemyViews();
+                }
+            }
+            finally
+            {
+                m_State.EndDeferDamage();
+            }
+
+            // 伤害已经在逻辑层入队，这里按队列逐发播放：
+            // 每发命中才 CommitNextHit() 扣血 —— 真正的「落地才扣血」。
+            Vector2 from = (Vector2)m_FxLayer.InverseTransformPoint(((RectTransform)view.transform).position);
+
+            while (m_State.IsResolving)
+            {
+                BattleState.PendingHit next = m_State.PendingHits[0];
+                int amount = next.Amount;
+                bool cannon = IsCannon(playedFace, view.Card.Face, amount);
+
+                TurnCard.Game.Audio.Sfx.Attack(amount);
+
+                bool hit = false;
+                EnemyView hitTargetView = ViewFor(next.Enemy) ?? ViewFor(target);
+                Vector2 to = hitTargetView != null
+                    ? (Vector2)m_FxLayer.InverseTransformPoint(hitTargetView.Rect.position)
+                    : (Vector2)m_FxLayer.InverseTransformPoint(m_FormRect.position);
+
+                TurnCard.Game.UI.Fx.ProjectileView.Play(m_FxLayer, from, to, cannon, () =>
+                {
+                    TurnCard.Game.Audio.Sfx.Hit();
+                    m_State.CommitNextHit();   // ← 扣血发生在这里
+                    hit = true;
+                }, fx.FlightFor(cannon));
+
+                yield return new WaitUntil(() => hit);
+
+                // 这一发把人打死了：剩下的弹道直接作废，不再扣血
+                if (m_State.IsBattleOver)
+                {
+                    m_State.ClearPendingHits();
+                    break;
+                }
+
+                if (m_State.IsResolving)
+                {
+                    yield return new WaitForSeconds(fx.HitInterval + fx.ImpactHold);
+                }
+            }
+
+            // 翻面动画可能比弹道长，补齐剩余时间再交还操作权
+            float remain = flipEndTime - Time.time;
+            if (remain > 0f)
+            {
+                yield return new WaitForSeconds(remain);
+            }
+
+            // 规则：使用后只翻面，卡牌留在手上（Q1、Q8）。
+            // 这里不做任何移除，下一次可用背面继续出牌，直到能量耗尽。
+            m_Busy = false;
+            RefreshHud();
+
+            if (battleEnded)
+            {
+                ShowResult(true);
+            }
+        }
+
+        /// <summary>
+        /// 这一下该用炮弹还是箭矢。
+        /// 规则：伤害够大（≥8）用炮；「随机 / 全体」这类间接伤害也用炮（比如 装填→开火）。
+        /// 以后如果要给某张卡指定特效，可以在表里加一列明确写死，不必靠猜。
+        /// </summary>
+        private static bool IsCannon(CardFace playedFace, CardFace currentFace, int damage)
+        {
+            if (damage >= 8)
+            {
+                return true;
+            }
+
+            // 伤害可能来自翻面后的那一面（装填 → 开火），两面都要看
+            return IsIndirect(playedFace) || IsIndirect(currentFace);
+        }
+
+        /// <summary>是否是「随机 / 全体」这类间接伤害（用炮弹表现）。</summary>
+        private static bool IsIndirect(CardFace face)
+        {
+            string effects = face.Effects;
+            if (string.IsNullOrEmpty(effects))
+            {
+                return false;
+            }
+
+            return effects.IndexOf("random", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || effects.IndexOf("all", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private void OnEndTurnClicked()
+        {
+            if (m_Busy || m_State == null || !m_State.IsPlayerTurn || m_State.IsBattleOver)
+            {
+                return;
+            }
+
+            StartCoroutine(EndTurnRoutine());
+        }
+
+        /// <summary>
+        /// 敌人出招的表现：攻击放弹道（每段一发），防御/强化/削弱放提示。
+        /// 伤害本身仍由 ResolveEnemyTurn 结算，这里只负责「看得见」。
+        /// </summary>
+        private IEnumerator PlayEnemyIntent(EnemyView enemyView, EnemyIntentDefinition intent, BattleFxSettings fx)
+        {
+            if (enemyView == null)
+            {
+                yield break;
+            }
+
+            Vector3 popupAt = txtStatus.rectTransform.position + new Vector3(0f, 10f, 0f);
+            Vector2 to = (Vector2)m_FxLayer.InverseTransformPoint(popupAt);
+
+            switch (intent.Intent)
+            {
+                case EnemyIntentType.Attack:
+                {
+                    for (int hit = 0; hit < intent.Hits; hit++)
+                    {
+                        Vector2 from = (Vector2)m_FxLayer.InverseTransformPoint(enemyView.Rect.position);
+                        bool done = false;
+                        TurnCard.Game.Audio.Sfx.Attack(intent.Value);
+                        TurnCard.Game.UI.Fx.ProjectileView.Play(m_FxLayer, from, to, intent.Value >= 8, () =>
+                        {
+                            TurnCard.Game.Audio.Sfx.Hit();
+                            done = true;
+                        }, fx.FlightFor(intent.Value >= 8));
+
+                        yield return new WaitUntil(() => done);
+
+                        if (hit + 1 < intent.Hits)
+                        {
+                            yield return new WaitForSeconds(fx.HitInterval);
+                        }
+                    }
+
+                    break;
+                }
+
+                case EnemyIntentType.Defend:
+                    PopDamage(popupAt, "护甲 +" + intent.Value, new Color(0.65f, 0.85f, 1f));
+                    yield return new WaitForSeconds(0.35f);
+                    break;
+
+                case EnemyIntentType.Buff:
+                    PopDamage(popupAt, "攻击 +" + intent.Value, new Color(1f, 0.85f, 0.45f));
+                    yield return new WaitForSeconds(0.35f);
+                    break;
+
+                default:
+                    PopDamage(popupAt, "易伤 +" + intent.Value, new Color(1f, 0.6f, 0.85f));
+                    yield return new WaitForSeconds(0.35f);
+                    break;
+            }
+        }
+
+        private IEnumerator EndTurnRoutine()
+        {
+            m_Busy = true;
+            btnEndTurn.interactable = false;
+
+            RefreshPlayableStates();
+
+            UnityEngine.Debug.Log("[回合] 1 结束回合，开始弃手牌");
+            m_State.EndPlayerTurn();
+            UnityEngine.Debug.Log("[回合] 2 弃牌完成，手牌=" + m_State.Hand.Count);
+            ScatterHandToDiscard();
+            UnityEngine.Debug.Log("[回合] 3 散牌动画启动");   // 没被事件接管的残留视图也一并飞走
+            RefreshHud();
+
+            yield return new WaitForSeconds(0.35f);
+
+            BattleFxSettings fx = BattleFxSettings.Current;
+
+            // 敌人出招：从左到右逐个播动作，全部播完再统一结算
+            // （结算顺序同样是列表顺序，即地图上的从左到右）
+            UnityEngine.Debug.Log("[回合] 4 敌人开始出招");
+            foreach (EnemyView enemyView in m_EnemyViews)
+            {
+                if (enemyView == null || enemyView.Enemy.IsDead)
+                {
+                    continue;
+                }
+
+                EnemyIntentDefinition intent = enemyView.Enemy.CurrentIntent;
+                if (intent == null)
+                {
+                    continue;
+                }
+
+                yield return PlayEnemyIntent(enemyView, intent, fx);
+            }
+
+            UnityEngine.Debug.Log("[回合] 5 敌人出招播完，开始结算");
+            int hpBefore = m_State.PlayerHp;
+            m_State.ResolveEnemyTurn();
+            UnityEngine.Debug.Log("[回合] 6 敌人结算完成 hp=" + m_State.PlayerHp);
+
+            RefreshEnemyViews();
+
+            int hpLost = hpBefore - m_State.PlayerHp;
+            if (hpLost > 0)
+            {
+                m_FormRect.DOShakePosition(0.22f, 9f, 10, 90f, false, true);
+                PopDamage(txtStatus.rectTransform.position + new Vector3(0f, 10f, 0f),
+                    "-" + hpLost, new Color(1f, 0.45f, 0.45f));
+            }
+
+            RefreshHud();
+            yield return new WaitForSeconds(0.5f);
+
+            if (m_State.IsBattleOver)
+            {
+                ShowResult(false);
+                yield break;
+            }
+
+            UnityEngine.Debug.Log("[回合] 7 开始新回合");
+            m_State.StartPlayerTurn();
+            UnityEngine.Debug.Log("[回合] 8 抽牌完成 手牌=" + m_State.Hand.Count);
+            BuildHand();
+            UnityEngine.Debug.Log("[回合] 9 手牌重建完成");
+            m_Busy = false;
+            RefreshHud();
+            btnEndTurn.interactable = true;
+        }
+
+        /// <summary>
+        /// 刷新每张手牌的「当前可打出」光边：
+        /// 玩家回合 + 不在结算中 + 能量足够，三个条件同时满足才亮。
+        /// </summary>
+        private void RefreshPlayableStates()
+        {
+            if (m_State == null)
+            {
+                return;
+            }
+
+            bool canAct = m_State.IsPlayerTurn && !m_State.IsResolving && !m_Busy;
+            foreach (CardView view in m_HandViews)
+            {
+                if (view == null || view.Card == null)
+                {
+                    continue;
+                }
+
+                bool playable = canAct && view.Card.Face.Cost <= m_State.Energy;
+                view.SetPlayable(playable);
+            }
+        }
+
+        private void RefreshHud()
+        {
+            if (m_State == null)
+            {
+                return;
+            }
+
+            txtStatus.text =
+                $"生命 {m_State.PlayerHp}/{BattleState.PlayerMaxHp}    护甲 {m_State.PlayerArmor}" +
+                $"    能量 {m_State.Energy}/{BattleState.MaxEnergy}";
+            txtDrawCount.text = m_State.DrawPile.Count.ToString();
+            txtDiscardCount.text = m_State.DiscardPile.Count.ToString();
+            RefreshInteractivity();
+
+            RefreshPlayableStates();
+        }
+
+        private void RefreshInteractivity()
+        {
+            foreach (CardView view in m_HandViews)
+            {
+                if (view == null)
+                {
+                    continue;
+                }
+
+                view.Interactable = !m_Busy && m_State != null && m_State.IsPlayerTurn &&
+                                    !m_State.IsBattleOver && view.Card.Face.Cost <= m_State.Energy;
+            }
+        }
+
+        private void ShowResult(bool victory)
+        {
+            txtResult.text = victory ? "胜利" : "失败";
+            txtResult.color = victory ? new Color(0.60f, 1f, 0.70f) : new Color(1f, 0.45f, 0.45f);
+            btnEndTurn.interactable = false;
+
+            // 让玩家看清结果，再通知流程往下走
+            int remainingHp = m_State != null ? m_State.PlayerHp : 0;
+            DG.Tweening.DOVirtual.DelayedCall(1.1f, () =>
+            {
+                TurnCard.Game.EventBus.Publish(
+                    new TurnCard.Game.Run.BattleFinishedEvent
+                    {
+                        Victory = victory,
+                        RemainingHp = remainingHp,
+                    });
+            });
+        }
+
+        private void OpenDrawPile()
+        {
+            if (m_State == null)
+            {
+                return;
+            }
+
+            OpenPileList("抽牌堆", m_State.DrawPile);
+        }
+
+        private void OpenDiscardPile()
+        {
+            if (m_State == null)
+            {
+                return;
+            }
+
+            OpenPileList("弃牌堆", m_State.DiscardPile);
+        }
+
+        /// <summary>用通用的卡牌列表界面展示牌堆（遮罩 + 滚动网格）。</summary>
+        private void OpenPileList(string title, IReadOnlyList<CardInstance> pile)
+        {
+            ClosePileList();
+
+            var definitions = new List<CardDefinition>();
+            foreach (CardInstance card in pile)
+            {
+                definitions.Add(card.Definition);
+            }
+
+            CardListViewScreen screen = UIHost.Shared.OpenRuntime<CardListViewScreen>(
+                "CardList", _ => { });
+            m_ListView = screen;
+            screen.SetHeader(title, $"共 {definitions.Count} 张");
+            screen.ShowCards(definitions, null);
+            screen.OnCloseRequested = ClosePileList;
+        }
+
+        private void ClosePileList()
+        {
+            if (m_ListView == null)
+            {
+                return;
+            }
+
+            UIForm form = m_ListView.GetComponent<UIForm>();
+            if (form != null)
+            {
+                UIHost.Shared.Close(form);
+            }
+
+            m_ListView = null;
+        }
+
+        private void ShowArrow(Vector2 fromScreen, Vector2 toScreen)
+        {
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(m_ArrowLayer, fromScreen, null,
+                out Vector2 from);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(m_ArrowLayer, toScreen, null,
+                out Vector2 to);
+
+            m_Arrow.SetPoints(from, to);
+            m_Arrow.gameObject.SetActive(true);
+        }
+
+        private void HideArrow()
+        {
+            if (m_Arrow != null)
+            {
+                m_Arrow.gameObject.SetActive(false);
+            }
+        }
+
+        /// <summary>把世界坐标换算到手牌容器的本地坐标。</summary>
+        private Vector2 HandLocalOf(Vector3 worldPosition)
+        {
+            Vector2 screen = RectTransformUtility.WorldToScreenPoint(null, worldPosition);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(m_HandRoot, screen, null,
+                out Vector2 local);
+            return local;
+        }
+
+        /// <summary>抽牌堆在手牌容器里的位置（发牌动画的起点）。</summary>
+        private Vector2 HandLocalOfDrawPile()
+        {
+            return btnDrawPile != null ? HandLocalOf(btnDrawPile.transform.position)
+                : new Vector2(-820f, -130f);
+        }
+
+
+        /// <summary>找到某个敌人对应的视图。</summary>
+        private EnemyView ViewFor(EnemyInstance enemy)
+        {
+            if (enemy == null)
+            {
+                return null;
+            }
+
+            foreach (EnemyView view in m_EnemyViews)
+            {
+                if (view != null && ReferenceEquals(view.Enemy, enemy))
+                {
+                    return view;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>屏幕坐标下命中的敌人视图（用于拖拽选目标）。</summary>
+        private EnemyView ViewUnder(Vector2 screenPosition)
+        {
+            foreach (EnemyView view in m_EnemyViews)
+            {
+                if (view == null || view.Enemy.IsDead)
+                {
+                    continue;
+                }
+
+                if (RectTransformUtility.RectangleContainsScreenPoint(view.Rect, screenPosition, null))
+                {
+                    return view;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>刷新所有敌人的显示。</summary>
+        private void RefreshEnemyViews()
+        {
+            foreach (EnemyView view in m_EnemyViews)
+            {
+                if (view != null)
+                {
+                    view.RefreshVisual();
+                }
+            }
+        }
+
+        /// <summary>命中反馈：敌人抖动 + 伤害飘字。</summary>
+        private void PlayHitFeedback(int damage)
+        {
+            TurnCard.Game.Audio.Sfx.Hit();
+
+            EnemyView view = m_LastHitEnemy != null ? ViewFor(m_LastHitEnemy) : null;
+            RectTransform enemyRect = view != null ? view.Rect : m_FormRect;
+            if (enemyRect == null)
+            {
+                return;
+            }
+
+            enemyRect.DOKill();
+            enemyRect.DOShakePosition(0.28f, 14f, 12, 90f, false, true);
+            PopDamage(enemyRect.position + new Vector3(0f, 40f, 0f), "-" + damage,
+                new Color(1f, 0.55f, 0.45f));
+        }
+
+        /// <summary>在界面某处弹出一段上浮淡出的文字。</summary>
+        private void PopDamage(Vector3 worldPosition, string text, Color color)
+        {
+            TextMeshProUGUI label = UiFactory.CreateLabel(m_FormRect, "Popup", text, 46, color,
+                new Vector2(240f, 64f), new Vector2(0.5f, 0.5f), Vector2.zero);
+            label.raycastTarget = false;
+
+            RectTransform rt = label.rectTransform;
+            Vector2 screen = RectTransformUtility.WorldToScreenPoint(null, worldPosition);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(m_FormRect, screen, null,
+                out Vector2 local);
+            rt.anchoredPosition = local;
+
+            rt.DOAnchorPos(local + new Vector2(0f, 90f), 0.8f).SetEase(Ease.OutCubic);
+            label.DOFade(0f, 0.8f).SetDelay(0.2f)
+                .OnComplete(() => Destroy(label.gameObject));
+        }
+
+        private void ShowHint(string message)
+        {            txtHint.text = message;
+            CancelInvoke(nameof(ClearHint));
+            Invoke(nameof(ClearHint), 1.6f);
+        }
+
+        private void ClearHint()
+        {
+            txtHint.text = string.Empty;
+        }
+
+        private static string DescribeFailure(PlayResult result)
+        {
+            switch (result)
+            {
+                case PlayResult.NotEnoughEnergy:
+                    return "能量不足";
+                case PlayResult.NeedsTarget:
+                    return "这张牌需要拖到敌人身上使用";
+                case PlayResult.NotPlayerTurn:
+                    return "现在不是你的回合";
+                case PlayResult.BattleOver:
+                    return "战斗已经结束";
+                case PlayResult.Busy:
+                    return "结算中，稍候";
+                default:
+                    return "无法使用这张牌";
+            }
+        }
+    }
+}

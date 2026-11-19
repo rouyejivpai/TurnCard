@@ -1,0 +1,23 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TurnCard.UIBind;
+
+namespace {0}
+{{
+    public partial class {2} : UIBindFragment
+    {{
+        #region (禁止编辑)自动生成变量
+        // HashCode:0
+        #endregion (禁止编辑)自动生成变量
+
+        private void InitComponents()
+        {{
+            UIBindMono quickUI = RectTransform.GetComponent<UIBindMono>();
+            // 在这里初始化组件
+
+            #region (禁止编辑)自动生成绑定
+
+            #endregion (禁止编辑)自动生成绑定
+        }}
+    }}
+}}
