@@ -35,6 +35,11 @@ namespace Window.BattleForm
         private EnemyInstance m_LastHitEnemy;
         private bool m_HandDirty;
 
+        /// <summary>选择模式：等玩家选一张手牌并点确认。</summary>
+        private bool m_ChoiceMode;
+        private Button m_BtnConfirmChoice;
+        private CardView m_ChoiceView;
+
         private CardListViewScreen m_ListView;
         private AudioSource m_Audio;
         private readonly List<CardView> m_HandViews = new List<CardView>();
@@ -100,6 +105,8 @@ namespace Window.BattleForm
 
             m_Audio = gameObject.AddComponent<AudioSource>();
             m_Audio.playOnAwake = false;
+
+            BuildChoiceButton();
 
             btnEndTurn.onClick.AddListener(OnEndTurnClicked);
             btnDrawPile.onClick.AddListener(OpenDrawPile);
@@ -487,12 +494,132 @@ namespace Window.BattleForm
 
         private void OnCardClicked(CardView view)
         {
+            if (m_ChoiceMode)
+            {
+                SelectCardForChoice(view);
+                return;
+            }
+
             if (m_Busy)
             {
                 return;
             }
 
             StartCoroutine(PlayCardRoutine(view, null));
+        }
+
+        /// <summary>选择模式：点一张手牌把它抬起来（还没确认）。</summary>
+        private void SelectCardForChoice(CardView view)
+        {
+            if (view == null || view.Card == null || m_State == null)
+            {
+                return;
+            }
+
+            if (!m_State.SelectForChoice(view.Card))
+            {
+                return;
+            }
+
+            if (m_ChoiceView != null && !ReferenceEquals(m_ChoiceView, view))
+            {
+                m_ChoiceView.SetChoiceSelected(false);
+            }
+
+            m_ChoiceView = view;
+            view.SetChoiceSelected(true);
+
+            if (m_BtnConfirmChoice != null)
+            {
+                m_BtnConfirmChoice.interactable = true;
+            }
+
+            TurnCard.Game.Audio.Sfx.Flip(view.Card.Side == CardFaceSide.Back);
+        }
+
+        /// <summary>点勾：确认选择，然后播放翻面与后续结算。</summary>
+        private void OnConfirmChoiceClicked()
+        {
+            if (!m_ChoiceMode || m_State == null)
+            {
+                return;
+            }
+
+            if (!m_State.ConfirmChoice())
+            {
+                return;
+            }
+
+            StartCoroutine(FinishChoiceRoutine());
+        }
+
+        private IEnumerator FinishChoiceRoutine()
+        {
+            ExitChoiceMode();
+
+            m_Busy = true;
+            RefreshHud();
+
+            yield return CommitAndAnimateFlips(null);
+            yield return PlayDamageQueue(m_ChoiceView, m_State.FirstAliveEnemy(), default);
+
+            m_ChoiceView = null;
+            m_Busy = false;
+            RefreshHud();
+            BuildHand();
+        }
+
+        /// <summary>进入选择模式：弹出勾按钮、提示文案。</summary>
+        private void EnterChoiceMode()
+        {
+            if (m_ChoiceMode)
+            {
+                return;
+            }
+
+            m_ChoiceMode = true;
+            m_ChoiceView = null;
+
+            if (m_BtnConfirmChoice != null)
+            {
+                m_BtnConfirmChoice.gameObject.SetActive(true);
+                m_BtnConfirmChoice.interactable = false;
+            }
+
+            ShowHint("选择一张手牌翻面，然后点勾确认");
+            RefreshInteractivity();
+        }
+
+        private void ExitChoiceMode()
+        {
+            m_ChoiceMode = false;
+
+            if (m_BtnConfirmChoice != null)
+            {
+                m_BtnConfirmChoice.gameObject.SetActive(false);
+            }
+
+            if (m_ChoiceView != null)
+            {
+                m_ChoiceView.SetChoiceSelected(false);
+            }
+        }
+
+        /// <summary>勾按钮：右下角，样式跟「结束回合」一致。</summary>
+        private void BuildChoiceButton()
+        {
+            RectTransform box = UiFactory.CreateBox(m_FormRect, "BtnConfirmChoice",
+                new Color(0.28f, 0.55f, 0.35f, 1f), new Vector2(96f, 56f),
+                new Vector2(1f, 0f), new Vector2(-160f, 150f));
+
+            m_BtnConfirmChoice = box.gameObject.AddComponent<Button>();
+            m_BtnConfirmChoice.targetGraphic = box.GetComponent<Image>();
+            m_BtnConfirmChoice.onClick.AddListener(OnConfirmChoiceClicked);
+
+            UiFactory.CreateLabel(box, "Confirm", "✓", 34, Color.white,
+                new Vector2(96f, 56f), new Vector2(0.5f, 0.5f), Vector2.zero);
+
+            box.gameObject.SetActive(false);
         }
 
         private void OnCardDragMoved(CardView view, PointerEventData eventData)
@@ -564,33 +691,12 @@ namespace Window.BattleForm
             return null;
         }
 
-        private IEnumerator PlayCardRoutine(CardView view, EnemyInstance target)
+        /// <summary>
+        /// 提交并播放翻面队列：翻面本身会触发瞬发，瞬发可能继续入队。
+        /// 出牌和「选择确认」都走这里，保证规则一致。
+        /// </summary>
+        private IEnumerator CommitAndAnimateFlips(CardView fallback)
         {
-            // 打出前的这一面才是结算用的面（结算会把卡翻到另一面）
-            CardFace playedFace = view.Card.Face;
-            int damage = playedFace.Damage;
-
-            PlayResult result = m_State.PlayCard(view.Card, target,
-                out EnemyInstance flippedEnemy, out bool battleEnded);
-
-            if (result != PlayResult.Ok)
-            {
-                ShowHint(DescribeFailure(result));
-                view.SetLifted(false);
-                view.SnapHome();
-                yield break;
-            }
-
-            m_Busy = true;
-            HideArrow();
-            view.SetLifted(false);
-            view.SnapHome();
-            RefreshHud();
-
-            // 翻面与效果同时进行：
-            //   1) 先把队列里的翻面全部提交（逻辑翻面 + 瞬发伤害入队），动画只是启动，不等待
-            //   2) 紧接着进入下面的弹道循环 —— 翻面动画和弹道动画同一时间在跑
-            //   3) 出牌结束前再补齐剩余翻面时长，避免动画没播完就能操作
             BattleFxSettings fx = BattleFxSettings.Current;
             float flipEndTime = Time.time;
 
@@ -600,7 +706,6 @@ namespace Window.BattleForm
                 while (m_State.IsResolvingFlips)
                 {
                     BattleState.PendingFlip flip = m_State.PendingFlips[0];
-                    // 这张牌可能已经被弃掉（比如「白」弃掉整手牌），视图不存在就只结算逻辑
                     CardView targetView = FindView(flip.Card);
 
                     m_State.CommitNextFlip();   // ← 逻辑翻面发生在这里，瞬发由此入队
@@ -631,15 +736,29 @@ namespace Window.BattleForm
                 m_State.EndDeferDamage();
             }
 
-            // 伤害已经在逻辑层入队，这里按队列逐发播放：
-            // 每发命中才 CommitNextHit() 扣血 —— 真正的「落地才扣血」。
-            Vector2 from = (Vector2)m_FxLayer.InverseTransformPoint(((RectTransform)view.transform).position);
+            float remain = flipEndTime - Time.time;
+            if (remain > 0f)
+            {
+                yield return new WaitForSeconds(remain);
+            }
+        }
+
+        /// <summary>把排队的伤害逐发打出去，命中才扣血。</summary>
+        private IEnumerator PlayDamageQueue(CardView sourceView, EnemyInstance target, CardFace playedFace)
+        {
+            if (sourceView == null || m_State == null)
+            {
+                yield break;
+            }
+
+            BattleFxSettings fx = BattleFxSettings.Current;
+            Vector2 from = (Vector2)m_FxLayer.InverseTransformPoint(((RectTransform)sourceView.transform).position);
 
             while (m_State.IsResolving)
             {
                 BattleState.PendingHit next = m_State.PendingHits[0];
                 int amount = next.Amount;
-                bool cannon = IsCannon(playedFace, view.Card.Face, amount);
+                bool cannon = IsCannon(playedFace, sourceView.Card.Face, amount);
 
                 TurnCard.Game.Audio.Sfx.Attack(amount);
 
@@ -652,13 +771,12 @@ namespace Window.BattleForm
                 TurnCard.Game.UI.Fx.ProjectileView.Play(m_FxLayer, from, to, cannon, () =>
                 {
                     TurnCard.Game.Audio.Sfx.Hit();
-                    m_State.CommitNextHit();   // ← 扣血发生在这里
+                    m_State.CommitNextHit();
                     hit = true;
                 }, fx.FlightFor(cannon));
 
                 yield return new WaitUntil(() => hit);
 
-                // 这一发把人打死了：剩下的弹道直接作废，不再扣血
                 if (m_State.IsBattleOver)
                 {
                     m_State.ClearPendingHits();
@@ -670,18 +788,51 @@ namespace Window.BattleForm
                     yield return new WaitForSeconds(fx.HitInterval + fx.ImpactHold);
                 }
             }
+        }
 
-            // 翻面动画可能比弹道长，补齐剩余时间再交还操作权
-            float remain = flipEndTime - Time.time;
-            if (remain > 0f)
+        private IEnumerator PlayCardRoutine(CardView view, EnemyInstance target)
+        {
+            // 打出前的这一面才是结算用的面（结算会把卡翻到另一面）
+            CardFace playedFace = view.Card.Face;
+            int damage = playedFace.Damage;
+
+            PlayResult result = m_State.PlayCard(view.Card, target,
+                out EnemyInstance flippedEnemy, out bool battleEnded);
+
+            if (result != PlayResult.Ok)
             {
-                yield return new WaitForSeconds(remain);
+                ShowHint(DescribeFailure(result));
+                view.SetLifted(false);
+                view.SnapHome();
+                yield break;
             }
+
+            m_Busy = true;
+            HideArrow();
+            view.SetLifted(false);
+            view.SnapHome();
+            RefreshHud();
+
+            // 翻面与效果同时进行：
+            //   1) 先把队列里的翻面全部提交（逻辑翻面 + 瞬发伤害入队），动画只是启动，不等待
+            //   2) 紧接着进入下面的弹道循环 —— 翻面动画和弹道动画同一时间在跑
+            //   3) 出牌结束前再补齐剩余翻面时长，避免动画没播完就能操作
+            BattleFxSettings fx = BattleFxSettings.Current;
+            yield return CommitAndAnimateFlips(view);
+
+            // 伤害已经在逻辑层入队，这里按队列逐发播放：
+            // 每发命中才 CommitNextHit() 扣血 —— 真正的「落地才扣血」。
+            yield return PlayDamageQueue(view, target, playedFace);
 
             // 规则：使用后只翻面，卡牌留在手上（Q1、Q8）。
             // 这里不做任何移除，下一次可用背面继续出牌，直到能量耗尽。
             m_Busy = false;
             RefreshHud();
+
+            if (m_State.HasPendingChoice)
+            {
+                EnterChoiceMode();
+            }
 
             if (battleEnded)
             {
@@ -906,8 +1057,10 @@ namespace Window.BattleForm
                     continue;
                 }
 
-                view.Interactable = !m_Busy && m_State != null && m_State.IsPlayerTurn &&
-                                    !m_State.IsBattleOver && view.Card.Face.Cost <= m_State.Energy;
+                // 选择模式下所有牌不可「打出」，但可以点选
+                view.Interactable = m_ChoiceMode ||
+                                    (!m_Busy && m_State != null && m_State.IsPlayerTurn &&
+                                     !m_State.IsBattleOver && view.Card.Face.Cost <= m_State.Energy);
             }
         }
 

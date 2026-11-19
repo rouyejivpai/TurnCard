@@ -17,7 +17,7 @@ MonoBehaviour:
   m_Quality: 2
   m_FrontName: "\u53CC\u7BA1"
   m_FrontCost: 1
-  m_FrontType: 1
+  m_FrontType: 2
   m_FrontDamage: 0
   m_FrontArmor: 0
   m_FrontDescription: "**\u77AC\u53D1**\u6548\u679C\u7ED3\u7B97\u4E24\u6B21"

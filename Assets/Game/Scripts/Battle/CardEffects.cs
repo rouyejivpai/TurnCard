@@ -67,6 +67,13 @@ namespace TurnCard.Game.Battle
                 { "damage_per_attack", new DamagePerAttackCardsEffect() },
                 { "armor_per_skill", new ArmorPerSkillCardsEffect() },
                 { "buff", new BuffEffect() },
+                { "lose_armor", new LoseArmorEffect() },
+                { "damage_plus_instants", new DamagePlusInstantsEffect() },
+                { "use_adjacent_back", new UseAdjacentEffect(false) },
+                { "use_adjacent_front", new UseAdjacentEffect(true) },
+                { "retain_self", new RetainSelfEffect() },
+                { "flip_self", new FlipSelfEffect() },
+                { "choose_flip", new ChooseFlipEffect() },
             };
 
         private static Dictionary<string, ICardEffect> s_Specials;
@@ -507,6 +514,118 @@ namespace TurnCard.Game.Battle
                 {
                     context.State.ApplyBuff(context.Target.Buffs, id, stacks, turns);
                 }
+            }
+        }
+
+        /// <summary>失去护甲，最多扣到 0。</summary>
+        private sealed class LoseArmorEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int amount = Arg(args, 0, 1);
+                context.State.LosePlayerArmor(amount);
+            }
+        }
+
+        /// <summary>造成「基础值 + 本回合瞬发次数 × 每层加成」点伤害。</summary>
+        private sealed class DamagePlusInstantsEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int baseValue = Arg(args, 0, 1);
+                int perInstant = args.Length > 1 ? Arg(args, 1, 0) : 0;
+                int total = baseValue + perInstant * context.State.InstantCountThisTurn;
+                Builtins["damage"].Apply(context, new[] { total.ToString() });
+            }
+        }
+
+        /// <summary>
+        /// 使用左右相邻手牌指定面的效果，然后让它们翻面。
+        /// <c>useFront = true</c> 用正面，否则用背面。
+        /// </summary>
+        private sealed class UseAdjacentEffect : ICardEffect
+        {
+            private readonly bool m_UseFront;
+
+            public UseAdjacentEffect(bool useFront)
+            {
+                m_UseFront = useFront;
+            }
+
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                IReadOnlyList<CardInstance> hand = context.State.Hand;
+                int index = IndexOf(hand, context.Card);
+                if (index < 0)
+                {
+                    return;
+                }
+
+                UseFaceAt(context, hand, index - 1);
+                UseFaceAt(context, hand, index + 1);
+            }
+
+            private void UseFaceAt(CardEffectContext context, IReadOnlyList<CardInstance> hand, int index)
+            {
+                if (index < 0 || index >= hand.Count)
+                {
+                    return;
+                }
+
+                CardInstance neighbour = hand[index];
+                if (neighbour == null || ReferenceEquals(neighbour, context.Card))
+                {
+                    return;
+                }
+
+                CardFaceSide side = m_UseFront ? CardFaceSide.Front : CardFaceSide.Back;
+                CardFace face = neighbour.Definition.GetFace(side);
+
+                var nested = new CardEffectContext
+                {
+                    State = context.State,
+                    Card = neighbour,
+                    Target = context.Target,
+                    Face = face,
+                };
+
+                CardEffects.ExecuteAll(nested);
+
+                // 用完让它翻面（描述里明确写了「会使它们翻面」）
+                context.State.RequestFlip(neighbour, BattleState.FlipSource.Effect);
+            }
+        }
+
+        /// <summary>本牌本回合保留，回合结束不进弃牌堆。</summary>
+        private sealed class RetainSelfEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                if (context.Card != null)
+                {
+                    context.Card.RetainedThisTurn = true;
+                }
+            }
+        }
+
+        /// <summary>把自己翻面（电光火石：瞬发结算后翻回正面）。</summary>
+        private sealed class FlipSelfEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                if (context.Card != null)
+                {
+                    context.State.RequestFlip(context.Card, BattleState.FlipSource.Keyword);
+                }
+            }
+        }
+
+        /// <summary>让玩家选一张手牌翻面。</summary>
+        private sealed class ChooseFlipEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                context.State.BeginChoice(ChoiceKind.FlipHandCard);
             }
         }
 

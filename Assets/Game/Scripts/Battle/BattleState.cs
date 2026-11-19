@@ -13,6 +13,9 @@ namespace TurnCard.Game.Battle
         }
 
         public CardDefinition Definition { get; }
+
+        /// <summary>本回合结束时不进弃牌堆（「保留」效果临时打上的标记）。</summary>
+        public bool RetainedThisTurn { get; set; }
         public CardFaceSide Side { get; private set; } = CardFaceSide.Front;
         public CardFace Face => Definition.GetFace(Side);
         public bool IsFront => Side == CardFaceSide.Front;
@@ -134,6 +137,15 @@ namespace TurnCard.Game.Battle
         }
     }
 
+    /// <summary>需要玩家做选择的类型。</summary>
+    public enum ChoiceKind
+    {
+        None,
+
+        /// <summary>选一张手牌翻面（条件反射）。</summary>
+        FlipHandCard,
+    }
+
     public enum PlayResult
     {
         Ok,
@@ -243,6 +255,17 @@ namespace TurnCard.Game.Battle
             }
         }
 
+        /// <summary>失去护甲，最多扣到 0（不会转为扣血）。</summary>
+        public void LosePlayerArmor(int amount)
+        {
+            if (amount <= 0)
+            {
+                return;
+            }
+
+            PlayerArmor = Math.Max(0, PlayerArmor - amount);
+        }
+
         /// <summary>手牌里指定类型的张数（用于「协同攻击」这类按张数结算的牌）。</summary>
         public int CountHandOfType(CardType type)
         {
@@ -313,6 +336,63 @@ namespace TurnCard.Game.Battle
         public IReadOnlyList<EnemyInstance> Enemies => m_Enemies;
 
         private int m_PlayerHp;
+
+        /// <summary>本回合已经结算过多少次「瞬发」（闪电破击这类牌要用）。</summary>
+        public int InstantCountThisTurn { get; private set; }
+
+        /// <summary>等待玩家选一张手牌（条件反射）。</summary>
+        public bool HasPendingChoice => PendingChoice != ChoiceKind.None;
+
+        public ChoiceKind PendingChoice { get; private set; }
+
+        /// <summary>进入「选一张手牌」状态。</summary>
+        public void BeginChoice(ChoiceKind kind)
+        {
+            PendingChoice = kind;
+        }
+
+        /// <summary>当前被选中的那张手牌（还没确认）。</summary>
+        public CardInstance SelectedForChoice { get; private set; }
+
+        /// <summary>选一张手牌（只记录，等确认）。</summary>
+        public bool SelectForChoice(CardInstance card)
+        {
+            if (PendingChoice == ChoiceKind.None || card == null)
+            {
+                return false;
+            }
+
+            SelectedForChoice = card;
+            return true;
+        }
+
+        /// <summary>确认选择，真正执行。</summary>
+        public bool ConfirmChoice()
+        {
+            if (PendingChoice == ChoiceKind.None || SelectedForChoice == null)
+            {
+                return false;
+            }
+
+            ChoiceKind kind = PendingChoice;
+            CardInstance card = SelectedForChoice;
+
+            PendingChoice = ChoiceKind.None;
+            SelectedForChoice = null;
+
+            if (kind == ChoiceKind.FlipHandCard)
+            {
+                RequestFlip(card, FlipSource.Effect);
+            }
+
+            return true;
+        }
+
+        public void ClearChoice()
+        {
+            PendingChoice = ChoiceKind.None;
+            SelectedForChoice = null;
+        }
 
         /// <summary>玩家身上的 buff。</summary>
         public BuffContainer PlayerBuffs { get; } = new BuffContainer();
@@ -589,6 +669,9 @@ namespace TurnCard.Game.Battle
             }
 
             IsPlayerTurn = true;
+            InstantCountThisTurn = 0;
+            PendingChoice = ChoiceKind.None;
+            SelectedForChoice = null;
             TurnNumber++;
             TurnStarted?.Invoke(TurnNumber);
             Energy = MaxEnergy;
@@ -629,7 +712,7 @@ namespace TurnCard.Game.Battle
             for (int i = m_Hand.Count - 1; i >= 0; i--)
             {
                 CardInstance card = m_Hand[i];
-                if (card.Face.HasKeyword(KeywordMechanics.Keep))
+                if (card.RetainedThisTurn || card.Face.HasKeyword(KeywordMechanics.Keep))
                 {
                     continue;
                 }
@@ -976,6 +1059,7 @@ namespace TurnCard.Game.Battle
             int repeat = InstantRepeat();
             EnemyInstance flipped = null;
 
+            InstantCountThisTurn++;
             m_InstantDepth++;
             try
             {

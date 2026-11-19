@@ -665,6 +665,19 @@ namespace TurnCard.Game.UI
         }
 
         /// <summary>抬起 / 放下：位置与轻微放大都用补间，手感比瞬移好。</summary>
+        /// <summary>
+        /// 选择态高亮：把这张牌抬到空中一点并放大，表示「当前选中的是它」。
+        /// 参考杀戮尖塔的选择界面。
+        /// </summary>
+        public void SetChoiceSelected(bool selected)
+        {
+            m_Rect.DOKill();
+            m_Rect.DOScale(m_BaseScale * (selected ? 1.12f : 1f), 0.12f).SetEase(Ease.OutQuad);
+
+            Vector2 target = selected ? m_HomePosition + new Vector2(0f, 56f) : m_HomePosition;
+            m_Rect.DOAnchorPos(target, 0.14f).SetEase(Ease.OutQuad);
+        }
+
         public void SetLifted(bool lifted)
         {
             DOTween.Kill(m_Rect, "lift");
