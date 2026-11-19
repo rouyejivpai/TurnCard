@@ -113,7 +113,7 @@ namespace TurnCard.Game.UI
             rect.anchoredPosition = new Vector2(index * (IconSize + Spacing), 0f);
 
             var image = go.GetComponent<Image>();
-            image.raycastTarget = false;
+            image.raycastTarget = true;   // 要能接收悬浮事件
             image.preserveAspect = true;
             image.sprite = LoadIcon(buff.Definition.Icon);
 
@@ -128,6 +128,9 @@ namespace TurnCard.Game.UI
                 Color.white, new Vector2(IconSize, 14f), new Vector2(1f, 0f), new Vector2(2f, -2f));
             label.alignment = TextAlignmentOptions.BottomRight;
             label.raycastTarget = false;
+
+            // 悬浮弹说明，复用关键词提示面板
+            BuffIconHover.Attach(go, rect, m_Container, buff.Definition.Id);
 
             m_Icons.Add(go);
         }

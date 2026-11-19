@@ -10,6 +10,19 @@ namespace TurnCard.Game.UI
     /// 关键词提示的容器：把若干 <see cref="KeywordTip"/> 竖直排在卡牌左侧。
     /// 卡片入场时立刻显示，移出即隐藏；右侧的「背面预览」仍然按原来的 0.8 秒逻辑走，两者并存。
     /// </summary>
+    /// <summary>一条提示内容（关键词、buff 都往里塞）。</summary>
+    public readonly struct TipEntry
+    {
+        public TipEntry(string title, string body)
+        {
+            Title = title;
+            Body = body;
+        }
+
+        public string Title { get; }
+        public string Body { get; }
+    }
+
     public sealed class KeywordTooltipPanel : MonoBehaviour
     {
         private const float Gap = 10f;
@@ -43,19 +56,39 @@ namespace TurnCard.Game.UI
         /// <summary>在卡牌左侧显示这些关键词；列表为空则隐藏。</summary>
         public void Show(RectTransform card, IReadOnlyList<KeywordDefinition> keywords)
         {
+            if (card == null || keywords == null || keywords.Count == 0)
+            {
+                Hide();
+                return;
+            }
+
+            var entries = new List<TipEntry>(keywords.Count);
+            foreach (KeywordDefinition keyword in keywords)
+            {
+                entries.Add(new TipEntry(keyword.Name, keyword.Description));
+            }
+
+            ShowEntries(card, entries);
+        }
+
+        /// <summary>
+        /// 显示任意一组提示条目（buff 图标悬浮等复用同一套外观与避让逻辑）。
+        /// </summary>
+        public void ShowEntries(RectTransform anchor, IReadOnlyList<TipEntry> entries)
+        {
             Hide();
 
-            if (card == null || keywords == null || keywords.Count == 0)
+            if (anchor == null || entries == null || entries.Count == 0)
             {
                 return;
             }
 
             float totalHeight = 0f;
-            for (int i = 0; i < keywords.Count; i++)
+            for (int i = 0; i < entries.Count; i++)
             {
                 KeywordTip tip = KeywordTip.Create(m_Rect);
                 tip.gameObject.SetActive(true);
-                totalHeight += tip.Apply(keywords[i].Name, keywords[i].Description);
+                totalHeight += tip.Apply(entries[i].Title, entries[i].Body);
                 if (i > 0)
                 {
                     totalHeight += Gap;
@@ -64,7 +97,7 @@ namespace TurnCard.Game.UI
                 m_Tips.Add(tip);
             }
 
-            Layout(card, totalHeight);
+            Layout(anchor, totalHeight);
 
             // 放到最上层，避免被手牌挡住
             m_Rect.SetAsLastSibling();
