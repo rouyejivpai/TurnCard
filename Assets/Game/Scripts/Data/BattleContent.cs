@@ -15,6 +15,7 @@ namespace TurnCard.Game.Data
         [SerializeField] private StarterDeckEntry[] m_StarterDeck = new StarterDeckEntry[0];
         [SerializeField] private EnemyIntentDefinition[] m_EnemyIntents = new EnemyIntentDefinition[0];
         [SerializeField] private EncounterEntry[] m_Encounters = new EncounterEntry[0];
+        [SerializeField] private BuffDefinition[] m_Buffs = new BuffDefinition[0];
 
         public CardDefinition[] Cards => m_Cards;
         public EnemyDefinition[] Enemies => m_Enemies;
@@ -22,10 +23,12 @@ namespace TurnCard.Game.Data
         public StarterDeckEntry[] StarterDeck => m_StarterDeck;
         public EnemyIntentDefinition[] EnemyIntents => m_EnemyIntents;
         public EncounterEntry[] Encounters => m_Encounters;
+        public BuffDefinition[] Buffs => m_Buffs;
 
         public void SetContent(CardDefinition[] cards, EnemyDefinition[] enemies,
             KeywordDefinition[] keywords, StarterDeckEntry[] starterDeck,
-            EnemyIntentDefinition[] enemyIntents, EncounterEntry[] encounters)
+            EnemyIntentDefinition[] enemyIntents, EncounterEntry[] encounters,
+            BuffDefinition[] buffs)
         {
             m_Cards = cards;
             m_Enemies = enemies;
@@ -33,6 +36,7 @@ namespace TurnCard.Game.Data
             m_StarterDeck = starterDeck;
             m_EnemyIntents = enemyIntents;
             m_Encounters = encounters;
+            m_Buffs = buffs;
         }
     }
 }

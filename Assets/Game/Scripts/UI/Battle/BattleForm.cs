@@ -264,6 +264,13 @@ namespace Window.BattleForm
             m_State = new BattleState();
             HookState(m_State);
 
+            // 玩家 buff 图标条：挂在状态文字下方，订阅容器事件自动刷新
+            if (txtStatus != null)
+            {
+                BuffIconStrip.Attach((RectTransform)txtStatus.transform, m_State.PlayerBuffs,
+                    new Vector2(0.5f, 0f), new Vector2(0.5f, 1f), new Vector2(0f, -6f));
+            }
+
             // 有全局进度时用牌组，没有（直接运行本场景调试）就用全部卡牌
             TurnCard.Game.Data.CardDefinition[] deck =
                 TurnCard.Game.Run.RunState.Current.ResolveDeck(m_Content);

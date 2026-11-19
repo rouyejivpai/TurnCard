@@ -68,3 +68,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: f4b8a7d16afaa8d499509917444879ca, type: 2}
   - {fileID: 11400000, guid: 1ebd71073e18f7244804b8791eb5e78d, type: 2}
   - {fileID: 11400000, guid: 37a95cb3e7b1c584baa483608fe1e172, type: 2}
+  m_Buffs:
+  - {fileID: 11400000, guid: 59b781b399de7814eaf6d257a1271597, type: 2}
+  - {fileID: 11400000, guid: b0f7c716d817e2c419b86120a0a39f79, type: 2}
+  - {fileID: 11400000, guid: bd878a4c2c76fd440a1c09ef3d591758, type: 2}
+  - {fileID: 11400000, guid: cbc79bb9b43d36d4aa1688a31c0d9d3f, type: 2}

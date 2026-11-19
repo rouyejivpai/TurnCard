@@ -111,6 +111,11 @@ namespace TurnCard.Game.UI
                 Color.white, new Vector2(152f, 18f), new Vector2(0.5f, 0.5f), Vector2.zero);
             m_HpText.raycastTarget = false;
 
+            // 敌人身上的 buff 图标条（血条下方）
+            BuffIconStrip.Attach(rect, enemy.Buffs,
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -halfHeight - 44f));
+
             m_ArmorText = UiFactory.CreateLabel(rect, "Armor", string.Empty, 18,
                 new Color(0.62f, 0.80f, 1f), new Vector2(120f, 24f),
                 new Vector2(0.5f, 0.5f), new Vector2(0f, -halfHeight - 40f));
@@ -180,8 +185,17 @@ namespace TurnCard.Game.UI
                     m_IntentText.color = new Color(0.66f, 0.84f, 1f);
                     break;
                 case EnemyIntentType.Buff:
-                    m_IntentText.text = "+" + intent.Value;
-                    m_IntentText.color = new Color(0.75f, 1f, 0.7f);
+                case EnemyIntentType.ApplyBuff:
+                    m_IntentText.text = (intent.Intent == EnemyIntentType.ApplyBuff &&
+                                         intent.BuffTarget == BuffTarget.Player ? "-" : "+") + intent.Value;
+                    m_IntentText.color = intent.Intent == EnemyIntentType.ApplyBuff &&
+                                         intent.BuffTarget == BuffTarget.Player
+                        ? new Color(1f, 0.72f, 0.86f)
+                        : new Color(0.75f, 1f, 0.7f);
+                    m_IntentIcon.sprite = intent.Intent == EnemyIntentType.ApplyBuff &&
+                                          intent.BuffTarget == BuffTarget.Player
+                        ? IntentSprite(EnemyIntentType.Debuff)
+                        : IntentSprite(EnemyIntentType.Buff);
                     break;
                 default:
                     m_IntentText.text = "-" + intent.Value;

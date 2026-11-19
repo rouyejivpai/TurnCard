@@ -50,8 +50,11 @@ namespace TurnCard.Game.Battle
         /// <summary>护甲，每回合开始清零。</summary>
         public int Armor { get; set; }
 
-        /// <summary>本场累积的攻击加成，翻面后保留。</summary>
-        public int AttackBonus { get; set; }
+        /// <summary>身上的 buff（加攻、易伤、护盾等）。</summary>
+        public BuffContainer Buffs { get; } = new BuffContainer();
+
+        /// <summary>攻击加成来自 buff（Strength 的 attack 修饰器）。</summary>
+        public int AttackBonus => (int)Buffs.Flat("attack");
 
         /// <summary>当前形态这一轮洗好的招式队列。</summary>
         private readonly List<Data.EnemyIntentDefinition> m_Intents =
@@ -310,8 +313,158 @@ namespace TurnCard.Game.Battle
         public IReadOnlyList<EnemyInstance> Enemies => m_Enemies;
 
         private int m_PlayerHp;
+
+        /// <summary>玩家身上的 buff。</summary>
+        public BuffContainer PlayerBuffs { get; } = new BuffContainer();
+
+        private BuffDefinition[] m_BuffPool;
+
+        /// <summary>按 id 找 buff 定义。</summary>
+        public BuffDefinition FindBuff(int id)
+        {
+            if (m_BuffPool == null)
+            {
+                BattleContent content = UnityEngine.Resources.Load<BattleContent>("BattleContent");
+                m_BuffPool = content != null ? content.Buffs : null;
+            }
+
+            if (m_BuffPool == null)
+            {
+                return null;
+            }
+
+            foreach (BuffDefinition buff in m_BuffPool)
+            {
+                if (buff != null && buff.Id == id)
+                {
+                    return buff;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>按内部名找 buff 定义（意图表里用名字更直观）。</summary>
+        public BuffDefinition FindBuffByName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return null;
+            }
+
+            if (m_BuffPool == null)
+            {
+                FindBuff(0);
+            }
+
+            if (m_BuffPool == null)
+            {
+                return null;
+            }
+
+            foreach (BuffDefinition buff in m_BuffPool)
+            {
+                if (buff != null && string.Equals(buff.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return buff;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>给玩家或敌人施加 buff（卡牌效果、意图、脚本都走这里）。</summary>
+        public void ApplyBuff(BuffContainer target, int buffId, int stacks, int turns)
+        {
+            BuffDefinition def = FindBuff(buffId);
+            if (def == null || target == null)
+            {
+                return;
+            }
+
+            target.Add(def, Math.Max(1, stacks), turns);
+        }
+
+        /// <summary>
+        /// 按某个 stat 的修饰器修正数值：先叠加 + / -，再乘以 * 系数。
+        /// <paramref name="consume"/> 为真时，参与结算的按次数消耗 buff 会掉一层。
+        /// </summary>
+        public static int ApplyBuffModifiers(int amount, string stat, BuffContainer source,
+            bool consume = false)
+        {
+            if (source == null || source.Buffs.Count == 0)
+            {
+                return amount;
+            }
+
+            float value = (amount + source.Flat(stat)) * source.Factor(stat);
+            int result = System.Math.Max(0, (int)System.Math.Round(value));
+
+            if (consume)
+            {
+                source.ConsumeByStat(stat);
+            }
+
+            return result;
+        }
+
+        /// <summary>第一个活着的敌人（触发型 buff 需要一个默认目标）。</summary>
+        public EnemyInstance FirstAliveEnemy()
+        {
+            foreach (EnemyInstance enemy in m_Enemies)
+            {
+                if (enemy != null && !enemy.IsDead)
+                {
+                    return enemy;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>跑某个容器上指定触发时机的 buff 效果。</summary>
+        private void RunTriggers(BuffContainer owner, Data.BuffTrigger trigger, EnemyInstance target)
+        {
+            if (owner == null)
+            {
+                return;
+            }
+
+            foreach (BuffInstance buff in owner.WithTrigger(trigger))
+            {
+                string spec = buff.Definition.TriggerEffect;
+                if (string.IsNullOrWhiteSpace(spec))
+                {
+                    continue;
+                }
+
+                var context = new CardEffectContext
+                {
+                    State = this,
+                    Card = null,
+                    Target = target,
+                    Face = new CardFace(buff.Definition.DisplayName, 0, CardType.Skill, 0, 0,
+                        buff.Definition.Description, spec, null, null),
+                };
+
+                m_DeferDamage = true;
+                try
+                {
+                    CardEffects.ExecuteAll(context);
+                }
+                finally
+                {
+                    m_DeferDamage = false;
+                }
+
+                if (buff.Definition.Consume == Data.BuffConsume.Count)
+                {
+                    owner.Consume(buff);
+                }
+            }
+        }
+
         private int m_PlayerArmor;
-        private int m_PlayerVulnerable;
         private int m_Energy;
 
         public int PlayerHp
@@ -325,12 +478,6 @@ namespace TurnCard.Game.Battle
             }
         }
 
-        /// <summary>易伤：玩家下次受到伤害时额外增加的点数，触发一次后清零。</summary>
-        public int PlayerVulnerable
-        {
-            get => m_PlayerVulnerable;
-            set => m_PlayerVulnerable = System.Math.Max(0, value);
-        }
 
         public int PlayerArmor
         {
@@ -424,6 +571,14 @@ namespace TurnCard.Game.Battle
             IsDefeat = false;
             IsPlayerTurn = false;
             TurnEnded?.Invoke();
+
+            RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnEnd, FirstAliveEnemy());
+            PlayerBuffs.TickTurn();
+            foreach (EnemyInstance e in m_Enemies)
+            {
+                RunTriggers(e.Buffs, Data.BuffTrigger.TurnEnd, FirstAliveEnemy());
+                e.Buffs.TickTurn();
+            }
         }
 
         public void StartPlayerTurn()
@@ -438,6 +593,9 @@ namespace TurnCard.Game.Battle
             TurnStarted?.Invoke(TurnNumber);
             Energy = MaxEnergy;
             PlayerArmor = 0; // 护甲每回合开始清零（Q6）
+
+            // buff：回合开始触发，然后扣掉按回合消耗的层数
+            RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnStart, FirstAliveEnemy());
 
             // 敌人护甲同样每回合清零
             foreach (EnemyInstance enemy in m_Enemies)
@@ -508,11 +666,11 @@ namespace TurnCard.Game.Battle
                 {
                     case Data.EnemyIntentType.Attack:
                     {
-                        int perHit = intent.Value + enemy.AttackBonus;
+                        int perHit = ApplyBuffModifiers(intent.Value + enemy.AttackBonus,
+                            "damage_dealt", enemy.Buffs);
                         for (int hit = 0; hit < intent.Hits; hit++)
                         {
-                            int raw = perHit + PlayerVulnerable;
-                            PlayerVulnerable = 0;
+                            int raw = ApplyBuffModifiers(perHit, "damage_taken", PlayerBuffs, true);
                             int absorbed = Math.Min(PlayerArmor, raw);
                             PlayerArmor -= absorbed;
                             int toHp = raw - absorbed;
@@ -535,15 +693,45 @@ namespace TurnCard.Game.Battle
                         log.Add($"{enemy.Form.DisplayName} 获得 {intent.Value} 点护甲");
                         break;
 
+                    case Data.EnemyIntentType.ApplyBuff:
+                    {
+                        BuffDefinition buff = FindBuff(intent.BuffId);
+                        if (buff == null)
+                        {
+                            log.Add($"{enemy.Form.DisplayName} 施加了未知 buff {intent.BuffId}");
+                            break;
+                        }
+
+                        bool onSelf = intent.BuffTarget == BuffTarget.Self;
+                        BuffContainer target = onSelf ? enemy.Buffs : PlayerBuffs;
+                        target.Add(buff, Math.Max(1, intent.Value), intent.Turns);
+                        log.Add($"{enemy.Form.DisplayName} {(onSelf ? "获得" : "施加")} {buff.DisplayName} x{Math.Max(1, intent.Value)}");
+                        break;
+                    }
+
                     case Data.EnemyIntentType.Buff:
-                        enemy.AttackBonus += intent.Value;
+                    {
+                        BuffDefinition strength = FindBuffByName("Strength");
+                        if (strength != null)
+                        {
+                            enemy.Buffs.Add(strength, Math.Max(1, intent.Value), -1);
+                        }
+
                         log.Add($"{enemy.Form.DisplayName} 攻击 +{intent.Value}");
                         break;
+                    }
 
                     case Data.EnemyIntentType.Debuff:
-                        PlayerVulnerable += intent.Value;
+                    {
+                        BuffDefinition vuln = FindBuffByName("Vulnerable");
+                        if (vuln != null)
+                        {
+                            PlayerBuffs.Add(vuln, Math.Max(1, intent.Value), -1);
+                        }
+
                         log.Add($"{enemy.Form.DisplayName} 使你易伤 +{intent.Value}");
                         break;
+                    }
                 }
 
                 // 招式用掉，轮到队列里的下一个
@@ -653,6 +841,7 @@ namespace TurnCard.Game.Battle
             m_DeferDamage = true;
             try
             {
+                RunTriggers(PlayerBuffs, Data.BuffTrigger.CardPlayed, target);
                 CardEffects.ExecuteAll(context);
                 flippedEnemy = context.FlippedEnemy;
 
@@ -706,6 +895,7 @@ namespace TurnCard.Game.Battle
                 return;
             }
 
+            RunTriggers(PlayerBuffs, Data.BuffTrigger.Flip, FirstAliveEnemy());
             InstantTriggered?.Invoke(card);
             EnemyInstance flipped = TriggerInstant(card, m_PlayTarget);
             if (flipped != null)
@@ -850,6 +1040,14 @@ namespace TurnCard.Game.Battle
                 return false;
             }
 
+            // 先过 buff：出牌方的伤害加成，以及挨打方的减伤/易伤
+            amount = ApplyBuffModifiers(amount, "damage_dealt", PlayerBuffs);
+            amount = ApplyBuffModifiers(amount, "damage_taken", enemy.Buffs, true);
+            if (amount <= 0)
+            {
+                return false;
+            }
+
             LastDamageDealt += amount;
             LastDamagedEnemy = enemy;
             m_LastDamages.Add(new DamageRecord(enemy, amount));
@@ -872,6 +1070,8 @@ namespace TurnCard.Game.Battle
 
             if (enemy.IsDead)
             {
+                enemy.Buffs.Clear();
+                RunTriggers(PlayerBuffs, Data.BuffTrigger.Death, enemy);
                 EnemyDied?.Invoke(enemy);
                 CheckBattleEnd();
             }
@@ -906,6 +1106,8 @@ namespace TurnCard.Game.Battle
 
                 if (hit.Enemy.IsDead)
                 {
+                    hit.Enemy.Buffs.Clear();
+                    RunTriggers(PlayerBuffs, Data.BuffTrigger.Death, hit.Enemy);
                     EnemyDied?.Invoke(hit.Enemy);
                 }
             }

@@ -24,6 +24,16 @@ namespace TurnCard.Game.Data
 
         /// <summary>让玩家易伤：下次受到的伤害增加。</summary>
         Debuff,
+
+        /// <summary>施加任意 buff（表里用 buffId 指定），目标由 buffTarget 决定。</summary>
+        ApplyBuff,
+    }
+
+    /// <summary>buff 施加给谁。</summary>
+    public enum BuffTarget
+    {
+        Player,
+        Self,
     }
 
     /// <summary>
@@ -47,6 +57,15 @@ namespace TurnCard.Game.Data
         [Tooltip("攻击段数，仅攻击意图使用")]
         [SerializeField] private int m_Hits = 1;
 
+        [Tooltip("施加的 buff id，仅 ApplyBuff 意图使用")]
+        [SerializeField] private int m_BuffId;
+
+        [Tooltip("buff 施加给玩家还是自己")]
+        [SerializeField] private BuffTarget m_BuffTarget = BuffTarget.Player;
+
+        [Tooltip("buff 持续回合数，-1 表示用 buff 自己的默认（永久/按次数）")]
+        [SerializeField] private int m_Turns = -1;
+
         public int EnemyId => m_EnemyId;
         public CardFaceSide Form => string.Equals(m_Form, "back", System.StringComparison.OrdinalIgnoreCase)
             ? CardFaceSide.Back
@@ -54,5 +73,8 @@ namespace TurnCard.Game.Data
         public EnemyIntentType Intent => m_Intent;
         public int Value => m_Value;
         public int Hits => Mathf.Max(1, m_Hits);
+        public int BuffId => m_BuffId;
+        public BuffTarget BuffTarget => m_BuffTarget;
+        public int Turns => m_Turns;
     }
 }

@@ -66,6 +66,7 @@ namespace TurnCard.Game.Battle
                 { "flip_right_discard_left", new FlipRightDiscardLeftEffect() },
                 { "damage_per_attack", new DamagePerAttackCardsEffect() },
                 { "armor_per_skill", new ArmorPerSkillCardsEffect() },
+                { "buff", new BuffEffect() },
             };
 
         private static Dictionary<string, ICardEffect> s_Specials;
@@ -473,6 +474,39 @@ namespace TurnCard.Game.Battle
                 int count = context.State.CountHandOfType(CardType.Skill);
                 int total = per * Math.Max(1, count);
                 Builtins["armor"].Apply(context, new[] { total.ToString() });
+            }
+        }
+
+        /// <summary>
+        /// 施加 buff：<c>buff:&lt;id&gt;,&lt;层数&gt;,&lt;回合&gt;,&lt;player|enemy&gt;</c>
+        /// 不给目标时默认给对方（敌人），让卡牌能给敌人挂易伤/虚弱。
+        /// </summary>
+        private sealed class BuffEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int id = Arg(args, 0, 0);
+                if (id <= 0)
+                {
+                    return;
+                }
+
+                int stacks = Arg(args, 1, 1);
+                int turns = args.Length > 2 && int.TryParse(args[2], out int parsedTurns)
+                    ? parsedTurns
+                    : -1;
+                string target = args.Length > 3 ? args[3].Trim() : "enemy";
+
+                if (string.Equals(target, "player", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    context.State.ApplyBuff(context.State.PlayerBuffs, id, stacks, turns);
+                    return;
+                }
+
+                if (context.Target != null)
+                {
+                    context.State.ApplyBuff(context.Target.Buffs, id, stacks, turns);
+                }
             }
         }
 

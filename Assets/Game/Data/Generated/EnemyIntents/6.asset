@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_EnemyId: 1
   m_Form: back
-  m_Intent: 3
+  m_Intent: 4
   m_Value: 2
   m_Hits: 1
+  m_BuffId: 1
+  m_BuffTarget: 0
+  m_Turns: -1

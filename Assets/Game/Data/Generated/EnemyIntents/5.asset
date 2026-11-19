@@ -17,3 +17,6 @@ MonoBehaviour:
   m_Intent: 0
   m_Value: 5
   m_Hits: 2
+  m_BuffId: 0
+  m_BuffTarget: 0
+  m_Turns: 0

@@ -51,6 +51,7 @@ namespace TurnCard.EditorTools
             new TableSpec("StarterDeck", typeof(StarterDeckEntry), "StarterDeck"),
             new TableSpec("EnemyIntents", typeof(EnemyIntentDefinition), "EnemyIntents"),
             new TableSpec("Encounters", typeof(EncounterEntry), "Encounters"),
+            new TableSpec("Buffs", typeof(BuffDefinition), "Buffs"),
         };
 
         [MenuItem(MenuRoot + "生成 SO", priority = 100)]
@@ -486,7 +487,8 @@ namespace TurnCard.EditorTools
                 LoadAll<KeywordDefinition>(GeneratedRoot + "/Keywords"),
                 LoadAll<StarterDeckEntry>(GeneratedRoot + "/StarterDeck"),
                 LoadAll<EnemyIntentDefinition>(GeneratedRoot + "/EnemyIntents"),
-                LoadAll<EncounterEntry>(GeneratedRoot + "/Encounters"));
+                LoadAll<EncounterEntry>(GeneratedRoot + "/Encounters"),
+                LoadAll<BuffDefinition>(GeneratedRoot + "/Buffs"));
             EditorUtility.SetDirty(content);
         }
 
