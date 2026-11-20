@@ -488,6 +488,65 @@ namespace TurnCard.Game.Battle
             return result;
         }
 
+        /// <summary>
+        /// 随机挑一个活着的敌人。
+        /// 设计规则：任何「自动使用/间接释放」的卡牌，若它需要目标，
+        /// 一律随机选一个敌人，而不是让目标为空导致效果静默不生效。
+        /// </summary>
+        public EnemyInstance PickRandomAliveEnemy()
+        {
+            int alive = 0;
+            foreach (EnemyInstance enemy in m_Enemies)
+            {
+                if (enemy != null && !enemy.IsDead)
+                {
+                    alive++;
+                }
+            }
+
+            if (alive == 0)
+            {
+                return null;
+            }
+
+            int pick = UnityEngine.Random.Range(0, alive);
+            foreach (EnemyInstance enemy in m_Enemies)
+            {
+                if (enemy == null || enemy.IsDead)
+                {
+                    continue;
+                }
+
+                if (pick == 0)
+                {
+                    return enemy;
+                }
+
+                pick--;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 自动使用时决定目标：优先用已有目标，失效或没有就随机一个。
+        /// 只对「需要目标」的面做这个处理，不需要目标的保持原样。
+        /// </summary>
+        public EnemyInstance ResolveAutoTarget(CardFace face, EnemyInstance preferred)
+        {
+            if (!face.NeedsTarget)
+            {
+                return preferred;
+            }
+
+            if (preferred != null && !preferred.IsDead)
+            {
+                return preferred;
+            }
+
+            return PickRandomAliveEnemy();
+        }
+
         /// <summary>第一个活着的敌人（触发型 buff 需要一个默认目标）。</summary>
         public EnemyInstance FirstAliveEnemy()
         {
@@ -652,11 +711,11 @@ namespace TurnCard.Game.Battle
             IsPlayerTurn = false;
             TurnEnded?.Invoke();
 
-            RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnEnd, FirstAliveEnemy());
+            RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnEnd, PickRandomAliveEnemy());
             PlayerBuffs.TickTurn();
             foreach (EnemyInstance e in m_Enemies)
             {
-                RunTriggers(e.Buffs, Data.BuffTrigger.TurnEnd, FirstAliveEnemy());
+                RunTriggers(e.Buffs, Data.BuffTrigger.TurnEnd, PickRandomAliveEnemy());
                 e.Buffs.TickTurn();
             }
         }
@@ -678,7 +737,7 @@ namespace TurnCard.Game.Battle
             PlayerArmor = 0; // 护甲每回合开始清零（Q6）
 
             // buff：回合开始触发，然后扣掉按回合消耗的层数
-            RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnStart, FirstAliveEnemy());
+            RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnStart, PickRandomAliveEnemy());
 
             // 敌人护甲同样每回合清零
             foreach (EnemyInstance enemy in m_Enemies)
@@ -978,7 +1037,7 @@ namespace TurnCard.Game.Battle
                 return;
             }
 
-            RunTriggers(PlayerBuffs, Data.BuffTrigger.Flip, FirstAliveEnemy());
+            RunTriggers(PlayerBuffs, Data.BuffTrigger.Flip, PickRandomAliveEnemy());
             InstantTriggered?.Invoke(card);
             EnemyInstance flipped = TriggerInstant(card, m_PlayTarget);
             if (flipped != null)

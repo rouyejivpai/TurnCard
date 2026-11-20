@@ -284,9 +284,16 @@ namespace TurnCard.Game.Battle
                     return;
                 }
 
-                if (context.Target != null && context.State.DamageEnemy(context.Target, amount))
+                // 没有目标（自动使用场景）就随机挑一个，避免效果静默不生效
+                EnemyInstance target = context.Target;
+                if (target == null || target.IsDead)
                 {
-                    context.FlippedEnemy = context.Target;
+                    target = PickRandomAlive(context.State);
+                }
+
+                if (target != null && context.State.DamageEnemy(target, amount))
+                {
+                    context.FlippedEnemy = target;
                 }
             }
 
@@ -581,11 +588,12 @@ namespace TurnCard.Game.Battle
                 CardFaceSide side = m_UseFront ? CardFaceSide.Front : CardFaceSide.Back;
                 CardFace face = neighbour.Definition.GetFace(side);
 
+                // 被自动使用的牌如果需要目标，就随机选一个敌人（设计规则）
                 var nested = new CardEffectContext
                 {
                     State = context.State,
                     Card = neighbour,
-                    Target = context.Target,
+                    Target = context.State.ResolveAutoTarget(face, context.Target),
                     Face = face,
                 };
 

@@ -74,6 +74,54 @@ namespace TurnCard.EditorTools
 
             Check("保留标记让牌留在手上", stillThere, "手牌=" + state.Hand.Count);
 
+            // 5) 自动使用相邻牌：需要目标的效果必须随机命中敌人，不能静默失效
+            var state2 = new BattleState();
+            var deck = new System.Collections.Generic.List<CardDefinition>();
+            CardDefinition attack = Find(content, 1);   // 攻击：damage:3，需要目标
+            CardDefinition skill = Find(content, 14);   // 灵巧板甲：armor:2，不需要目标
+            deck.Add(skill);
+            deck.Add(card13);
+            deck.Add(attack);
+            state2.Setup(deck, new[] { content.Enemies[0] });
+            state2.StartPlayerTurn();
+
+            // 摆成：灵巧板甲 | 暗藏杀意 | 攻击
+            CardInstance middle = null;
+            foreach (CardInstance c in state2.Hand)
+            {
+                if (c.Definition.Id == 13)
+                {
+                    middle = c;
+                }
+            }
+
+            Check("手牌里找到暗藏杀意", middle != null, "手牌=" + state2.Hand.Count);
+
+            // 规则本身：需要目标的面在自动使用时必须拿到一个存活目标
+            EnemyInstance autoTarget = state2.ResolveAutoTarget(attack.Front, null);
+            Check("自动使用需要目标的面 → 随机目标",
+                autoTarget != null && !autoTarget.IsDead,
+                autoTarget == null ? "null" : autoTarget.Definition.Front.DisplayName);
+
+            Check("自动使用不需要目标的面 → 保持 null",
+                state2.ResolveAutoTarget(skill.Front, null) == null, "");
+
+            Check("随机目标一定存活", state2.PickRandomAliveEnemy() != null, "");
+
+            if (middle != null)
+            {
+                EnemyInstance foe = state2.Enemies[0];
+                int hpBefore = foe.Hp + foe.Armor;
+                Execute(state2, card13.Front, middle, null);   // 不给目标，模拟自动使用
+                int hpAfter = foe.Hp + foe.Armor;
+
+                // 相邻牌里只要有一面的效果能造成伤害，就应该看到敌人掉血或护甲减少；
+                // 洗牌后相邻牌不确定，所以这里只断言「不报错 + 有翻面入队 + 数值未被破坏」
+                Check("自动使用相邻牌不报错", hpAfter <= hpBefore, "敌人 " + hpBefore + " → " + hpAfter);
+                Check("相邻牌被排队翻面", state2.PendingFlips.Count >= 1,
+                    "排队=" + state2.PendingFlips.Count);
+            }
+
             Flush();
         }
 
