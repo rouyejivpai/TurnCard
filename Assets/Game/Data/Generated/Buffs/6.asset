@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b95ecc669196734498f45e6b7d56ede, type: 3}
+  m_Name: 6
+  m_EditorClassIdentifier: 
+  m_Id: 6
+  m_Name: 
+  m_DisplayName: "\u6655\u7729"
+  m_Description: "\u8DF3\u8FC7\u4E0B\u4E00\u6B21\u884C\u52A8"
+  m_Icon: buff_stun
+  m_StackRule: 1
+  m_Consume: 0
+  m_MaxStacks: 1
+  m_Modifier: 
+  m_Trigger: 0
+  m_TriggerAction: 0
+  m_TriggerCount: 0
+  m_RuleBlock: 
+  m_TriggerEffect: 

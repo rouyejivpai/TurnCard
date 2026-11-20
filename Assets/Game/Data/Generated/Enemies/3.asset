@@ -13,12 +13,19 @@ MonoBehaviour:
   m_Name: 3
   m_EditorClassIdentifier: 
   m_Id: 3
-  m_Pool: 2
-  m_FrontName: "\u706B\u70AE\u5DE8\u50CF"
-  m_FrontHp: 70
+  m_Pool: 1
+  m_FlipHpMode: 1
+  m_FlipHpRatio: 1
+  m_IntentMode: 0
+  m_FrontBuffs: 
+  m_BackBuffs: 
+  m_FrontArmor: 0
+  m_BackArmor: 0
+  m_FrontName: "\u4E9A\u54C8"
+  m_FrontHp: 40
   m_FrontAttack: 0
-  m_FrontDescription: "\u7F13\u6162\u4F46\u81F4\u547D\u7684\u91CD\u70AE\u3002"
-  m_BackName: "\u70BC\u72F1\u70AE\u53F0"
+  m_FrontDescription: "\u8FDE\u51FB\u5E76\u79EF\u7D2F\u529B\u91CF\u3002"
+  m_BackName: "\u767D\u9CB8"
   m_BackHp: 60
   m_BackAttack: 0
-  m_BackDescription: "\u503E\u6CFB\u5168\u90E8\u706B\u529B\u3002"
+  m_BackDescription: "\u9AD8\u4F24\u5BB3\u8FDE\u51FB\u3002"

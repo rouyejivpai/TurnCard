@@ -50,8 +50,44 @@ namespace TurnCard.Game.Battle
         public int Hp { get; private set; }
         public bool IsDead { get; private set; }
 
-        /// <summary>护甲，每回合开始清零。</summary>
+        /// <summary>护甲，每回合开始清零（壁垒 buff 可以拦住这次清零）。</summary>
         public int Armor { get; set; }
+
+        /// <summary>晕眩：本回合跳过行动。</summary>
+        public bool Stunned { get; set; }
+
+        /// <summary>本回合有没有对玩家造成过伤害（「未造成伤害」类特性用）。</summary>
+        public bool DealtDamageThisTurn { get; set; }
+
+        /// <summary>按配置的策略算出翻面后的血量。</summary>
+        private int ResolveFlipHp(int current)
+        {
+            switch (Definition.FlipHpMode)
+            {
+                case EnemyFlipHpMode.Own:
+                    return Form.MaxHp;
+
+                case EnemyFlipHpMode.Inherit:
+                    return Math.Max(1, current);
+
+                default:
+                    return Math.Max(1, (int)Math.Round(Form.MaxHp * Definition.FlipHpRatio));
+            }
+        }
+
+        /// <summary>强制翻面（由 buff 触发，不经过血量归零）。</summary>
+        public bool ForceFlip()
+        {
+            if (IsDead || Side == CardFaceSide.Back)
+            {
+                return false;
+            }
+
+            int current = Hp;
+            Side = CardFaceSide.Back;
+            Hp = ResolveFlipHp(current);
+            return true;
+        }
 
         /// <summary>身上的 buff（加攻、易伤、护盾等）。</summary>
         public BuffContainer Buffs { get; } = new BuffContainer();
@@ -76,6 +112,16 @@ namespace TurnCard.Game.Battle
             if (pool != null)
             {
                 m_Intents.AddRange(pool);
+            }
+
+            // 先按表里的行 id 排好，保证顺序模式的节奏稳定
+            m_Intents.Sort((a, b) => a.Id.CompareTo(b.Id));
+
+            bool sequence = Definition != null &&
+                            Definition.IntentMode == Data.EnemyIntentMode.Sequence;
+            if (sequence)
+            {
+                return;
             }
 
             // Fisher-Yates 洗牌
@@ -125,9 +171,10 @@ namespace TurnCard.Game.Battle
 
             if (Side == CardFaceSide.Front)
             {
-                // 第一形态归零：当场翻面，第二形态满血重开（Q3、Q22）
+                // 第一形态被打空：按配置的翻面血量策略进入第二形态
+                int before = Hp;
                 Side = CardFaceSide.Back;
-                Hp = Form.MaxHp;
+                Hp = ResolveFlipHp(before);
                 return true;
             }
 
@@ -658,7 +705,8 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>跑某个容器上指定触发时机的 buff 效果。</summary>
-        private void RunTriggers(BuffContainer owner, Data.BuffTrigger trigger, EnemyInstance target)
+        private void RunTriggers(BuffContainer owner, Data.BuffTrigger trigger, EnemyInstance target,
+            EnemyInstance enemyOwner = null, CardInstance self = null)
         {
             if (owner == null)
             {
@@ -667,29 +715,59 @@ namespace TurnCard.Game.Battle
 
             foreach (BuffInstance buff in owner.WithTrigger(trigger))
             {
-                string spec = buff.Definition.TriggerEffect;
-                if (string.IsNullOrWhiteSpace(spec))
+                // 有阈值就累计，没到就等下回
+                if (!owner.TickCounter(buff))
                 {
                     continue;
                 }
 
-                var context = new CardEffectContext
-                {
-                    State = this,
-                    Card = null,
-                    Target = target,
-                    Face = new CardFace(buff.Definition.DisplayName, 0, CardType.Skill, 0, 0,
-                        buff.Definition.Description, spec, null, null),
-                };
+                owner.ResetCounter(buff);
 
-                m_DeferDamage = true;
-                try
+                switch (buff.Definition.TriggerAction)
                 {
-                    CardEffects.ExecuteAll(context);
+                    case Data.BuffTriggerAction.FlipSelf:
+                        if (enemyOwner != null)
+                        {
+                            FlipEnemy(enemyOwner);
+                        }
+                        else if (self != null)
+                        {
+                            RequestFlip(self, FlipSource.Effect);
+                        }
+
+                        break;
+
+                    case Data.BuffTriggerAction.Stun:
+                        if (enemyOwner != null)
+                        {
+                            enemyOwner.Stunned = true;
+                        }
+
+                        break;
                 }
-                finally
+
+                string spec = buff.Definition.TriggerEffect;
+                if (!string.IsNullOrWhiteSpace(spec))
                 {
-                    m_DeferDamage = false;
+                    var context = new CardEffectContext
+                    {
+                        State = this,
+                        Card = null,
+                        Target = target,
+                        SelfEnemy = enemyOwner,
+                        Face = new CardFace(buff.Definition.DisplayName, 0, CardType.Skill, 0, 0,
+                            buff.Definition.Description, spec, null, null),
+                    };
+
+                    m_DeferDamage = true;
+                    try
+                    {
+                        CardEffects.ExecuteAll(context);
+                    }
+                    finally
+                    {
+                        m_DeferDamage = false;
+                    }
                 }
 
                 if (buff.Definition.Consume == Data.BuffConsume.Count)
@@ -794,6 +872,8 @@ namespace TurnCard.Game.Battle
             foreach (EnemyDefinition enemy in enemies)
             {
                 var instance = new EnemyInstance(enemy);
+                instance.Armor = enemy.FrontArmor;
+                ApplyFormBuffs(instance);            // 怪物特性 = 初始 buff
                 instance.RefillIntents(IntentsFor(instance));
                 m_Enemies.Add(instance);
             }
@@ -809,6 +889,17 @@ namespace TurnCard.Game.Battle
 
             RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnEnd, PickRandomAliveEnemy());
             PlayerBuffs.TickTurn();
+
+            // 「若攻击未对玩家造成伤害」这类特性：在敌人回合结束后判定
+            foreach (EnemyInstance enemy in m_Enemies)
+            {
+                if (enemy == null || enemy.IsDead || enemy.DealtDamageThisTurn)
+                {
+                    continue;
+                }
+
+                RunTriggers(enemy.Buffs, Data.BuffTrigger.NoDamageDealt, null, enemy);
+            }
             foreach (EnemyInstance e in m_Enemies)
             {
                 RunTriggers(e.Buffs, Data.BuffTrigger.TurnEnd, PickRandomAliveEnemy());
@@ -830,7 +921,11 @@ namespace TurnCard.Game.Battle
             TurnNumber++;
             TurnStarted?.Invoke(TurnNumber);
             Energy = MaxEnergy;
-            PlayerArmor = 0; // 护甲每回合开始清零（Q6）
+            // 护甲清零是一条可被 buff 拦住的规则（壁垒 buff 就是拦它）
+            if (!PlayerBuffs.BlocksRule("armor_clear"))
+            {
+                PlayerArmor = 0;
+            }
 
             // buff：回合开始触发，然后扣掉按回合消耗的层数
             RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnStart, PickRandomAliveEnemy());
@@ -843,7 +938,11 @@ namespace TurnCard.Game.Battle
                     continue;
                 }
 
-                enemy.Armor = 0;
+                if (!enemy.Buffs.BlocksRule("armor_clear"))
+                {
+                    enemy.Armor = 0;
+                }
+
                 if (enemy.CurrentIntent == null)
                 {
                     enemy.RefillIntents(IntentsFor(enemy));
@@ -894,6 +993,15 @@ namespace TurnCard.Game.Battle
                     continue;
                 }
 
+                enemy.DealtDamageThisTurn = false;
+
+                if (enemy.Stunned)
+                {
+                    enemy.Stunned = false;
+                    log.Add($"{enemy.Form.DisplayName} 被晕眩，本回合不行动");
+                    continue;
+                }
+
                 Data.EnemyIntentDefinition intent = enemy.CurrentIntent;
                 if (intent == null)
                 {
@@ -906,6 +1014,7 @@ namespace TurnCard.Game.Battle
                     {
                         int perHit = ApplyBuffModifiers(intent.Value + enemy.AttackBonus,
                             "damage_dealt", enemy.Buffs);
+                        int hpBefore = PlayerHp;
                         for (int hit = 0; hit < intent.Hits; hit++)
                         {
                             int raw = ApplyBuffModifiers(perHit, "damage_taken", PlayerBuffs, true);
@@ -923,8 +1032,19 @@ namespace TurnCard.Game.Battle
                             }
                         }
 
+                        enemy.DealtDamageThisTurn = PlayerHp < hpBefore;
                         break;
                     }
+
+                    case Data.EnemyIntentType.Stun:
+                        enemy.Stunned = true;
+                        log.Add($"{enemy.Form.DisplayName} 准备晕眩");
+                        break;
+
+                    case Data.EnemyIntentType.FlipSelf:
+                        FlipEnemy(enemy);
+                        log.Add($"{enemy.Form.DisplayName} 翻面");
+                        break;
 
                     case Data.EnemyIntentType.Defend:
                         enemy.Armor += intent.Value;
@@ -987,6 +1107,94 @@ namespace TurnCard.Game.Battle
             }
 
             return log;
+        }
+
+        /// <summary>
+        /// 敌人受到一次伤害之后：跑「受击」触发，并检查护甲是否被打空。
+        /// 反应型特性（累计受击 N 次翻面、护甲归零翻面）都挂在这里。
+        /// </summary>
+        private void OnEnemyDamaged(EnemyInstance enemy)
+        {
+            if (enemy == null)
+            {
+                return;
+            }
+
+            bool armorWas = enemy.Armor > 0;
+            RunTriggers(enemy.Buffs, Data.BuffTrigger.Damaged, null, enemy);
+
+            if (armorWas && enemy.Armor <= 0)
+            {
+                RunTriggers(enemy.Buffs, Data.BuffTrigger.ArmorBroken, null, enemy);
+            }
+        }
+
+        /// <summary>
+        /// 敌人翻面后的统一处理：正反 buff 不共享（清空后加载新面初始 buff），
+        /// 重新洗/排意图，最后发事件给表现层。
+        /// </summary>
+        private void OnEnemyFlipped(EnemyInstance enemy)
+        {
+            if (enemy == null)
+            {
+                return;
+            }
+
+            enemy.Buffs.Clear();
+            ApplyFormBuffs(enemy);
+            enemy.RefillIntents(IntentsFor(enemy));
+            EnemyFlipped?.Invoke(enemy);
+        }
+
+        /// <summary>由 buff（如「累计受击 3 次翻面」）触发的强制翻面。</summary>
+        public bool FlipEnemy(EnemyInstance enemy)
+        {
+            if (enemy == null || enemy.IsDead)
+            {
+                return false;
+            }
+
+            if (!enemy.ForceFlip())
+            {
+                return false;
+            }
+
+            OnEnemyFlipped(enemy);
+            return true;
+        }
+
+        /// <summary>按当前形态挂上初始 buff（怪物特性都走这里）。</summary>
+        private void ApplyFormBuffs(EnemyInstance enemy)
+        {
+            string spec = enemy.Side == CardFaceSide.Front
+                ? enemy.Definition.FrontBuffs
+                : enemy.Definition.BackBuffs;
+
+            if (string.IsNullOrWhiteSpace(spec))
+            {
+                return;
+            }
+
+            // 写法：buffId:层数:回合，多条用分号
+            foreach (string token in spec.Split(';'))
+            {
+                string entry = token.Trim();
+                if (entry.Length == 0)
+                {
+                    continue;
+                }
+
+                string[] parts = entry.Split(':');
+                if (!int.TryParse(parts[0].Trim(), out int buffId))
+                {
+                    UnityEngine.Debug.LogWarning("[敌人] 初始 buff 写法不对：" + entry);
+                    continue;
+                }
+
+                int stacks = parts.Length > 1 && int.TryParse(parts[1].Trim(), out int s) ? s : 1;
+                int turns = parts.Length > 2 && int.TryParse(parts[2].Trim(), out int tr) ? tr : -1;
+                ApplyBuff(enemy.Buffs, buffId, stacks, turns);
+            }
         }
 
         /// <summary>取某个敌人当前形态的招式池。</summary>
@@ -1302,10 +1510,10 @@ namespace TurnCard.Game.Battle
 
             if (flipped)
             {
-                // 翻面 = 换一套行为：重新洗当前形态的招式池
-                enemy.RefillIntents(IntentsFor(enemy));
-                EnemyFlipped?.Invoke(enemy);
+                OnEnemyFlipped(enemy);
             }
+
+            OnEnemyDamaged(enemy);
 
             if (enemy.IsDead)
             {
@@ -1339,9 +1547,10 @@ namespace TurnCard.Game.Battle
 
                 if (flipped)
                 {
-                    hit.Enemy.RefillIntents(IntentsFor(hit.Enemy));
-                    EnemyFlipped?.Invoke(hit.Enemy);
+                    OnEnemyFlipped(hit.Enemy);
                 }
+
+                OnEnemyDamaged(hit.Enemy);
 
                 if (hit.Enemy.IsDead)
                 {

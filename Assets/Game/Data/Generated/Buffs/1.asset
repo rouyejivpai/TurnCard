@@ -22,4 +22,7 @@ MonoBehaviour:
   m_MaxStacks: 99
   m_Modifier: damage_taken:+3
   m_Trigger: 0
+  m_TriggerAction: 0
+  m_TriggerCount: 0
+  m_RuleBlock: 
   m_TriggerEffect: 

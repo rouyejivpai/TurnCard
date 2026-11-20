@@ -23,6 +23,9 @@ namespace TurnCard.Game.Battle
         /// <summary>剩余回合数（Turn 消耗用）；-1 表示无限。</summary>
         public int Remaining { get; set; }
 
+        /// <summary>触发计数（受击次数这类条件用它累计）。</summary>
+        public int Counter { get; set; }
+
         public bool IsExpired => Stacks <= 0 ||
                                  (Definition.Consume == BuffConsume.Turn && Remaining == 0);
     }
@@ -197,6 +200,50 @@ namespace TurnCard.Game.Battle
             }
 
             return factor;
+        }
+
+        /// <summary>是否有 buff 拦住了某个规则（如 armor_clear）。</summary>
+        public bool BlocksRule(string rule)
+        {
+            foreach (BuffInstance buff in m_Buffs)
+            {
+                if (buff.Definition != null && buff.Definition.BlocksRule(rule))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 累计一次触发计数，返回是否达到阈值。
+        /// 阈值取 buff 自己的 TriggerCount（0/1 表示每次都算达到）。
+        /// </summary>
+        public bool TickCounter(BuffInstance buff)
+        {
+            if (buff == null)
+            {
+                return false;
+            }
+
+            buff.Counter++;
+            int need = buff.Definition.TriggerCount;
+            if (need <= 1)
+            {
+                return true;
+            }
+
+            return buff.Counter >= need;
+        }
+
+        /// <summary>重置计数（触发后清零，方便下一轮再累计）。</summary>
+        public void ResetCounter(BuffInstance buff)
+        {
+            if (buff != null)
+            {
+                buff.Counter = 0;
+            }
         }
 
         /// <summary>回合结束：按回合消耗的 buff 减一层剩余回合，过期即移除。</summary>

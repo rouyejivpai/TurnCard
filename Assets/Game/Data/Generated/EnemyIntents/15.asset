@@ -12,11 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2289118fb8b10804193651a715a1738c, type: 3}
   m_Name: 15
   m_EditorClassIdentifier: 
-  m_EnemyId: 3
-  m_Form: front
-  m_Intent: 4
-  m_Value: 3
+  m_Id: 15
+  m_EnemyId: 4
+  m_Form: back
+  m_Intent: 1
+  m_Value: 12
   m_Hits: 1
-  m_BuffId: 2
-  m_BuffTarget: 1
+  m_BuffId: 0
+  m_BuffTarget: 0
   m_Turns: -1

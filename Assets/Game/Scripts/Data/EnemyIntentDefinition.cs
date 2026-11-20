@@ -27,6 +27,12 @@ namespace TurnCard.Game.Data
 
         /// <summary>施加任意 buff（表里用 buffId 指定），目标由 buffTarget 决定。</summary>
         ApplyBuff,
+
+        /// <summary>晕眩：本回合不行动，意图队列不推进。</summary>
+        Stun,
+
+        /// <summary>自己翻面（强制，不经过血量归零）。</summary>
+        FlipSelf,
     }
 
     /// <summary>buff 施加给谁。</summary>
@@ -43,6 +49,9 @@ namespace TurnCard.Game.Data
     [CreateAssetMenu(menuName = "TurnCard/Data/Enemy Intent", fileName = "EnemyIntent")]
     public sealed class EnemyIntentDefinition : ScriptableObject
     {
+        [Tooltip("行 id，顺序意图按它排序")]
+        [SerializeField] private int m_Id;
+
         [Tooltip("所属敌人 id")]
         [SerializeField] private int m_EnemyId;
 
@@ -66,6 +75,7 @@ namespace TurnCard.Game.Data
         [Tooltip("buff 持续回合数，-1 表示用 buff 自己的默认（永久/按次数）")]
         [SerializeField] private int m_Turns = -1;
 
+        public int Id => m_Id;
         public int EnemyId => m_EnemyId;
         public CardFaceSide Form => string.Equals(m_Form, "back", System.StringComparison.OrdinalIgnoreCase)
             ? CardFaceSide.Back

@@ -3,6 +3,29 @@ using UnityEngine;
 namespace TurnCard.Game.Data
 {
     /// <summary>运行时读取的敌人一个形态的数据。</summary>
+    /// <summary>翻面后血量怎么算。</summary>
+    public enum EnemyFlipHpMode
+    {
+        /// <summary>背面用自己的满血。</summary>
+        Own,
+
+        /// <summary>继承翻面时的当前血量。</summary>
+        Inherit,
+
+        /// <summary>按背面满血的固定比例。</summary>
+        Ratio,
+    }
+
+    /// <summary>意图抽取方式。</summary>
+    public enum EnemyIntentMode
+    {
+        /// <summary>按表里顺序循环，可预测。</summary>
+        Sequence,
+
+        /// <summary>洗牌随机，一轮内不重复。</summary>
+        Shuffle,
+    }
+
     public readonly struct EnemyForm
     {
         public EnemyForm(string displayName, int maxHp, int attack, string description)
@@ -32,6 +55,27 @@ namespace TurnCard.Game.Data
         [Tooltip("所属池子：normal / elite / boss")]
         [SerializeField] private EnemyPool m_Pool = EnemyPool.Normal;
 
+        [Tooltip("翻面时血量：own=背面满血 inherit=继承当前 ratio=按比例")]
+        [SerializeField] private EnemyFlipHpMode m_FlipHpMode = EnemyFlipHpMode.Own;
+
+        [Tooltip("ratio 模式下的继承比例，0~1")]
+        [SerializeField] private float m_FlipHpRatio = 1f;
+
+        [Tooltip("意图顺序：sequence=按表顺序循环 shuffle=随机不重复")]
+        [SerializeField] private EnemyIntentMode m_IntentMode = EnemyIntentMode.Shuffle;
+
+        [Tooltip("正面初始 buff，写法 buffId:层数:回合，多条用分号")]
+        [SerializeField] private string m_FrontBuffs = string.Empty;
+
+        [Tooltip("反面初始 buff，写法同上")]
+        [SerializeField] private string m_BackBuffs = string.Empty;
+
+        [Tooltip("正面起始护甲")]
+        [SerializeField] private int m_FrontArmor;
+
+        [Tooltip("反面起始护甲")]
+        [SerializeField] private int m_BackArmor;
+
         [SerializeField] private string m_FrontName = string.Empty;
         [SerializeField] private int m_FrontHp;
         [SerializeField] private int m_FrontAttack;
@@ -46,6 +90,14 @@ namespace TurnCard.Game.Data
 
         /// <summary>所属池子。</summary>
         public EnemyPool Pool => m_Pool;
+
+        public EnemyFlipHpMode FlipHpMode => m_FlipHpMode;
+        public float FlipHpRatio => m_FlipHpRatio;
+        public EnemyIntentMode IntentMode => m_IntentMode;
+        public string FrontBuffs => m_FrontBuffs;
+        public string BackBuffs => m_BackBuffs;
+        public int FrontArmor => m_FrontArmor;
+        public int BackArmor => m_BackArmor;
 
         public EnemyForm Front => new EnemyForm(m_FrontName, m_FrontHp, m_FrontAttack,
             m_FrontDescription);

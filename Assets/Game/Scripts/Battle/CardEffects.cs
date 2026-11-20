@@ -15,6 +15,9 @@ namespace TurnCard.Game.Battle
 
         /// <summary>本次结算中发生翻面的敌人（供表现层播翻转动画）。</summary>
         public EnemyInstance FlippedEnemy;
+
+        /// <summary>触发这次效果的敌人自己（buff 触发型效果用，如「受击获得力量」）。</summary>
+        public EnemyInstance SelfEnemy;
     }
 
     /// <summary>一条效果的实现。</summary>
@@ -67,6 +70,7 @@ namespace TurnCard.Game.Battle
                 { "damage_per_attack", new DamagePerAttackCardsEffect() },
                 { "armor_per_skill", new ArmorPerSkillCardsEffect() },
                 { "buff", new BuffEffect() },
+                { "buff_self", new BuffSelfEffect() },
                 { "lose_armor", new LoseArmorEffect() },
                 { "damage_plus_instants", new DamagePlusInstantsEffect() },
                 { "use_adjacent_back", new UseAdjacentEffect(false) },
@@ -634,6 +638,27 @@ namespace TurnCard.Game.Battle
             public void Apply(CardEffectContext context, string[] args)
             {
                 context.State.BeginChoice(ChoiceKind.FlipHandCard);
+            }
+        }
+
+        /// <summary>给自己（触发者）挂 buff：<c>buff_self:&lt;id&gt;,&lt;层数&gt;,&lt;回合&gt;</c>。</summary>
+        private sealed class BuffSelfEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int id = Arg(args, 0, 0);
+                if (id <= 0)
+                {
+                    return;
+                }
+
+                int stacks = Arg(args, 1, 1);
+                int turns = args.Length > 2 && int.TryParse(args[2], out int parsed) ? parsed : -1;
+
+                if (context.SelfEnemy != null)
+                {
+                    context.State.ApplyBuff(context.SelfEnemy.Buffs, id, stacks, turns);
+                }
             }
         }
 

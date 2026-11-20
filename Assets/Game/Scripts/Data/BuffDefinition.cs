@@ -43,6 +43,28 @@ namespace TurnCard.Game.Data
         Flip,
         CardPlayed,
         Death,
+
+        /// <summary>自己受到伤害之后。</summary>
+        Damaged,
+
+        /// <summary>自己的护甲被打空时。</summary>
+        ArmorBroken,
+
+        /// <summary>自己这一回合没有对对方造成伤害（回合结束时判定）。</summary>
+        NoDamageDealt,
+    }
+
+    /// <summary>条件满足后做什么。</summary>
+    public enum BuffTriggerAction
+    {
+        /// <summary>执行 triggerEffect 里配的效果串。</summary>
+        Effect,
+
+        /// <summary>自己翻面（不需要效果串）。</summary>
+        FlipSelf,
+
+        /// <summary>晕眩：跳过下一次行动。</summary>
+        Stun,
     }
 
     /// <summary>一条被动修饰器：对某个属性做一次运算。</summary>
@@ -94,6 +116,15 @@ namespace TurnCard.Game.Data
 
         [SerializeField] private BuffTrigger m_Trigger = BuffTrigger.None;
 
+        [Tooltip("触发动作：执行效果 / 自己翻面 / 晕眩")]
+        [SerializeField] private BuffTriggerAction m_TriggerAction = BuffTriggerAction.Effect;
+
+        [Tooltip("需要累计触发几次才生效，0 或 1 表示每次都触发")]
+        [SerializeField] private int m_TriggerCount;
+
+        [Tooltip("被这个 buff 拦住的规则键，逗号分隔，如 armor_clear（壁垒）")]
+        [SerializeField] private string m_RuleBlock = string.Empty;
+
         [Tooltip("触发时执行的效果串，复用卡牌效果的写法，如 damage:3,random")]
         [SerializeField] private string m_TriggerEffect = string.Empty;
 
@@ -108,6 +139,28 @@ namespace TurnCard.Game.Data
         public BuffConsume Consume => m_Consume;
         public int MaxStacks => m_MaxStacks;
         public BuffTrigger Trigger => m_Trigger;
+        public BuffTriggerAction TriggerAction => m_TriggerAction;
+        public int TriggerCount => m_TriggerCount;
+        public string RuleBlock => m_RuleBlock;
+
+        /// <summary>这个 buff 是否拦住了某个规则。</summary>
+        public bool BlocksRule(string rule)
+        {
+            if (string.IsNullOrEmpty(m_RuleBlock) || string.IsNullOrEmpty(rule))
+            {
+                return false;
+            }
+
+            foreach (string token in m_RuleBlock.Split(','))
+            {
+                if (string.Equals(token.Trim(), rule, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
         public string TriggerEffect => m_TriggerEffect;
 
         /// <summary>解析后的被动修饰器列表（惰性解析并缓存）。</summary>

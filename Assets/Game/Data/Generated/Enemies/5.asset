@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ea630782f35e51940b7b00838c974647, type: 3}
+  m_Name: 5
+  m_EditorClassIdentifier: 
+  m_Id: 5
+  m_Pool: 1
+  m_FlipHpMode: 0
+  m_FlipHpRatio: 1
+  m_IntentMode: 0
+  m_FrontBuffs: 
+  m_BackBuffs: 
+  m_FrontArmor: 0
+  m_BackArmor: 0
+  m_FrontName: "\u821E\u53F0\u5E03\u666F"
+  m_FrontHp: 30
+  m_FrontAttack: 0
+  m_FrontDescription: "\u6781\u5C11\u91CF\u4F24\u5BB3\uFF0C\u7ED9\u53CC\u65B9\u529B\u91CF\uFF0C\u7ED9\u81EA\u5DF1\u8D85\u9AD8\u5C42\u6613\u4F24\u3002"
+  m_BackName: "\u5821\u5792\u5DE8\u4EBA"
+  m_BackHp: 45
+  m_BackAttack: 0
+  m_BackDescription: "\u9AD8\u4F24\u5BB3\u5FAA\u73AF\u3002"
