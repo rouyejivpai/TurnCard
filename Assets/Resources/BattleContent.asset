@@ -40,6 +40,12 @@ MonoBehaviour:
   m_StarterDeck:
   - {fileID: 11400000, guid: fd93caacb14b39249977b7e00605308d, type: 2}
   - {fileID: 11400000, guid: 898ca3412c1a69548b26216a034c1be2, type: 2}
+  - {fileID: 11400000, guid: 7d42513f209d81948b7541e5444d92a6, type: 2}
+  - {fileID: 11400000, guid: d2ad54970e67f474ab96e1cfcdbeff61, type: 2}
+  - {fileID: 11400000, guid: d3644d57a00d4df49b49118e830be28d, type: 2}
+  - {fileID: 11400000, guid: 31b213c6f10d3554a9113c14f78bc1a0, type: 2}
+  - {fileID: 11400000, guid: 6807c8d5b409c004392cf7d0240ea286, type: 2}
+  - {fileID: 11400000, guid: f28a19d6a14634648abb7e812083020d, type: 2}
   - {fileID: 11400000, guid: 755af6b972319984e81bdc4d9006139b, type: 2}
   - {fileID: 11400000, guid: fdf20adf4ed000d42aeef74ac5521dac, type: 2}
   - {fileID: 11400000, guid: 8f26c0079b1f1ef41bb1a6f525ab434c, type: 2}
