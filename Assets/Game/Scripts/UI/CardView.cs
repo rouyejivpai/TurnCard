@@ -64,6 +64,16 @@ namespace TurnCard.Game.UI
         private bool m_IsDragging;
         private float m_BaseScale = 1f;
         private Tween m_FlipTween;
+
+        private struct QueuedFlip
+        {
+            public CardFaceSide Side;
+            public float Duration;
+            public System.Action Done;
+        }
+
+        private readonly System.Collections.Generic.Queue<QueuedFlip> m_FlipQueue =
+            new System.Collections.Generic.Queue<QueuedFlip>();
         private Coroutine m_HoverRoutine;
 
         private Image m_Glow;
@@ -743,7 +753,57 @@ namespace TurnCard.Game.UI
                 ? Card.Side
                 : (m_ShownSide == CardFaceSide.Front ? CardFaceSide.Back : CardFaceSide.Front);
 
-            ApplySide(target, true, duration, audio, onCompleted);
+            PlayFlipTo(target, duration, audio, onCompleted);
+        }
+
+        /// <summary>
+        /// 翻到指定的一面。
+        ///
+        /// 同一张牌在一次结算里可能被连续翻多次（例如「使用相邻牌」再翻面），
+        /// 这里用队列串起来，保证每一次翻面都有独立的动画，而不是被合并成一次。
+        /// </summary>
+        public void PlayFlipTo(CardFaceSide side, float duration, AudioSource audio = null,
+            Action onCompleted = null)
+        {
+            m_FlipQueue.Enqueue(new QueuedFlip { Side = side, Duration = duration, Done = onCompleted });
+
+            if (!IsFlipping)
+            {
+                StartNextQueuedFlip(audio);
+            }
+        }
+
+        private void StartNextQueuedFlip(AudioSource audio)
+        {
+            if (m_FlipQueue.Count == 0)
+            {
+                return;
+            }
+
+            QueuedFlip step = m_FlipQueue.Dequeue();
+            float targetY = step.Side == CardFaceSide.Back ? 180f : 0f;
+
+            // 视图已经停在目标面（连翻两次会回到原点）：先把朝向摆到对侧再翻，
+            // 否则 ApplySide 会因为「角度相同」直接结束，看不见任何动画。
+            if (Mathf.Approximately(NormalizeAngle(m_Rect.localEulerAngles.y), targetY))
+            {
+                float oppositeY = step.Side == CardFaceSide.Back ? 0f : 180f;
+                m_Rect.localEulerAngles = new Vector3(0f, oppositeY, 0f);
+                SetFrontVisible(step.Side != CardFaceSide.Back);
+                m_ShownSide = step.Side == CardFaceSide.Back ? CardFaceSide.Front : CardFaceSide.Back;
+            }
+
+            ApplySide(step.Side, true, step.Duration, audio, () =>
+            {
+                step.Done?.Invoke();
+                StartNextQueuedFlip(audio);
+            });
+        }
+
+        /// <summary>清空未播完的翻面队列（战斗结束或界面关闭时用）。</summary>
+        public void ClearFlipQueue()
+        {
+            m_FlipQueue.Clear();
         }
 
         public void OnPointerClick(PointerEventData eventData)

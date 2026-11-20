@@ -23,7 +23,7 @@ namespace TurnCard.EditorTools
                 content == null ? "null" : content.Cards.Length.ToString());
             if (content == null)
             {
-                Flush();
+            Flush();
                 return;
             }
 
@@ -121,6 +121,49 @@ namespace TurnCard.EditorTools
                 Check("相邻牌被排队翻面", state2.PendingFlips.Count >= 1,
                     "排队=" + state2.PendingFlips.Count);
             }
+
+                // 6) 同一张牌连续翻两次：应产生两条方向相反的 FlipStep
+            var state3 = new BattleState();
+            CardDefinition cannon = Find(content, 3);   // 速射火炮 → 开火（背面带瞬发）
+            state3.Setup(new[] { cannon }, new[] { content.Enemies[0] });
+            state3.StartPlayerTurn();
+
+            CardInstance flipCard = state3.Hand[0];
+            state3.RequestFlip(flipCard, BattleState.FlipSource.Effect);
+            state3.RequestFlip(flipCard, BattleState.FlipSource.Effect);
+
+            BattleState.FlipStep? first = state3.CommitNextFlip();
+            BattleState.FlipStep? second = state3.CommitNextFlip();
+
+            Check("连续两次翻面各产生一条 FlipStep", first != null && second != null, "");
+            if (first != null && second != null)
+            {
+                Check("第一条 Front → Back",
+                    first.Value.From == CardFaceSide.Front && first.Value.To == CardFaceSide.Back,
+                    first.Value.From + " → " + first.Value.To);
+                Check("第二条 Back → Front",
+                    second.Value.From == CardFaceSide.Back && second.Value.To == CardFaceSide.Front,
+                    second.Value.From + " → " + second.Value.To);
+            }
+
+            // 7) 瞬发延后：翻到「开火」应该先收集，不立刻扣血
+            var state4 = new BattleState();
+            state4.Setup(new[] { cannon }, new[] { content.Enemies[0] });
+            state4.StartPlayerTurn();
+            EnemyInstance foe2 = state4.Enemies[0];
+
+            state4.RequestFlip(state4.Hand[0], BattleState.FlipSource.Effect);
+            state4.CommitNextFlip();
+
+            int hpBeforeInstant = foe2.Hp + foe2.Armor;
+            Check("翻到瞬发面后进入待执行", state4.HasPendingInstants, "");
+
+            state4.ResolvePendingInstants();
+            int hpAfterInstant = foe2.Hp + foe2.Armor;
+            Check("执行瞬发后敌人掉血", hpAfterInstant < hpBeforeInstant,
+                hpBeforeInstant + " → " + hpAfterInstant);
+            Check("瞬发次数被记到本回合", state4.InstantCountThisTurn == 1,
+                "次数=" + state4.InstantCountThisTurn);
 
             Flush();
         }

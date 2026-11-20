@@ -36,6 +36,9 @@ namespace Window.BattleForm
         private bool m_HandDirty;
 
         /// <summary>选择模式：等玩家选一张手牌并点确认。</summary>
+        /// <summary>正在播放的翻面动画数量（同牌串行、跨牌并行）。</summary>
+        private int m_FlipAnimating;
+
         private bool m_ChoiceMode;
         private Button m_BtnConfirmChoice;
         private CardView m_ChoiceView;
@@ -560,8 +563,16 @@ namespace Window.BattleForm
             m_Busy = true;
             RefreshHud();
 
-            yield return CommitAndAnimateFlips(null);
-            yield return PlayDamageQueue(m_ChoiceView, m_State.FirstAliveEnemy(), default);
+            CommitAndDispatchFlips();
+            yield return PlayDamageQueue(m_ChoiceView, m_State.FirstAliveEnemy(), default, HitOrigin.Play);
+            yield return WaitForFlipAnimations();
+
+            if (m_State.HasPendingInstants)
+            {
+                m_State.ResolvePendingInstants();
+                RefreshEnemyViews();
+                yield return PlayDamageQueue(m_ChoiceView, m_State.FirstAliveEnemy(), default, HitOrigin.Instant);
+            }
 
             m_ChoiceView = null;
             m_Busy = false;
@@ -695,56 +706,62 @@ namespace Window.BattleForm
         /// 提交并播放翻面队列：翻面本身会触发瞬发，瞬发可能继续入队。
         /// 出牌和「选择确认」都走这里，保证规则一致。
         /// </summary>
-        private IEnumerator CommitAndAnimateFlips(CardView fallback)
+        /// <summary>
+        /// 提交翻面请求并把动画分发给各自的 CardView（同一张牌内部串行，不同牌并行）。
+        /// 这里不等待动画结束，调用方用 <see cref="WaitForFlipAnimations"/> 等。
+        /// </summary>
+        private void CommitAndDispatchFlips()
         {
             BattleFxSettings fx = BattleFxSettings.Current;
-            float flipEndTime = Time.time;
 
-            m_State.BeginDeferDamage();
-            try
+            while (m_State.IsResolvingFlips)
             {
-                while (m_State.IsResolvingFlips)
+                BattleState.FlipStep? step = m_State.CommitNextFlip();
+                if (step == null)
                 {
-                    BattleState.PendingFlip flip = m_State.PendingFlips[0];
-                    CardView targetView = FindView(flip.Card);
-
-                    m_State.CommitNextFlip();   // ← 逻辑翻面发生在这里，瞬发由此入队
-
-                    if (targetView != null)
-                    {
-                        targetView.PlayFlip(fx.FlipDuration, null);
-                        TurnCard.Game.Audio.Sfx.Flip(targetView.Card.Side == CardFaceSide.Back);
-                        flipEndTime = Mathf.Max(flipEndTime, Time.time + fx.FlipDuration);
-                    }
-
-                    if (m_State.LastInstantFlipEnemy != null)
-                    {
-                        EnemyView flippedView = ViewFor(m_State.LastInstantFlipEnemy);
-                        m_State.ClearLastInstantFlipEnemy();
-                        if (flippedView != null)
-                        {
-                            flippedView.PlayFlip(FlipDuration, null);
-                            flipEndTime = Mathf.Max(flipEndTime, Time.time + FlipDuration);
-                        }
-                    }
-
-                    RefreshEnemyViews();
+                    continue;
                 }
-            }
-            finally
-            {
-                m_State.EndDeferDamage();
-            }
 
-            float remain = flipEndTime - Time.time;
-            if (remain > 0f)
+                CardView view = FindView(step.Value.Card);
+                if (view == null)
+                {
+                    continue;   // 牌已经被弃掉，只结算逻辑
+                }
+
+                m_FlipAnimating++;
+                view.PlayFlipTo(step.Value.To, fx.FlipDuration, null, () => m_FlipAnimating--);
+                TurnCard.Game.Audio.Sfx.Flip(step.Value.To == CardFaceSide.Back);
+            }
+        }
+
+        /// <summary>等所有翻面动画播完。</summary>
+        private IEnumerator WaitForFlipAnimations()
+        {
+            while (m_FlipAnimating > 0)
             {
-                yield return new WaitForSeconds(remain);
+                yield return null;
             }
         }
 
         /// <summary>把排队的伤害逐发打出去，命中才扣血。</summary>
-        private IEnumerator PlayDamageQueue(CardView sourceView, EnemyInstance target, CardFace playedFace)
+        /// <summary>取队首中指定来源的那条伤害；没有就返回 false。</summary>
+        private bool TryPeekHit(HitOrigin origin, out BattleState.PendingHit hit)
+        {
+            foreach (BattleState.PendingHit pending in m_State.PendingHits)
+            {
+                if (pending.Origin == origin)
+                {
+                    hit = pending;
+                    return true;
+                }
+            }
+
+            hit = default;
+            return false;
+        }
+
+        private IEnumerator PlayDamageQueue(CardView sourceView, EnemyInstance target,
+            CardFace playedFace, HitOrigin origin)
         {
             if (sourceView == null || m_State == null)
             {
@@ -756,7 +773,12 @@ namespace Window.BattleForm
 
             while (m_State.IsResolving)
             {
-                BattleState.PendingHit next = m_State.PendingHits[0];
+                // 队列按来源分流：Play 与翻面动画并行，Instant 等动画播完再播
+                if (!TryPeekHit(origin, out BattleState.PendingHit next))
+                {
+                    yield break;
+                }
+
                 int amount = next.Amount;
                 bool cannon = IsCannon(playedFace, sourceView.Card.Face, amount);
 
@@ -813,16 +835,68 @@ namespace Window.BattleForm
             view.SnapHome();
             RefreshHud();
 
-            // 翻面与效果同时进行：
-            //   1) 先把队列里的翻面全部提交（逻辑翻面 + 瞬发伤害入队），动画只是启动，不等待
-            //   2) 紧接着进入下面的弹道循环 —— 翻面动画和弹道动画同一时间在跑
-            //   3) 出牌结束前再补齐剩余翻面时长，避免动画没播完就能操作
-            BattleFxSettings fx = BattleFxSettings.Current;
-            yield return CommitAndAnimateFlips(view);
+            // 顺序：
+            //   ① 提交翻面并启动动画（同牌串行、跨牌并行）
+            //   ② 立刻播「出牌自身」的伤害弹道 —— 与翻面动画同时进行
+            //   ③ 等翻面动画结束
+            //   ④ 执行翻面收集到的瞬发，再播瞬发弹道
+            //   ⑤ 瞬发若又引发翻面（双面火炮），回到 ①
+            m_State.BeginDeferDamage();
+            try
+            {
+                int guard = 0;
+                bool firstRound = true;
+                while (true)
+                {
+                    guard++;
+                    if (guard > 8)
+                    {
+                        m_State.ClearPendingHits();
+                        m_State.ClearPendingInstants();
+                        break;
+                    }
 
-            // 伤害已经在逻辑层入队，这里按队列逐发播放：
-            // 每发命中才 CommitNextHit() 扣血 —— 真正的「落地才扣血」。
-            yield return PlayDamageQueue(view, target, playedFace);
+                    CommitAndDispatchFlips();
+
+                    if (firstRound)
+                    {
+                        firstRound = false;
+                        yield return PlayDamageQueue(view, target, playedFace, HitOrigin.Play);
+                    }
+
+                    yield return WaitForFlipAnimations();
+
+                    if (m_State.IsBattleOver || !m_State.HasPendingInstants)
+                    {
+                        break;
+                    }
+
+                    m_State.ResolvePendingInstants();
+
+                    if (m_State.LastInstantFlipEnemy != null)
+                    {
+                        EnemyView flippedView = ViewFor(m_State.LastInstantFlipEnemy);
+                        m_State.ClearLastInstantFlipEnemy();
+                        if (flippedView != null)
+                        {
+                            flippedView.PlayFlip(FlipDuration, null);
+                        }
+                    }
+
+                    RefreshEnemyViews();
+
+                    yield return PlayDamageQueue(view, target, playedFace, HitOrigin.Instant);
+
+                    if (!m_State.IsResolvingFlips)
+                    {
+                        break;
+                    }
+                }
+            }
+            finally
+            {
+                m_State.EndDeferDamage();
+            }
 
             // 规则：使用后只翻面，卡牌留在手上（Q1、Q8）。
             // 这里不做任何移除，下一次可用背面继续出牌，直到能量耗尽。

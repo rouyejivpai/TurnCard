@@ -137,6 +137,16 @@ namespace TurnCard.Game.Battle
         }
     }
 
+    /// <summary>伤害来源，表现层据此决定播放时机。</summary>
+    public enum HitOrigin
+    {
+        /// <summary>出牌本身造成的伤害：与翻面动画同时播。</summary>
+        Play,
+
+        /// <summary>翻面触发的瞬发伤害：等翻面与自身效果播完再播。</summary>
+        Instant,
+    }
+
     /// <summary>需要玩家做选择的类型。</summary>
     public enum ChoiceKind
     {
@@ -175,6 +185,21 @@ namespace TurnCard.Game.Battle
             Keyword,
         }
 
+        /// <summary>交给表现层的一次翻面：明确的起止面。</summary>
+        public readonly struct FlipStep
+        {
+            public FlipStep(CardInstance card, CardFaceSide from, CardFaceSide to)
+            {
+                Card = card;
+                From = from;
+                To = to;
+            }
+
+            public CardInstance Card { get; }
+            public CardFaceSide From { get; }
+            public CardFaceSide To { get; }
+        }
+
         /// <summary>排队中的一次翻面。</summary>
         public readonly struct PendingFlip
         {
@@ -193,6 +218,25 @@ namespace TurnCard.Game.Battle
         }
 
         private readonly List<PendingFlip> m_PendingFlips = new List<PendingFlip>();
+
+        private readonly struct PendingInstant
+        {
+            public PendingInstant(CardInstance card, EnemyInstance target)
+            {
+                Card = card;
+                Target = target;
+            }
+
+            public CardInstance Card { get; }
+            public EnemyInstance Target { get; }
+        }
+
+        private readonly List<PendingInstant> m_PendingInstants = new List<PendingInstant>();
+
+        /// <summary>翻面已经把瞬发收集起来，等动画播完再执行。</summary>
+        public bool HasPendingInstants => m_PendingInstants.Count > 0;
+
+        private bool m_InstantPhase;
 
         /// <summary>排队中的翻面，表现层按顺序播放。</summary>
         public IReadOnlyList<PendingFlip> PendingFlips => m_PendingFlips;
@@ -293,37 +337,89 @@ namespace TurnCard.Game.Battle
             }
         }
 
-        /// <summary>提交队首翻面，返回是否还有后续。翻面会触发瞬发，可能继续入队。</summary>
-        public bool CommitNextFlip()
+        /// <summary>
+        /// 提交队首翻面，返回这次翻面的起止面（没有请求时返回 null）。
+        /// 翻面触发的瞬发只收集，由 <see cref="ResolvePendingInstants"/> 在动画播完后执行。
+        /// </summary>
+        public FlipStep? CommitNextFlip()
         {
             if (m_PendingFlips.Count == 0)
             {
-                return false;
+                return null;
             }
 
             PendingFlip flip = m_PendingFlips[0];
             m_PendingFlips.RemoveAt(0);
 
-            if (flip.Card != null)
+            if (flip.Card == null)
             {
-                m_FlipSource = flip.Source;
-                m_PlayTarget = flip.Target;
-                m_LastInstantFlip = null;
-                try
-                {
-                    flip.Card.Flip();
-                }
-                finally
-                {
-                    m_PlayTarget = null;
-                    m_FlipSource = FlipSource.Effect;
-                }
-
-                LastInstantFlipEnemy = m_LastInstantFlip;
+                return null;
             }
 
-            return m_PendingFlips.Count > 0;
+            CardFaceSide from = flip.Card.Side;
+
+            m_FlipSource = flip.Source;
+            m_PlayTarget = flip.Target;
+            m_LastInstantFlip = null;
+            try
+            {
+                flip.Card.Flip();
+            }
+            finally
+            {
+                m_PlayTarget = null;
+                m_FlipSource = FlipSource.Effect;
+            }
+
+            return new FlipStep(flip.Card, from, flip.Card.Side);
         }
+
+        /// <summary>
+        /// 执行翻面收集到的瞬发：表现层在翻面动画与自身效果都播完之后调用，
+        /// 保证「瞬发在这两者之后」。
+        /// </summary>
+        public void ResolvePendingInstants()
+        {
+            if (m_PendingInstants.Count == 0)
+            {
+                return;
+            }
+
+            var batch = new List<PendingInstant>(m_PendingInstants);
+            m_PendingInstants.Clear();
+
+            m_InstantPhase = true;
+            try
+            {
+                foreach (PendingInstant pending in batch)
+                {
+                    if (pending.Card == null)
+                    {
+                        continue;
+                    }
+
+                    RunTriggers(PlayerBuffs, Data.BuffTrigger.Flip, pending.Target);
+                    InstantTriggered?.Invoke(pending.Card);
+
+                    EnemyInstance flipped = TriggerInstant(pending.Card, pending.Target);
+                    if (flipped != null)
+                    {
+                        LastInstantFlipEnemy = flipped;
+                    }
+                }
+            }
+            finally
+            {
+                m_InstantPhase = false;
+            }
+        }
+
+        /// <summary>战斗结束时丢掉没执行的瞬发。</summary>
+        public void ClearPendingInstants()
+        {
+            m_PendingInstants.Clear();
+        }
+
         private readonly List<CardInstance> m_DrawPile = new List<CardInstance>();
         private readonly List<CardInstance> m_Hand = new List<CardInstance>();
         private readonly List<CardInstance> m_DiscardPile = new List<CardInstance>();
@@ -1037,13 +1133,8 @@ namespace TurnCard.Game.Battle
                 return;
             }
 
-            RunTriggers(PlayerBuffs, Data.BuffTrigger.Flip, PickRandomAliveEnemy());
-            InstantTriggered?.Invoke(card);
-            EnemyInstance flipped = TriggerInstant(card, m_PlayTarget);
-            if (flipped != null)
-            {
-                m_LastInstantFlip = flipped;
-            }
+            // 只收集，等翻面动画与自身效果播完再执行（ResolvePendingInstants）
+            m_PendingInstants.Add(new PendingInstant(card, m_PlayTarget));
         }
 
         /// <summary>一次伤害结算的记录：打到谁、多少点。</summary>
@@ -1070,14 +1161,18 @@ namespace TurnCard.Game.Battle
         /// <summary>这次出牌里「伤害已经入队、但还没落地」。命中动画播到才提交。</summary>
         public readonly struct PendingHit
         {
-            public PendingHit(EnemyInstance enemy, int amount)
+            public PendingHit(EnemyInstance enemy, int amount, HitOrigin origin)
             {
                 Enemy = enemy;
                 Amount = amount;
+                Origin = origin;
             }
 
             public EnemyInstance Enemy { get; }
             public int Amount { get; }
+
+            /// <summary>伤害来源：出牌本身，还是翻面触发的瞬发。</summary>
+            public HitOrigin Origin { get; }
         }
 
         private readonly List<PendingHit> m_Pending = new List<PendingHit>();
@@ -1197,7 +1292,8 @@ namespace TurnCard.Game.Battle
 
             if (m_DeferDamage)
             {
-                m_Pending.Add(new PendingHit(enemy, amount));
+                m_Pending.Add(new PendingHit(enemy, amount,
+                    m_InstantPhase ? HitOrigin.Instant : HitOrigin.Play));
                 return false;
             }
 

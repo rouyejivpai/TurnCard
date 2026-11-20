@@ -1,0 +1,11 @@
+source	D:\TurnCard\Assets\Game\Art\BG\元素图.png
+size	1671x941
+grid	5	phase	1,2
+factor	size	colors	edge	orphan	error	grid_aligned
+2	836x471	72643	0.3541	0.30746	4.754	False
+3	557x314	37735	0.3615	0.32531	6.459	False
+4	418x235	23563	0.3666	0.33393	9.553	False
+5	334x188	15704	0.3660	0.33772	8.513	True
+6	278x157	11766	0.3746	0.34333	10.977	False
+8	209x118	6905	0.3728	0.33833	13.903	False
+10	167x94	4776	0.3827	0.34979	13.931	False
