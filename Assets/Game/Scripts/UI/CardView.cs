@@ -34,7 +34,7 @@ namespace TurnCard.Game.UI
         /// <summary>卡牌底色：中性色，不随类型变化。</summary>
         public static readonly Color CardBase = new Color(0.16f, 0.16f, 0.19f);
         public static readonly Color PowerColor = new Color(0.36f, 0.26f, 0.52f);
-        private static readonly Color ArtPlaceholderColor = new Color(0f, 0f, 0f, 0.22f);
+        internal static readonly Color ArtPlaceholderColor = new Color(0f, 0f, 0f, 0.22f);
 
         /// <summary>一面卡牌的全部可视节点。</summary>
         [Serializable]
@@ -55,6 +55,10 @@ namespace TurnCard.Game.UI
 
         [Header("背面（构建时已旋转 180°）")]
         [SerializeField] private FaceWidgets m_BackFace;
+
+        [Header("卡面视图（正反共用 CardFace.prefab）")]
+        [SerializeField] private CardFaceView m_FrontView;
+        [SerializeField] private CardFaceView m_BackView;
 
         private static CardView s_Prefab;
 
@@ -168,6 +172,17 @@ namespace TurnCard.Game.UI
             if (AllowInspect && m_Canvas != null)
             {
                 m_Inspect = CardInspectService.Ensure(m_Canvas.transform);
+            }
+
+            // 正反共用同一个卡面预制体：部件引用统一从视图取
+            if (m_FrontView != null)
+            {
+                m_FrontFace = m_FrontView.ToWidgets();
+            }
+
+            if (m_BackView != null)
+            {
+                m_BackFace = m_BackView.ToWidgets();
             }
 
             EnsureFont();
@@ -348,8 +363,6 @@ namespace TurnCard.Game.UI
 
         private FaceWidgets BuildFace(string name, bool isBack)
         {
-            var widgets = new FaceWidgets();
-
             RectTransform root = UiFactory.CreateRect(transform, name);
             root.anchorMin = Vector2.zero;
             root.anchorMax = Vector2.one;
@@ -357,90 +370,22 @@ namespace TurnCard.Game.UI
             root.offsetMax = Vector2.zero;
             root.pivot = new Vector2(0.5f, 0.5f);
 
+            var view = root.gameObject.AddComponent<CardFaceView>();
+
             if (isBack)
             {
                 // 背面预先翻转 180°，整张卡转到 180° 时正好正对镜头
                 root.localEulerAngles = new Vector3(0f, 180f, 0f);
+                m_BackView = view;
             }
-
-            widgets.Root = root;
-
-            // 底色：露在外框镂空处的部分，按类型着色
-            var background = root.gameObject.AddComponent<Image>();
-            background.color = CardBase;
-            background.raycastTarget = true;
-            widgets.Background = background;
-
-            var cream = new Color(0.967f, 0.937f, 0.859f);
-            var ink = new Color(0.235f, 0.141f, 0.086f);
-
-            // 1) 外框：九宫格，四角保持斜切原样
-            RectTransform frame = UiFactory.CreateRect(root, "Frame");
-            frame.anchorMin = Vector2.zero;
-            frame.anchorMax = Vector2.one;
-            frame.offsetMin = Vector2.zero;
-            frame.offsetMax = Vector2.zero;
-            var frameImage = frame.gameObject.AddComponent<Image>();
-            frameImage.raycastTarget = false;
-            CardSkin.ApplyFrame(frameImage);
-
-            // 2) 顶部名称横幅
-            Image banner = CardSkin.CreatePart(root, "Banner", CardSkin.Banner,
-                new Vector2(190f, 52f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, 0f));
-
-            // 3) 左上费用角标
-            Image badge = CardSkin.CreatePart(root, "CostBadge", CardSkin.Badge,
-                new Vector2(44f, 44f), new Vector2(0f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(30f, -30f));
-            if (badge == null)
+            else
             {
-                RectTransform badgeRect = UiFactory.CreateBox(root, "CostBadgeFallback",
-                    new Color(0.08f, 0.09f, 0.12f, 0.92f), new Vector2(44f, 44f),
-                    new Vector2(0f, 1f), new Vector2(26f, -26f));
-                badge = badgeRect.GetComponent<Image>();
+                m_FrontView = view;
             }
 
-            widgets.CostBadge = badge;
-            widgets.CostText = UiFactory.CreateLabel(badge.transform, "Cost", "0", 24, ink,
-                new Vector2(44f, 44f), new Vector2(0.5f, 0.5f), Vector2.zero);
-            Place(widgets.CostText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
-
-            // 4) 插画窗（暂时是纯色占位，压在框内）
-            RectTransform art = UiFactory.CreateBox(root, "Art", ArtPlaceholderColor,
-                new Vector2(140f, 92f), new Vector2(0.5f, 1f), new Vector2(0f, -66f));
-            widgets.Art = art.GetComponent<Image>();
-
-            // 5) 类型小牌（文字体现类型）
-            Image chip = CardSkin.CreatePart(root, "TypeChip", CardSkin.Chip,
-                new Vector2(74f, 22f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 96f));
-
-            widgets.TypeText = UiFactory.CreateLabel(
-                chip != null ? chip.transform : root, "Type", string.Empty, 12, ink,
-                new Vector2(74f, 20f), new Vector2(0.5f, 0.5f), Vector2.zero);
-            Place(widgets.TypeText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
-
-            // 6) 描述底板
-            Image panel = CardSkin.CreatePart(root, "DescPanel", CardSkin.Panel,
-                new Vector2(158f, 86f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 10f));
-
-            widgets.DescriptionText = UiFactory.CreateLabel(
-                panel != null ? panel.transform : root, "Description", string.Empty, 12, ink,
-                new Vector2(144f, 70f), new Vector2(0.5f, 1f), new Vector2(0f, -8f),
-                TextAlignmentOptions.Top);
-            Place(widgets.DescriptionText.rectTransform,
-                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -8f));
-
-            // 7) 名称文字（压在横幅上）
-            widgets.NameText = UiFactory.CreateLabel(
-                banner != null ? banner.transform : root, "Name", string.Empty, 20, ink,
-                new Vector2(158f, 30f), new Vector2(0.5f, 0.5f), new Vector2(0f, 4f));
-            Place(widgets.NameText.rectTransform,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 4f));
-
-            return widgets;
+            // 结构只由 CardFaceView 定义一次，正反两面不会再各写一份
+            view.BuildDefault();
+            return view.ToWidgets();
         }
 
         /// <summary>文字统一摆位：CreateLabel 会把 pivot 固定成中心，这里显式改回来。</summary>
