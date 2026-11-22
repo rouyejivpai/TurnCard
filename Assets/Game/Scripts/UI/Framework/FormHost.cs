@@ -84,21 +84,8 @@ namespace TurnCard.Game.UI
             return Setup(instance, logic, prefab.name, userData);
         }
 
-        /// <summary>
-        /// 打开一个「代码搭建」的界面（没有预制体）。build 回调里自行创建子节点。
-        /// 用于流程类的简单界面（主菜单、地图、奖励）。
-        /// </summary>
-        public T OpenRuntime<T>(string name, System.Action<T> build, object userData = null)
-            where T : UIFormLogic
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(m_Root, false);
-
-            var logic = go.AddComponent<T>();
-            build?.Invoke(logic);
-
-            return Setup(go, logic, name, userData);
-        }
+        // 说明：这里曾经有 OpenRuntime（运行时用代码拼界面）。流程界面全部转成预制体后它没有调用方，
+        // 已删除 —— 界面结构只允许来自预制体，避免又出现「代码里长出一套布局」的情况。
 
         private T Setup<T>(GameObject instance, T logic, string formName, object userData)
             where T : UIFormLogic

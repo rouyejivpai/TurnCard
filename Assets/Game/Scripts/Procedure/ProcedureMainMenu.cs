@@ -12,7 +12,7 @@ namespace TurnCard.Game.Procedure
         {
             base.OnEnter(procedureOwner);
 
-            MenuScreen screen = Open<MenuScreen>("MainMenu");
+            MenuScreen screen = Open<MenuScreen>(MenuScreen.ResourcePath);
             screen.SetTitle("回合牌");
             screen.SetSubtitle("一张牌，两面都是它");
 

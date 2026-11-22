@@ -12,7 +12,7 @@ namespace TurnCard.Game.Procedure
         {
             base.OnEnter(procedureOwner);
 
-            MenuScreen screen = Open<MenuScreen>("GameOver");
+            MenuScreen screen = Open<MenuScreen>(MenuScreen.ResourcePath);
             screen.SetTitle(Run.IsVictory ? "通关" : "失败");
             screen.SetSubtitle($"到达第 {Run.NodeIndex + 1} 个节点    金币 {Run.Gold}    " +
                                $"牌组 {Run.Deck.Count} 张    剩余生命 {Run.Hp}");

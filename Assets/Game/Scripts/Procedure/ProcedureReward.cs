@@ -30,7 +30,7 @@ namespace TurnCard.Game.Procedure
             Run.MarkCleared();
             Run.AddGold(GoldReward);
 
-            CardGridScreen screen = Open<CardGridScreen>("Reward");
+            CardGridScreen screen = Open<CardGridScreen>(CardGridScreen.ResourcePath);
             screen.SetHeader("战斗胜利",
                 $"获得 {GoldReward} 金币    当前金币 {Run.Gold}",
                 "鼠标悬停卡牌可以查看背面，点击即拿走");

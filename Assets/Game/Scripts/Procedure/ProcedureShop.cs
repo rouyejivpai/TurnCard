@@ -28,7 +28,7 @@ namespace TurnCard.Game.Procedure
 
         private void ShowMain()
         {
-            CardGridScreen screen = Open<CardGridScreen>("Shop");
+            CardGridScreen screen = Open<CardGridScreen>(CardGridScreen.ResourcePath);
             screen.SetHeader("商店", $"金币 {Run.Gold}    牌组 {Run.Deck.Count} 张",
                 $"点击卡牌购买（{CardPrice} 金币）");
 
@@ -55,7 +55,7 @@ namespace TurnCard.Game.Procedure
 
         private void ShowRemovePicker()
         {
-            CardListViewScreen list = Open<CardListViewScreen>("ShopRemove");
+            CardListViewScreen list = Open<CardListViewScreen>(CardListViewScreen.ResourcePath);
             list.SetHeader("选择要删掉的牌", $"花费 {RemovePrice} 金币");
 
             List<CardDefinition> deck = BuildDeckCards();

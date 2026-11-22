@@ -12,7 +12,7 @@ namespace TurnCard.Game.Procedure
         {
             base.OnEnter(procedureOwner);
 
-            MenuScreen screen = Open<MenuScreen>("Map");
+            MenuScreen screen = Open<MenuScreen>(MenuScreen.ResourcePath);
             screen.SetTitle(CurrentTitle());
             screen.SetSubtitle(
                 $"生命 {Run.Hp}/{Run.MaxHp}    金币 {Run.Gold}    牌组 {Run.Deck.Count} 张");
@@ -42,7 +42,7 @@ namespace TurnCard.Game.Procedure
         /// <summary>叠一层牌组列表，关掉后回到地图。</summary>
         private void ShowDeck()
         {
-            CardListViewScreen list = OpenOverlay<CardListViewScreen>("Deck");
+            CardListViewScreen list = OpenOverlay<CardListViewScreen>(CardListViewScreen.ResourcePath);
             list.SetHeader("牌组", $"共 {Run.Deck.Count} 张");
             list.ShowCards(BuildDeckCards(), null);
             list.OnCloseRequested = () =>

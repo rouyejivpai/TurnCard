@@ -8,7 +8,8 @@ namespace TurnCard.Game.Procedure
 {
     /// <summary>
     /// 流程基类：复用界面宿主，管理「当前界面」的打开与关闭。
-    /// 界面都是代码搭建的（<see cref="MenuScreen"/> / <see cref="CardGridScreen"/>）。
+    /// 界面一律从预制体打开（路径写在各界面的 <c>ResourcePath</c> 常量里），
+    /// 不再有「代码搭建」的界面。
     /// </summary>
     public abstract class FlowProcedureBase : ProcedureBase
     {
@@ -48,9 +49,14 @@ namespace TurnCard.Game.Procedure
         }
 
         /// <summary>在当前界面之上再叠一个界面（比如地图上查看牌组），不影响流程主界面。</summary>
-        protected T OpenOverlay<T>(string name) where T : UGuiForm
+        protected T OpenOverlay<T>(string resourcePath) where T : UGuiForm
         {
-            T screen = Host.OpenRuntime<T>(name, _ => { });
+            T screen = Host.Open<T>(resourcePath);
+            if (screen == null)
+            {
+                return null;
+            }
+
             UIForm form = screen.GetComponent<UIForm>();
             if (form != null)
             {
@@ -85,12 +91,12 @@ namespace TurnCard.Game.Procedure
             m_Overlays.Clear();
         }
 
-        /// <summary>打开一个代码搭建的界面，替换掉本流程之前开的那个。</summary>
-        protected T Open<T>(string name) where T : UGuiForm
+        /// <summary>打开一个界面预制体，替换掉本流程之前开的那个。</summary>
+        protected T Open<T>(string resourcePath) where T : UGuiForm
         {
             CloseScreen();
-            T screen = Host.OpenRuntime<T>(name, _ => { });
-            m_Form = screen.GetComponent<UIForm>();
+            T screen = Host.Open<T>(resourcePath);
+            m_Form = screen != null ? screen.GetComponent<UIForm>() : null;
             return screen;
         }
 

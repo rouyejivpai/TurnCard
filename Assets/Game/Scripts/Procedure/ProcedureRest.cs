@@ -25,7 +25,7 @@ namespace TurnCard.Game.Procedure
 
         private void ShowMain()
         {
-            MenuScreen screen = Open<MenuScreen>("Rest");
+            MenuScreen screen = Open<MenuScreen>(MenuScreen.ResourcePath);
             screen.SetTitle("营地");
             screen.SetSubtitle($"生命 {Run.Hp}/{Run.MaxHp}    牌组 {Run.Deck.Count} 张");
 
@@ -42,7 +42,7 @@ namespace TurnCard.Game.Procedure
         /// <summary>用卡牌网格让玩家挑一张要删的牌。</summary>
         private void ShowRemovePicker()
         {
-            CardListViewScreen list = Open<CardListViewScreen>("RestRemove");
+            CardListViewScreen list = Open<CardListViewScreen>(CardListViewScreen.ResourcePath);
             list.SetHeader("选择要删掉的牌", "点哪张就删哪张");
 
             List<CardDefinition> deck = BuildDeckCards();

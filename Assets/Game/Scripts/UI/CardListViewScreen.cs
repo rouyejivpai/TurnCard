@@ -3,120 +3,61 @@ using System.Collections.Generic;
 using TMPro;
 using TurnCard.Game.Battle;
 using TurnCard.Game.Data;
+using TurnCard.UIBind;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace TurnCard.Game.UI
 {
     /// <summary>
-    /// 卡牌列表界面：全屏半透明遮罩 + 中央面板 + 遮罩区滚动网格。
+    /// 卡牌列表界面：全屏半透明遮罩 + 中央面板 + 滚动网格。
     /// 牌堆、弃牌堆、牌组、删牌都复用它。
     ///
-    /// 结构：
-    /// 遮罩（点击关闭） → 面板 → 标题 / 关闭按钮 / ScrollRect(viewport + RectMask2D + GridLayoutGroup)
-    ///
+    /// 结构与坐标来自预制体 <c>Resources/UI/Flow/CardListViewScreenWindow</c>（UIBind 绑定）：
+    /// <code>
+    /// btnOverlay（遮罩，点击关闭） → goPanel（吃点击）
+    ///                                  ├─ txtTitle / txtSubtitle / btnClose
+    ///                                  └─ scrollList（RectMask2D + ScrollRect）
+    ///                                       └─ goContent（按行摆放卡牌）
+    /// </code>
     /// 卡牌用真实 <see cref="CardView"/>，所以悬停看背面、关键词提示直接可用；
     /// 点卡是否回调由 <c>onPick</c> 决定。
     /// </summary>
-    public class CardListViewScreen : UGuiForm
+    public partial class CardListViewScreen : UIBindWindow
     {
+        /// <summary>预制体路径（Resources 下，无扩展名）。</summary>
+        public const string ResourcePath = "UI/Flow/CardListViewScreenWindow";
+
         public const int Columns = 5;
         public const float CardWidth = 250f;
         public const float CellGap = 22f;
 
-        private RectTransform m_Panel;
-        private RectTransform m_Content;
-        private TextMeshProUGUI m_Title;
-        private TextMeshProUGUI m_Subtitle;
-
         private readonly List<CardView> m_Cards = new List<CardView>();
 
-        private void Awake()
+        /// <summary>关闭回调，由打开方设置。</summary>
+        public Action OnCloseRequested { get; set; }
+
+        protected override void OnShow()
         {
-            var root = (RectTransform)transform;
-            root.sizeDelta = new Vector2(1920f, 1080f);
+            // OnShow 可能被多次调用（重新打开），先清监听避免叠加
+            if (btnOverlay != null)
+            {
+                btnOverlay.onClick.RemoveAllListeners();
+                btnOverlay.onClick.AddListener(Close);
+            }
 
-            // 半透明遮罩：点空白处关闭
-            var overlay = gameObject.AddComponent<Image>();
-            overlay.color = new Color(0f, 0f, 0f, 0.72f);
-            overlay.raycastTarget = true;
-
-            var overlayButton = gameObject.AddComponent<Button>();
-            overlayButton.transition = Selectable.Transition.None;
-            overlayButton.onClick.AddListener(Close);
-
-            // 中央面板
-            RectTransform panel = UiFactory.CreateBox(root, "Panel",
-                new Color(0.09f, 0.10f, 0.13f, 0.98f), new Vector2(1560f, 880f),
-                new Vector2(0.5f, 0.5f), Vector2.zero);
-            m_Panel = panel;
-
-            // 面板本身吃掉点击，避免点到面板也关闭
-            var panelBlocker = panel.gameObject.AddComponent<Button>();
-            panelBlocker.transition = Selectable.Transition.None;
-
-            m_Title = UiFactory.CreateLabel(panel, "Title", string.Empty, 42, Color.white,
-                new Vector2(900f, 60f), new Vector2(0f, 1f), new Vector2(30f, -42f),
-                TextAlignmentOptions.Left);
-
-            m_Subtitle = UiFactory.CreateLabel(panel, "Subtitle", string.Empty, 22,
-                new Color(0.72f, 0.75f, 0.82f), new Vector2(900f, 34f),
-                new Vector2(0f, 1f), new Vector2(30f, -86f), TextAlignmentOptions.Left);
-
-            BuildCloseButton(panel);
-            BuildScroll(panel);
-        }
-
-        private void BuildCloseButton(RectTransform panel)
-        {
-            RectTransform rect = UiFactory.CreateBox(panel, "Close",
-                new Color(0.18f, 0.22f, 0.30f), new Vector2(120f, 52f),
-                new Vector2(1f, 1f), new Vector2(-80f, -46f));
-
-            var button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = rect.GetComponent<Image>();
-
-            TextMeshProUGUI caption = UiFactory.CreateLabel(rect, "Caption", "关闭", 24,
-                Color.white, new Vector2(120f, 52f), new Vector2(0.5f, 0.5f), Vector2.zero);
-            caption.raycastTarget = false;
-
-            button.onClick.AddListener(Close);
-        }
-
-        private void BuildScroll(RectTransform panel)
-        {
-            RectTransform viewport = UiFactory.CreateRect(panel, "Viewport");
-            viewport.anchorMin = new Vector2(0f, 0f);
-            viewport.anchorMax = new Vector2(1f, 1f);
-            viewport.offsetMin = new Vector2(30f, 30f);
-            viewport.offsetMax = new Vector2(-30f, -110f);
-
-            // RectMask2D 比 Mask 便宜，且不需要额外材质
-            viewport.gameObject.AddComponent<RectMask2D>();
-
-            // 手动排版：不用 GridLayoutGroup，避免它改写卡牌的 sizeDelta 导致「缩放两次」
-            m_Content = UiFactory.CreateRect(viewport, "Content");
-            m_Content.anchorMin = new Vector2(0f, 1f);
-            m_Content.anchorMax = new Vector2(1f, 1f);
-            m_Content.pivot = new Vector2(0.5f, 1f);
-            m_Content.anchoredPosition = Vector2.zero;
-            m_Content.sizeDelta = new Vector2(0f, 0f);
-
-            var scroll = viewport.gameObject.AddComponent<ScrollRect>();
-            scroll.content = m_Content;
-            scroll.viewport = viewport;
-            scroll.horizontal = false;
-            scroll.vertical = true;
-            scroll.movementType = ScrollRect.MovementType.Elastic;
-            scroll.elasticity = 0.1f;
-            scroll.scrollSensitivity = 40f;
+            if (btnClose != null)
+            {
+                btnClose.onClick.RemoveAllListeners();
+                btnClose.onClick.AddListener(Close);
+            }
         }
 
         /// <summary>设置标题与副标题。</summary>
         public void SetHeader(string title, string subtitle = null)
         {
-            if (m_Title != null) m_Title.text = title ?? string.Empty;
-            if (m_Subtitle != null) m_Subtitle.text = subtitle ?? string.Empty;
+            if (txtTitle != null) txtTitle.text = title ?? string.Empty;
+            if (txtSubtitle != null) txtSubtitle.text = subtitle ?? string.Empty;
         }
 
         /// <summary>
@@ -125,7 +66,7 @@ namespace TurnCard.Game.UI
         public void ShowCards(IList<CardDefinition> cards, Action<CardDefinition> onPick)
         {
             ClearCards();
-            if (cards == null)
+            if (cards == null || goContent == null)
             {
                 return;
             }
@@ -138,7 +79,7 @@ namespace TurnCard.Game.UI
             float contentHeight = rows * cardHeight + (rows - 1) * CellGap + CellGap * 2f;
 
             // 内容宽度跟随可视区，高度按行数撑开，ScrollRect 才能正确滚动
-            m_Content.sizeDelta = new Vector2(0f, contentHeight);
+            goContent.sizeDelta = new Vector2(0f, contentHeight);
 
             for (int i = 0; i < cards.Count; i++)
             {
@@ -150,7 +91,7 @@ namespace TurnCard.Game.UI
                 float left = -rowWidth * 0.5f + cardWidth * 0.5f;
 
                 var instance = new CardInstance(cards[i]);
-                CardView view = CardView.Create(m_Content, instance, scale);
+                CardView view = CardView.Create(goContent, instance, scale);
 
                 // 卡牌锚点在内容区中心（CardView 默认 0.5/0.5），所以从顶部往下算时要减去半高
                 float centerY = contentHeight * 0.5f;
@@ -170,10 +111,9 @@ namespace TurnCard.Game.UI
                 m_Cards.Add(view);
             }
 
-            var scroll = m_Panel != null ? m_Panel.GetComponentInChildren<ScrollRect>(true) : null;
-            if (scroll != null)
+            if (scrollList != null)
             {
-                scroll.verticalNormalizedPosition = 1f;
+                scrollList.verticalNormalizedPosition = 1f;
             }
         }
 
@@ -189,9 +129,6 @@ namespace TurnCard.Game.UI
 
             m_Cards.Clear();
         }
-
-        /// <summary>关闭回调，由打开方设置。</summary>
-        public Action OnCloseRequested { get; set; }
 
         private void Close()
         {

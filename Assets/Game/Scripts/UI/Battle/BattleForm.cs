@@ -1251,8 +1251,13 @@ namespace Window.BattleForm
                 definitions.Add(card.Definition);
             }
 
-            CardListViewScreen screen = UIHost.Shared.OpenRuntime<CardListViewScreen>(
-                "CardList", _ => { });
+            CardListViewScreen screen = UIHost.Shared.Open<CardListViewScreen>(
+                CardListViewScreen.ResourcePath);
+            if (screen == null)
+            {
+                return;
+            }
+
             m_ListView = screen;
             screen.SetHeader(title, $"共 {definitions.Count} 张");
             screen.ShowCards(definitions, null);
