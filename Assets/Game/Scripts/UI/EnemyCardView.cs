@@ -74,6 +74,41 @@ namespace TurnCard.Game.UI
         public CardFaceSide ShownSide => m_ShownSide;
         public bool IsFlipping { get; private set; }
 
+        /// <summary>正在播死亡动画（战斗层据此跳过后续刷新）。</summary>
+        public bool IsDying { get; private set; }
+
+        internal Image ArtImage => m_Art;
+        internal RectTransform BodyRoot => m_Body;
+
+        /// <summary>
+        /// 进入/退出死亡表现：收起气泡、血条、护甲和本体（立绘与卡框由死亡特效自己复制）。
+        /// </summary>
+        public void SetDeathVisualHidden(bool hidden)
+        {
+            IsDying = hidden;
+
+            if (m_Body != null)
+            {
+                m_Body.gameObject.SetActive(!hidden);
+            }
+
+            if (m_IntentRoot != null)
+            {
+                m_IntentRoot.SetActive(!hidden);
+            }
+
+            if (m_ArmorRoot != null)
+            {
+                m_ArmorRoot.SetActive(!hidden);
+            }
+
+            Transform banner = transform.Find("goHpBanner");
+            if (banner != null)
+            {
+                banner.gameObject.SetActive(!hidden);
+            }
+        }
+
         /// <summary>按预制体创建一张敌人卡（预制体缺失时返回 null 并报错，不会静默画一个空壳）。</summary>
         public static EnemyCardView Create(Transform parent, EnemyInstance enemy)
         {

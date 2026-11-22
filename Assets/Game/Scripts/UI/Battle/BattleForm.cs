@@ -410,10 +410,7 @@ namespace Window.BattleForm
                 }
             };
 
-            state.EnemyDied += _ =>
-            {
-                RefreshEnemyCardViews();
-            };
+            state.EnemyDied += OnEnemyDied;
 
             state.BattleEnded += victory =>
             {
@@ -1359,6 +1356,64 @@ namespace Window.BattleForm
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// 敌人死亡：从视图中摘除 → 播死亡动画 → 销毁 → 重排剩余敌人。
+        /// 逻辑层的 <c>m_State.Enemies</c> 不动（结算与选目标都靠 IsDead 过滤）。
+        /// </summary>
+        private void OnEnemyDied(TurnCard.Game.Battle.EnemyInstance enemy)
+        {
+            EnemyCardView view = ViewFor(enemy);
+            if (view == null)
+            {
+                return;
+            }
+
+            // 先摘掉，避免动画期间被选中/被刷新
+            m_EnemyCardViews.Remove(view);
+
+            EnemyDeathFx.Play(view, () =>
+            {
+                if (view != null)
+                {
+                    Destroy(view.gameObject);
+                }
+
+                LayoutEnemyRow();
+            });
+        }
+
+        /// <summary>把存活的敌人重新横向居中；带 0.2s 过渡，避免瞬移。</summary>
+        private void LayoutEnemyRow()
+        {
+            for (int i = m_EnemyCardViews.Count - 1; i >= 0; i--)
+            {
+                if (m_EnemyCardViews[i] == null)
+                {
+                    m_EnemyCardViews.RemoveAt(i);
+                }
+            }
+
+            int count = m_EnemyCardViews.Count;
+            if (count == 0)
+            {
+                return;
+            }
+
+            float cardW = EnemyCardWidth;
+            float width = count * cardW + Mathf.Max(0, count - 1) * EnemySpacing;
+            float left = -width * 0.5f + cardW * 0.5f;
+
+            for (int i = 0; i < count; i++)
+            {
+                EnemyCardView view = m_EnemyCardViews[i];
+                RectTransform rect = view.Rect;
+                float y = rect.anchoredPosition.y;
+                rect.DOKill();
+                rect.DOAnchorPos(new Vector2(left + i * (cardW + EnemySpacing), y), 0.2f)
+                    .SetEase(Ease.OutQuad);
+            }
         }
 
         /// <summary>刷新所有敌人的显示。</summary>
