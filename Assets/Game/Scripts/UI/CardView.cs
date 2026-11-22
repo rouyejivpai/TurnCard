@@ -21,9 +21,23 @@ namespace TurnCard.Game.UI
     public sealed class CardView : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler,
         IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
-        // 与整图卡框（cardframeWood 160×196）一致，1:1 显示不缩放
-        public const float CardWidth = 160f;
-        public const float CardHeight = 196f;
+        // ---- 卡牌尺寸：只改 CardScale，其它全部派生 ----
+        // 美术原生像素（cardframeWood.png 的实际尺寸，不要改）
+        public const float CardArtWidth = 160f;
+        public const float CardArtHeight = 196f;
+
+        /// <summary>
+        /// 卡牌显示缩放（唯一开关）。
+        /// 像素风建议用整数倍（1 / 2）保持锐利；1.5 也能用，但像素会略微不均匀。
+        /// </summary>
+        public const float CardScale = 1.5f;
+
+        // 派生尺寸：布局、预制体、字号都由它推导
+        public const float CardWidth = CardArtWidth * CardScale;
+        public const float CardHeight = CardArtHeight * CardScale;
+
+        /// <summary>把「美术像素」换算成「显示像素」。</summary>
+        public static float ArtPixels(float artPixels) => artPixels * CardScale;
         public const float LiftOffset = 46f;
         public const float InspectHoverSeconds = 0.8f;
 

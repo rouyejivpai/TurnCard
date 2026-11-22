@@ -24,8 +24,8 @@ namespace Window.BattleForm
         /// <summary>手牌之间想要的间隙（实际会按可用宽度自适应压缩）。</summary>
         private const float HandGap = 14f;
 
-        /// <summary>手牌区可用的最大宽度（画布 1920 减去两侧牌堆的余量）。</summary>
-        private const float HandMaxWidth = 1180f;
+        /// <summary>手牌区左右各留出的余量（给两侧牌堆）。</summary>
+        private const float HandSidePadding = 80f;
 
         private BattleState m_State;
         private BattleContent m_Content;
@@ -180,44 +180,75 @@ namespace Window.BattleForm
         /// </summary>
         private const float EnemySpacing = 36f;
 
+        /// <summary>敌人卡在屏上的目标高度；缩放由它反推，改卡牌尺寸时会自动跟随。</summary>
+        private const float EnemyCardHeight = 245f;
+
+        /// <summary>敌人卡缩放 = 目标高度 / 卡牌高度。</summary>
+        private static float EnemyCardScale => EnemyCardHeight / CardView.CardHeight;
+
         /// <summary>
-        /// 敌人区：横向布局组，多个怪物从左到右排开、整体居中。
+        /// 敌人区：优先使用预制体里的 EnemyArea 节点（位置与站位都可以手动编辑）。
         ///
-        /// 不用 ContentSizeFitter —— 它会按子物体原始尺寸撑开容器，
-        /// 再叠加缩放会把敌人推到画面外。这里直接按数量算好宽度。
+        /// 预制体结构：
+        /// <code>
+        /// EnemyArea          锚点 / 位置 / 尺寸自己调
+        /// ├─ Slot1          第 1 个敌人的站位（空 RectTransform，不显示）
+        /// ├─ Slot2
+        /// └─ Slot3
+        /// </code>
+        /// 代码只把敌人卡塞进对应 Slot 的坐标，不改容器尺寸与站位；
+        /// 没有 Slot 时退回「按数量自动横排居中」的旧行为。
         /// </summary>
         private void BuildEnemyArea()
         {
             if (m_EnemyArea == null)
             {
-                var go = new GameObject("EnemyArea", typeof(RectTransform));
-                m_EnemyArea = (RectTransform)go.transform;
-                m_EnemyArea.SetParent(m_FormRect, false);
-                m_EnemyArea.anchorMin = new Vector2(0.5f, 1f);
-                m_EnemyArea.anchorMax = new Vector2(0.5f, 1f);
-                m_EnemyArea.pivot = new Vector2(0.5f, 1f);
-                m_EnemyArea.anchoredPosition = new Vector2(0f, -96f);
+                Transform authored = m_FormRect.Find("EnemyArea");
+                if (authored != null)
+                {
+                    m_EnemyArea = (RectTransform)authored;
+                }
+                else
+                {
+                    // 预制体没有 EnemyArea 时的运行时兜底
+                    var go = new GameObject("EnemyArea", typeof(RectTransform));
+                    m_EnemyArea = (RectTransform)go.transform;
+                    m_EnemyArea.SetParent(m_FormRect, false);
+                    m_EnemyArea.anchorMin = new Vector2(0.5f, 1f);
+                    m_EnemyArea.anchorMax = new Vector2(0.5f, 1f);
+                    m_EnemyArea.pivot = new Vector2(0.5f, 1f);
+                    m_EnemyArea.anchoredPosition = new Vector2(0f, -96f);
+                }
             }
 
-            // 倒序按索引删除：Destroy 是「帧末才生效」的，
-            // 直接在 foreach 里删子物体容易把枚举搞乱
+            // 只清敌人卡，保留 Slot 标记（倒序删：Destroy 帧末才生效）
             for (int c = m_EnemyArea.childCount - 1; c >= 0; c--)
             {
-                Destroy(m_EnemyArea.GetChild(c).gameObject);
+                Transform child = m_EnemyArea.GetChild(c);
+                if (child.GetComponent<EnemyView>() != null)
+                {
+                    Destroy(child.gameObject);
+                }
             }
 
             m_EnemyViews.Clear();
 
             int count = m_State.Enemies.Count;
-            const float scale = 1.25f;
+            float scale = EnemyCardScale;
+
+            // 预制体配了 Slot 就按 Slot 摆，否则按数量自动横排
+            bool hasSlots = m_EnemyArea.Find("Slot1") != null;
+
             float cardW = CardView.CardWidth * scale;
             float width = count * cardW + Mathf.Max(0, count - 1) * EnemySpacing;
-            m_EnemyArea.sizeDelta = new Vector2(width, CardView.CardHeight * scale);
 
-            // 手动横向排布：列表顺序就是站位顺序，也就是出手顺序（从左到右）。
-            // 这里没有用 HorizontalLayoutGroup —— 在缩放过的画布下它算出的坐标会整体偏移，
-            // 手动算位置更可控，也保证「列表第 0 个 = 最左」这条规则成立。
+            if (!hasSlots)
+            {
+                m_EnemyArea.sizeDelta = new Vector2(width, CardView.CardHeight * scale);
+            }
+
             float left = -width * 0.5f + cardW * 0.5f;
+
             for (int i = 0; i < count; i++)
             {
                 var view = EnemyView.Create(m_EnemyArea, m_State.Enemies[i], scale,
@@ -227,9 +258,23 @@ namespace Window.BattleForm
                 rect.anchorMin = new Vector2(0.5f, 0.5f);
                 rect.anchorMax = new Vector2(0.5f, 0.5f);
                 rect.pivot = new Vector2(0.5f, 0.5f);
-                rect.anchoredPosition = new Vector2(left + i * (cardW + EnemySpacing), 0f);
+
+                var slot = hasSlots ? m_EnemyArea.Find("Slot" + (i + 1)) as RectTransform : null;
+                rect.anchoredPosition = slot != null
+                    ? slot.anchoredPosition
+                    : new Vector2(left + i * (cardW + EnemySpacing), 0f);
 
                 m_EnemyViews.Add(view);
+            }
+
+            // Slot 只是站位标记，不显示
+            for (int c = 0; c < m_EnemyArea.childCount; c++)
+            {
+                Transform child = m_EnemyArea.GetChild(c);
+                if (child.name.StartsWith("Slot"))
+                {
+                    child.gameObject.SetActive(false);
+                }
             }
 
             // 敌人区要在背景之上、手牌之下
@@ -406,10 +451,14 @@ namespace Window.BattleForm
             IReadOnlyList<CardInstance> hand = m_State.Hand;
 
             // 间距自适应：手牌多了就压缩间隙，避免压到两侧牌堆或互相遮挡
+            // 可用宽度按手牌容器的实际尺寸算，不写死
+            float maxWidth = Mathf.Max(CardView.CardWidth * 2f,
+                m_HandRoot.rect.width - HandSidePadding * 2f);
+
             float spacing = CardView.CardWidth + HandGap;
             if (hand.Count > 1)
             {
-                float fit = (HandMaxWidth - CardView.CardWidth) / (hand.Count - 1);
+                float fit = (maxWidth - CardView.CardWidth) / (hand.Count - 1);
                 spacing = Mathf.Min(spacing, Mathf.Max(CardView.CardWidth * 0.55f, fit));
             }
 

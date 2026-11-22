@@ -202,49 +202,49 @@ namespace TurnCard.Game.UI
             RectTransform art = UiFactory.CreateRect(root, "Art");
             art.anchorMin = Vector2.zero;
             art.anchorMax = Vector2.one;
-            art.offsetMin = new Vector2(ArtInset, ArtBottom);
-            art.offsetMax = new Vector2(-ArtInset, -ArtTop);
+            art.offsetMin = new Vector2(S(ArtInset), S(ArtBottom));
+            art.offsetMax = new Vector2(-S(ArtInset), -S(ArtTop));
             m_Art = art.gameObject.AddComponent<Image>();
             m_Art.color = CardView.ArtPlaceholderColor;
             m_Art.raycastTarget = false;
 
             // 费用：左上角圆形槽
-            m_CostText = UiFactory.CreateLabel(root, "Cost", "0", 14, ink,
-                new Vector2(CostBoxSize, CostBoxSize), new Vector2(0f, 1f),
-                new Vector2(CostCenterX, -CostCenterY));
-            m_CostText.fontStyle = FontStyles.Bold;
+            m_CostText = UiFactory.CreateLabel(root, "Cost", "0", S(14f), ink,
+                new Vector2(S(CostBoxSize), S(CostBoxSize)), new Vector2(0f, 1f),
+                new Vector2(S(CostCenterX), -S(CostCenterY)));
             Place(m_CostText.rectTransform, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(CostCenterX, -CostCenterY));
+                new Vector2(S(CostCenterX), -S(CostCenterY)));
+            m_CostText.fontStyle = FontStyles.Bold;
 
             // 名称：顶部横幅
-            m_NameText = UiFactory.CreateLabel(root, "Name", string.Empty, 10, ink,
-                new Vector2(NameWidth, NameHeight), new Vector2(0.5f, 1f),
-                new Vector2(0f, -NameCenterY));
+            m_NameText = UiFactory.CreateLabel(root, "Name", string.Empty, S(10f), ink,
+                new Vector2(S(NameWidth), S(NameHeight)), new Vector2(0.5f, 1f),
+                new Vector2(0f, -S(NameCenterY)));
             Place(m_NameText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -NameCenterY));
+                new Vector2(0f, -S(NameCenterY)));
             m_NameText.enableAutoSizing = true;
-            m_NameText.fontSizeMin = 8f;
-            m_NameText.fontSizeMax = 10f;
+            m_NameText.fontSizeMin = S(8f);
+            m_NameText.fontSizeMax = S(10f);
 
-            // 描述：底部分区
-            m_DescriptionText = UiFactory.CreateLabel(root, "Description", string.Empty, 7, cream,
-                new Vector2(width - DescInset * 2f, height - DescTop - DescBottom),
+            // 描述：底部深色底板
+            m_DescriptionText = UiFactory.CreateLabel(root, "Description", string.Empty, S(7f), cream,
+                new Vector2(width - S(DescInset) * 2f, height - S(DescTop) - S(DescBottom)),
                 new Vector2(0.5f, 0.5f), Vector2.zero, TextAlignmentOptions.Center);
             var descRect = m_DescriptionText.rectTransform;
             descRect.anchorMin = Vector2.zero;
             descRect.anchorMax = Vector2.one;
-            descRect.offsetMin = new Vector2(DescInset, DescBottom);
-            descRect.offsetMax = new Vector2(-DescInset, -DescTop);
+            descRect.offsetMin = new Vector2(S(DescInset), S(DescBottom));
+            descRect.offsetMax = new Vector2(-S(DescInset), -S(DescTop));
             m_DescriptionText.enableAutoSizing = true;
-            m_DescriptionText.fontSizeMin = 5f;
-            m_DescriptionText.fontSizeMax = 7f;
+            m_DescriptionText.fontSizeMin = S(5f);
+            m_DescriptionText.fontSizeMax = S(7f);
 
-            // 类型：底部左下角小字
-            m_TypeText = UiFactory.CreateLabel(root, "Type", string.Empty, 8,
-                new Color(0.96f, 0.92f, 0.84f, 0.8f), new Vector2(TypeSizeX, TypeSizeY),
-                new Vector2(1f, 0f), new Vector2(-DescInset, TypeBottom));
+            // 类型：底板右下角
+            m_TypeText = UiFactory.CreateLabel(root, "Type", string.Empty, S(8f),
+                new Color(0.96f, 0.92f, 0.84f, 0.8f), new Vector2(S(TypeSizeX), S(TypeSizeY)),
+                new Vector2(1f, 0f), new Vector2(-S(DescInset), S(TypeBottom)));
             Place(m_TypeText.rectTransform, new Vector2(1f, 0f), new Vector2(1f, 0.5f),
-                new Vector2(-DescInset, TypeBottom));
+                new Vector2(-S(DescInset), S(TypeBottom)));
             m_TypeText.alignment = TextAlignmentOptions.Right;
         }
 
@@ -383,6 +383,12 @@ namespace TurnCard.Game.UI
                 image.pixelsPerUnitMultiplier = Mathf.Clamp(
                     borderPixels / Mathf.Max(1f, target), 0.05f, 10f);
             }
+        }
+
+        /// <summary>美术像素 → 显示像素。</summary>
+        private static float S(float artPixels)
+        {
+            return CardView.ArtPixels(artPixels);
         }
 
         private static void Stretch(RectTransform rect)
