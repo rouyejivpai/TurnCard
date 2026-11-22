@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ec2cb4bed0ed024592fc32f009794f3, type: 3}
+  m_Name: EnemyDeathSettings
+  m_EditorClassIdentifier: 
+  m_CutDuration: 0.1
+  m_SplitDuration: 0.35
+  m_DissolveDuration: 0.25
+  m_FadeDelay: 0.06
+  m_SplitDistance: 36
+  m_SplitAngle: 6
+  m_CutAngle: -28
+  m_CutSweepFrom: -0.9
+  m_EdgeWidth: 0.05
+  m_EdgeColor: {r: 1, g: 1, b: 0.86, a: 1}
+  m_DissolveScale: 14
+  m_SlashEnabled: 1
+  m_SlashSize: {x: 300, y: 10}
+  m_SlashFrom: {x: -110, y: 70}
+  m_SlashTo: {x: 110, y: -70}
+  m_SlashAngle: 28
+  m_SlashColor: {r: 1, g: 1, b: 0.9, a: 0.95}
+  m_SlashFadeIn: 0.03
+  m_SlashFadeOutDelay: 0.06
+  m_SlashFadeOut: 0.09

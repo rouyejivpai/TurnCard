@@ -12,27 +12,15 @@ namespace TurnCard.Game.UI
     /// <c>TurnCard/UICardSlashDeath</c> 材质实例，用 <c>_Half</c> 区分保留哪一侧；
     /// 切割线、位移、旋转、溶解全部在着色器里完成，C# 只驱动材质参数。
     ///
-    /// 总时长与 <c>BattleForm.ShowResultDelayed</c> 的 0.6s 对齐，
-    /// 保证「胜利」字样不会盖在还没消散的卡上。
+    /// 所有可调参数（时长、位移、旋转、刀痕角度/颜色、刀光轨迹）都在
+    /// <c>Resources/UI/Enemy/EnemyDeathSettings.asset</c> 里，改数值不用改代码。
     /// </summary>
     public static class EnemyDeathFx
     {
         private const string MaterialResource = "UI/Enemy/CardSlashDeath";
 
-        /// <summary>刀痕扫过的时间（此时两半还贴在一起）。</summary>
-        private const float CutDuration = 0.10f;
-
-        /// <summary>两半分离 + 淡出的时间。</summary>
-        private const float SplitDuration = 0.35f;
-
-        /// <summary>溶解时间（与分离重叠，收尾更干脆）。</summary>
-        private const float DissolveDuration = 0.25f;
-
-        /// <summary>整段动画时长。</summary>
-        public const float TotalDuration = 0.60f;
-
-        private const float SplitDistance = 36f;
-        private const float SplitAngle = 6f;
+        /// <summary>整段动画时长（分离结束时收尾），供外部排时序用。</summary>
+        public static float TotalDuration => EnemyDeathSettings.Current.TotalDuration;
 
         /// <summary>
         /// 播死亡动画。材质缺失时退化成「整体淡出」的占位表现，不会卡住流程。
@@ -45,6 +33,7 @@ namespace TurnCard.Game.UI
                 return;
             }
 
+            EnemyDeathSettings cfg = EnemyDeathSettings.Current;
             Material baseMaterial = Resources.Load<Material>(MaterialResource);
             RectTransform root = view.Rect;
 
@@ -53,16 +42,14 @@ namespace TurnCard.Game.UI
 
             if (baseMaterial == null || view.ArtImage == null)
             {
-                PlayFallback(root, onCompleted);
+                PlayFallback(root, cfg, onCompleted);
                 return;
             }
 
             var topMaterial = new Material(baseMaterial);
             var bottomMaterial = new Material(baseMaterial);
-            topMaterial.SetFloat("_Half", 0f);
-            bottomMaterial.SetFloat("_Half", 1f);
-            topMaterial.SetFloat("_CutOffset", -0.9f);
-            bottomMaterial.SetFloat("_CutOffset", -0.9f);
+            ApplyCommonProperties(topMaterial, cfg, 0f);
+            ApplyCommonProperties(bottomMaterial, cfg, 1f);
 
             RectTransform container = CreateFullRect(root, "goDeathFx");
             Image topFrame = CloneImage(view.BodyRoot, "imgFrame", container, topMaterial);
@@ -76,30 +63,39 @@ namespace TurnCard.Game.UI
             topFrame.transform.SetSiblingIndex(2);
             topArt.transform.SetSiblingIndex(3);
 
-            RectTransform slash = CreateSlash(container, topArt.sprite);
-
             Sequence seq = DOTween.Sequence();
 
-            // 1) 刀痕扫过：切分线从上方扫到卡心，同时刀光划过
-            seq.Join(topMaterial.DOFloat(0f, "_CutOffset", CutDuration).SetEase(Ease.InQuad));
-            seq.Join(bottomMaterial.DOFloat(0f, "_CutOffset", CutDuration).SetEase(Ease.InQuad));
-            seq.Join(slash.DOAnchorPos(new Vector2(110f, -70f), CutDuration).SetEase(Ease.InQuad));
-            seq.Join(slash.GetComponent<Image>().DOFade(0.95f, 0.03f));
-            seq.Insert(0.06f, slash.GetComponent<Image>().DOFade(0f, 0.09f));
+            // 1) 刀痕扫过：切分线从起始位置扫到卡心，同时刀光划过
+            seq.Join(topMaterial.DOFloat(0f, "_CutOffset", cfg.CutDuration).SetEase(Ease.InQuad));
+            seq.Join(bottomMaterial.DOFloat(0f, "_CutOffset", cfg.CutDuration).SetEase(Ease.InQuad));
+
+            if (cfg.SlashEnabled)
+            {
+                RectTransform slash = CreateSlash(container, cfg);
+                Image slashImage = slash.GetComponent<Image>();
+                seq.Join(slash.DOAnchorPos(cfg.SlashTo, cfg.CutDuration).SetEase(Ease.InQuad));
+                seq.Join(slashImage.DOFade(cfg.SlashColor.a, cfg.SlashFadeIn));
+                seq.Insert(Mathf.Max(0f, cfg.CutDuration - cfg.SlashFadeOut), slashImage.DOFade(0f, cfg.SlashFadeOut));
+            }
 
             // 2) 两半分离 + 旋转 + 淡出
-            float splitStart = CutDuration;
-            seq.Insert(splitStart, topMaterial.DOVector(new Vector3(0f, SplitDistance, 0f), "_HalfOffset", SplitDuration).SetEase(Ease.OutQuad));
-            seq.Insert(splitStart, bottomMaterial.DOVector(new Vector3(0f, -SplitDistance, 0f), "_HalfOffset", SplitDuration).SetEase(Ease.OutQuad));
-            seq.Insert(splitStart, topMaterial.DOFloat(SplitAngle, "_HalfRotation", SplitDuration).SetEase(Ease.OutQuad));
-            seq.Insert(splitStart, bottomMaterial.DOFloat(-SplitAngle, "_HalfRotation", SplitDuration).SetEase(Ease.OutQuad));
-            seq.Insert(splitStart + 0.06f, topMaterial.DOFloat(0f, "_Alpha", SplitDuration).SetEase(Ease.InQuad));
-            seq.Insert(splitStart + 0.06f, bottomMaterial.DOFloat(0f, "_Alpha", SplitDuration).SetEase(Ease.InQuad));
+            float splitStart = cfg.CutDuration;
+            float distance = cfg.SplitDistance;
+            float angle = cfg.SplitAngle;
+            seq.Insert(splitStart, topMaterial.DOVector(new Vector3(0f, distance, 0f), "_HalfOffset", cfg.SplitDuration).SetEase(Ease.OutQuad));
+            seq.Insert(splitStart, bottomMaterial.DOVector(new Vector3(0f, -distance, 0f), "_HalfOffset", cfg.SplitDuration).SetEase(Ease.OutQuad));
+            seq.Insert(splitStart, topMaterial.DOFloat(angle, "_HalfRotation", cfg.SplitDuration).SetEase(Ease.OutQuad));
+            seq.Insert(splitStart, bottomMaterial.DOFloat(-angle, "_HalfRotation", cfg.SplitDuration).SetEase(Ease.OutQuad));
+
+            float fadeStart = splitStart + Mathf.Min(cfg.FadeDelay, cfg.SplitDuration * 0.5f);
+            float fadeDuration = Mathf.Max(0.01f, cfg.TotalDuration - fadeStart);
+            seq.Insert(fadeStart, topMaterial.DOFloat(0f, "_Alpha", fadeDuration).SetEase(Ease.InQuad));
+            seq.Insert(fadeStart, bottomMaterial.DOFloat(0f, "_Alpha", fadeDuration).SetEase(Ease.InQuad));
 
             // 3) 溶解：在淡出后半段开始，边缘发亮
-            float dissolveStart = CutDuration + SplitDuration - DissolveDuration * 0.5f;
-            seq.Insert(dissolveStart, topMaterial.DOFloat(1f, "_Dissolve", DissolveDuration));
-            seq.Insert(dissolveStart, bottomMaterial.DOFloat(1f, "_Dissolve", DissolveDuration));
+            float dissolveStart = Mathf.Max(splitStart, cfg.TotalDuration - cfg.DissolveDuration);
+            seq.Insert(dissolveStart, topMaterial.DOFloat(1f, "_Dissolve", cfg.DissolveDuration));
+            seq.Insert(dissolveStart, bottomMaterial.DOFloat(1f, "_Dissolve", cfg.DissolveDuration));
 
             seq.SetEase(Ease.Linear);
             seq.OnComplete(() =>
@@ -112,7 +108,18 @@ namespace TurnCard.Game.UI
             });
         }
 
-        private static void PlayFallback(RectTransform root, Action onCompleted)
+        /// <summary>把配置资产里的值写进材质（材质自身只当默认值）。</summary>
+        private static void ApplyCommonProperties(Material material, EnemyDeathSettings cfg, float half)
+        {
+            material.SetFloat("_Half", half);
+            material.SetFloat("_CutOffset", cfg.CutSweepFrom);
+            material.SetFloat("_CutAngle", cfg.CutAngle);
+            material.SetFloat("_EdgeWidth", cfg.EdgeWidth);
+            material.SetColor("_EdgeColor", cfg.EdgeColor);
+            material.SetFloat("_DissolveScale", cfg.DissolveScale);
+        }
+
+        private static void PlayFallback(RectTransform root, EnemyDeathSettings cfg, Action onCompleted)
         {
             CanvasGroup group = root.GetComponent<CanvasGroup>();
             if (group == null)
@@ -120,8 +127,8 @@ namespace TurnCard.Game.UI
                 group = root.gameObject.AddComponent<CanvasGroup>();
             }
 
-            group.DOFade(0f, SplitDuration).SetEase(Ease.InQuad);
-            root.DOScale(root.localScale.x * 0.92f, SplitDuration).SetEase(Ease.InQuad)
+            group.DOFade(0f, cfg.SplitDuration).SetEase(Ease.InQuad);
+            root.DOScale(root.localScale.x * 0.92f, cfg.SplitDuration).SetEase(Ease.InQuad)
                 .OnComplete(() => onCompleted?.Invoke());
         }
 
@@ -169,8 +176,8 @@ namespace TurnCard.Game.UI
             return image;
         }
 
-        /// <summary>刀光：一条旋转的白色长条，从左上扫到右下。</summary>
-        private static RectTransform CreateSlash(RectTransform parent, Sprite sprite)
+        /// <summary>刀光：一条旋转的长条，从起点扫到终点。</summary>
+        private static RectTransform CreateSlash(RectTransform parent, EnemyDeathSettings cfg)
         {
             var go = new GameObject("imgSlash", typeof(RectTransform));
             var rect = (RectTransform)go.transform;
@@ -178,18 +185,13 @@ namespace TurnCard.Game.UI
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(300f, 10f);
-            rect.anchoredPosition = new Vector2(-110f, 70f);
-            rect.localRotation = Quaternion.Euler(0f, 0f, 28f);
+            rect.sizeDelta = cfg.SlashSize;
+            rect.anchoredPosition = cfg.SlashFrom;
+            rect.localRotation = Quaternion.Euler(0f, 0f, cfg.SlashAngle);
 
             var image = go.AddComponent<Image>();
             image.raycastTarget = false;
-            image.color = new Color(1f, 1f, 0.9f, 0f);
-            if (sprite == null)
-            {
-                // 没有贴图也能画：Image 不给 sprite 时渲染为纯色块
-                image.color = new Color(1f, 1f, 0.9f, 0f);
-            }
+            image.color = new Color(cfg.SlashColor.r, cfg.SlashColor.g, cfg.SlashColor.b, 0f);
 
             return rect;
         }
