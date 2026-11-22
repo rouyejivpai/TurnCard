@@ -102,102 +102,145 @@ namespace TurnCard.Game.UI
         }
 
         /// <summary>
-        /// 用代码搭一份标准卡面（编辑器生成预制体、以及没有预制体时的运行时兜底都用它）。
-        /// 背面不需要在这里翻转——朝向由外面的实例决定。
+        /// 卡牌模板的排版规范（设计像素，基准分辨率 1920×1080）。
+        ///
+        /// 尺寸由外框美术反推：外框 481×551（比例 0.873），卡牌取 192×220（0.873），
+        /// 这样九宫格拉伸时斜切角不变形。
+        ///
+        /// 内部不用绝对坐标硬摆，而是「贴边 + 固定高度」：
+        /// 上：横幅 / 左上：费用角标 / 中：插画 / 下：类型牌 + 描述底板。
+        /// 改卡牌尺寸时只需要改 CardWidth/CardHeight，内部会自动跟随。
         /// </summary>
+        private const float BannerHeight = 38f;
+
+        /// <summary>横幅距卡片顶边的距离（让开外框厚度）。</summary>
+        private const float BannerInset = 9f;
+
+        private const float BadgeSize = 36f;
+
+        private const float BadgeInset = 6f;
+
+        private const float DescHeight = 62f;
+
+        private const float DescInset = 8f;
+
+        private const float DescBottom = 8f;
+
+        private const float ChipHeight = 18f;
+
+        private const float ChipGap = 3f;
+
+        /// <summary>插画区左右留白。</summary>
+        private const float ArtInset = 14f;
+
         public void BuildDefault()
         {
             var root = (RectTransform)transform;
-            root.anchorMin = Vector2.zero;
-            root.anchorMax = Vector2.one;
-            root.offsetMin = Vector2.zero;
-            root.offsetMax = Vector2.zero;
+            root.anchorMin = new Vector2(0.5f, 0.5f);
+            root.anchorMax = new Vector2(0.5f, 0.5f);
             root.pivot = new Vector2(0.5f, 0.5f);
+            root.sizeDelta = new Vector2(CardView.CardWidth, CardView.CardHeight);
+
+            float width = CardView.CardWidth;
+            float height = CardView.CardHeight;
 
             // 底色：露在外框镂空处的部分，按类型着色
             m_Background = gameObject.AddComponent<Image>();
             m_Background.color = CardView.CardBase;
             m_Background.raycastTarget = true;
 
-            var cream = new Color(0.967f, 0.937f, 0.859f);
             var ink = new Color(0.235f, 0.141f, 0.086f);
-            _ = cream;
 
-            // 1) 外框：九宫格，四角保持斜切原样
+            // 1) 外框：铺满整张卡，九宫格
             RectTransform frame = UiFactory.CreateRect(root, "Frame");
-            frame.anchorMin = Vector2.zero;
-            frame.anchorMax = Vector2.one;
-            frame.offsetMin = Vector2.zero;
-            frame.offsetMax = Vector2.zero;
+            Stretch(frame);
             var frameImage = frame.gameObject.AddComponent<Image>();
             frameImage.raycastTarget = false;
-            CardSkin.ApplyFrame(frameImage);
 
-            // 2) 顶部名称横幅
+            // 2) 顶部名称横幅：贴顶居中，固定高度
             Image banner = CardSkin.CreatePart(root, "Banner", CardSkin.Banner,
-                new Vector2(190f, 52f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, 0f));
+                new Vector2(width - 18f, BannerHeight), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -BannerInset));
 
-            // 3) 左上费用角标
+            // 3) 左上费用角标：贴左上角，固定尺寸
             Image badge = CardSkin.CreatePart(root, "CostBadge", CardSkin.Badge,
-                new Vector2(44f, 44f), new Vector2(0f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(30f, -30f));
+                new Vector2(BadgeSize, BadgeSize), new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(BadgeInset, -BadgeInset - 2f));
+
             if (badge == null)
             {
                 RectTransform badgeRect = UiFactory.CreateBox(root, "CostBadgeFallback",
-                    new Color(0.08f, 0.09f, 0.12f, 0.92f), new Vector2(44f, 44f),
-                    new Vector2(0f, 1f), new Vector2(26f, -26f));
+                    new Color(0.08f, 0.09f, 0.12f, 0.92f), new Vector2(BadgeSize, BadgeSize),
+                    new Vector2(0f, 1f), new Vector2(BadgeInset, -BadgeInset));
                 badge = badgeRect.GetComponent<Image>();
             }
 
             m_CostBadge = badge;
-            m_CostText = UiFactory.CreateLabel(badge.transform, "Cost", "0", 24, ink,
-                new Vector2(44f, 44f), new Vector2(0.5f, 0.5f), Vector2.zero);
+            m_CostText = UiFactory.CreateLabel(badge.transform, "Cost", "0", 20, ink,
+                new Vector2(BadgeSize, BadgeSize), new Vector2(0.5f, 0.5f), Vector2.zero);
             Place(m_CostText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
 
-            // 4) 插画窗（暂时是纯色占位，压在框内）
-            RectTransform art = UiFactory.CreateBox(root, "Art", CardView.ArtPlaceholderColor,
-                new Vector2(140f, 92f), new Vector2(0.5f, 1f), new Vector2(0f, -66f));
-            m_Art = art.GetComponent<Image>();
+            // 4) 插画区：左右留白，上让开横幅、下让开类型牌
+            float artTop = BannerHeight + 4f;
+            float artBottom = DescBottom + DescHeight + ChipGap + ChipHeight + 4f;
+            RectTransform art = UiFactory.CreateRect(root, "Art");
+            art.anchorMin = new Vector2(0f, 0f);
+            art.anchorMax = new Vector2(1f, 1f);
+            art.offsetMin = new Vector2(ArtInset, artBottom);
+            art.offsetMax = new Vector2(-ArtInset, -artTop);
+            var artImage = art.gameObject.AddComponent<Image>();
+            artImage.color = CardView.ArtPlaceholderColor;
+            artImage.raycastTarget = false;
+            m_Art = artImage;
 
-            // 5) 类型小牌（文字体现类型）
-            Image chip = CardSkin.CreatePart(root, "TypeChip", CardSkin.Chip,
-                new Vector2(74f, 22f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 96f));
-
-            m_TypeText = UiFactory.CreateLabel(
-                chip != null ? chip.transform : root, "Type", string.Empty, 12, ink,
-                new Vector2(74f, 20f), new Vector2(0.5f, 0.5f), Vector2.zero);
-            Place(m_TypeText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
-
-            // 6) 描述底板
+            // 5) 描述底板：贴底居中，固定高度
             Image panel = CardSkin.CreatePart(root, "DescPanel", CardSkin.Panel,
-                new Vector2(158f, 86f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 10f));
+                new Vector2(width - DescInset * 2f, DescHeight), new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f), new Vector2(0f, DescBottom));
 
             m_DescriptionText = UiFactory.CreateLabel(
-                panel != null ? panel.transform : root, "Description", string.Empty, 12, ink,
-                new Vector2(144f, 70f), new Vector2(0.5f, 1f), new Vector2(0f, -8f),
-                TextAlignmentOptions.Top);
+                panel != null ? panel.transform : root, "Description", string.Empty, 10, ink,
+                new Vector2(width - DescInset * 2f - 14f, DescHeight - 12f),
+                new Vector2(0.5f, 0.5f), Vector2.zero, TextAlignmentOptions.Center);
+            m_DescriptionText.enableAutoSizing = true;
+            m_DescriptionText.fontSizeMin = 7f;
+            m_DescriptionText.fontSizeMax = 10f;
             Place(m_DescriptionText.rectTransform,
-                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -8f));
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
 
-            // 7) 名称文字（压在横幅上）
+            // 6) 类型牌：压在描述底板上沿
+            Image chip = CardSkin.CreatePart(root, "TypeChip", CardSkin.Chip,
+                new Vector2(62f, ChipHeight), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, DescBottom + DescHeight + ChipGap));
+
+            m_TypeText = UiFactory.CreateLabel(
+                chip != null ? chip.transform : root, "Type", string.Empty, 10, ink,
+                new Vector2(62f, ChipHeight), new Vector2(0.5f, 0.5f), Vector2.zero);
+            Place(m_TypeText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
+
+            // 7) 名称文字：压在横幅上
             m_NameText = UiFactory.CreateLabel(
-                banner != null ? banner.transform : root, "Name", string.Empty, 20, ink,
-                new Vector2(158f, 30f), new Vector2(0.5f, 0.5f), new Vector2(0f, 4f));
+                banner != null ? banner.transform : root, "Name", string.Empty, 15, ink,
+                new Vector2(width - 56f, BannerHeight - 8f), new Vector2(0.5f, 0.5f), Vector2.zero);
+            m_NameText.enableAutoSizing = true;
+            m_NameText.fontSizeMin = 9f;
+            m_NameText.fontSizeMax = 15f;
             Place(m_NameText.rectTransform,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 4f));
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
 
             AssignPartSprites();
         }
 
-        /// <summary>
-        /// 把部件精灵直接赋到 Image 上并序列化进预制体。
-        ///
-        /// 这样卡牌模板就是在 <c>CardFace.prefab</c> 里配的：改图、改颜色、改尺寸都在预制体上做，
-        /// CardView 里的两个实例自动同步。运行时只有「按卡牌类型换底色」这种动态内容。
-        /// </summary>
+        private static void Stretch(RectTransform rect)
+        {
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+        }
+
+
         private void AssignPartSprites()
         {
             // 只有外框适合九宫格（四角固定、中间拉伸）；

@@ -21,7 +21,11 @@ namespace Window.BattleForm
     public partial class BattleForm
     {
         private const float FlipDuration = 0.35f;
-        private const float HandSpacing = 202f;
+        /// <summary>手牌之间想要的间隙（实际会按可用宽度自适应压缩）。</summary>
+        private const float HandGap = 14f;
+
+        /// <summary>手牌区可用的最大宽度（画布 1920 减去两侧牌堆的余量）。</summary>
+        private const float HandMaxWidth = 1180f;
 
         private BattleState m_State;
         private BattleContent m_Content;
@@ -400,7 +404,16 @@ namespace Window.BattleForm
             UnityEngine.Debug.Log("[战斗] BuildHand.1 清空完成");
 
             IReadOnlyList<CardInstance> hand = m_State.Hand;
-            float startX = -(hand.Count - 1) * HandSpacing * 0.5f;
+
+            // 间距自适应：手牌多了就压缩间隙，避免压到两侧牌堆或互相遮挡
+            float spacing = CardView.CardWidth + HandGap;
+            if (hand.Count > 1)
+            {
+                float fit = (HandMaxWidth - CardView.CardWidth) / (hand.Count - 1);
+                spacing = Mathf.Min(spacing, Mathf.Max(CardView.CardWidth * 0.55f, fit));
+            }
+
+            float startX = -(hand.Count - 1) * spacing * 0.5f;
 
             for (int i = 0; i < hand.Count; i++)
             {
@@ -408,7 +421,8 @@ namespace Window.BattleForm
                 CardView view = CardView.Create(m_HandRoot, hand[i], 1f);
                 UnityEngine.Debug.Log("[战斗] BuildHand.3 第 " + i + " 张创建成功");
 
-                view.SetHome(new Vector2(startX + i * HandSpacing, 0f));
+                // 取整，避免像素级错位（像素风尤其明显）
+                view.SetHome(new Vector2(Mathf.Round(startX + i * spacing), 0f));
                 view.Clicked += OnCardClicked;
                 view.DragMoved += OnCardDragMoved;
                 view.DragFinished += OnCardDragFinished;

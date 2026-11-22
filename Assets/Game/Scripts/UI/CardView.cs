@@ -21,8 +21,10 @@ namespace TurnCard.Game.UI
     public sealed class CardView : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler,
         IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
-        public const float CardWidth = 190f;
-        public const float CardHeight = 268f;
+        // 尺寸由外框美术反推：外框 481×551（比例 0.873），
+        // 192/220 = 0.873 与之匹配，九宫格拉伸时斜切角不变形。
+        public const float CardWidth = 192f;
+        public const float CardHeight = 220f;
         public const float LiftOffset = 46f;
         public const float InspectHoverSeconds = 0.8f;
 

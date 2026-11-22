@@ -32,6 +32,9 @@ namespace TurnCard.Game.UI
             canvas.overrideSorting = true;
             canvas.sortingOrder = 1000;
 
+            // 像素风：对齐整像素，避免半像素采样导致的抖动
+            canvas.pixelPerfect = true;
+
             var scaler = go.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
