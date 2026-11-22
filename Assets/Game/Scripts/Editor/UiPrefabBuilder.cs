@@ -54,10 +54,30 @@ namespace TurnCard.EditorTools
         /// 生成卡面预制体（正反两面共用这一份结构）。
         /// 改布局只改这个文件，正反面同时生效。
         /// </summary>
+        /// <summary>
+        /// 生成器统一策略：目标已存在就跳过，避免把手工调整过的预制体覆盖掉。
+        /// 确实要重建请先手动删除对应预制体。
+        /// </summary>
+        private static bool SkipIfExists(string path, string what)
+        {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            {
+                return false;
+            }
+
+            Debug.Log("[预制体] 已存在，跳过（不会覆盖手工修改）：" + what + "  " + path);
+            return true;
+        }
+
         [MenuItem("Tools/TurnCard/生成卡面预制体", priority = 200)]
         public static void BuildCardFacePrefab()
         {
             EnsureFolder();
+
+            if (SkipIfExists(CardFacePrefabPath, "卡面"))
+            {
+                return;
+            }
 
             var go = new GameObject("CardFace", typeof(RectTransform));
             var face = go.AddComponent<CardFaceView>();
@@ -82,6 +102,11 @@ namespace TurnCard.EditorTools
         public static void BuildCardPrefab()
         {
             EnsureFolder();
+
+            if (SkipIfExists(CardPrefabPath, "卡牌"))
+            {
+                return;
+            }
 
             // 卡面必须先存在，CardView 里放的是它的两个嵌套实例
             var facePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(CardFacePrefabPath);
@@ -140,7 +165,7 @@ namespace TurnCard.EditorTools
             return instance;
         }
 
-        [MenuItem("Tools/TurnCard/生成牌堆面板预制体", priority = 202)]
+        [MenuItem("Tools/TurnCard/生成牌堆面板预制体", priority = 203)]
         public static void BuildPilePrefab()
         {
             EnsureFolder();
