@@ -194,11 +194,10 @@ namespace TurnCard.Game.UI
 
 
         /// <summary>
-        /// 把部件精灵注入到卡面节点上。
+        /// 补齐缺失的部件精灵。
         ///
-        /// 无论卡面是预制体提供的还是代码搭的，这一步都在运行时执行——
-        /// 因为部件精灵是运行时用 Sprite.Create 生成的，无法序列化进预制体。
-        /// 这样预制体只管结构（层级、坐标、文字），皮肤由这里统一贴。
+        /// 现在卡牌模板就在 CardFace.prefab 里配（图、颜色、尺寸都序列化了），
+        /// 所以这里只处理「预制体没配到图」的情况，作为兜底，不再覆盖预制体的设置。
         /// </summary>
         private static void ApplySkin(FaceWidgets face)
         {
@@ -211,7 +210,7 @@ namespace TurnCard.Game.UI
             if (frame != null)
             {
                 var image = frame.GetComponent<Image>();
-                if (image != null)
+                if (image != null && image.sprite == null)
                 {
                     CardSkin.ApplyFrame(image);
                 }
@@ -237,7 +236,7 @@ namespace TurnCard.Game.UI
             }
 
             var image = node.GetComponent<Image>();
-            if (image != null)
+            if (image != null && image.sprite == null)
             {
                 image.sprite = sprite;
                 image.type = Image.Type.Simple;

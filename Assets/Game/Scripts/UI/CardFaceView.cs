@@ -14,6 +14,12 @@ namespace TurnCard.Game.UI
     /// </summary>
     public sealed class CardFaceView : MonoBehaviour
     {
+        /// <summary>外框贴图里的角部像素，九宫格用。</summary>
+        private const float FrameBorderPixels = 54f;
+
+        /// <summary>希望外框在屏上占卡宽的比例。</summary>
+        private const float FrameTargetWidthRatio = 0.14f;
+
         [SerializeField] private Image m_Background;
         [SerializeField] private Image m_Art;
         [SerializeField] private Image m_CostBadge;
@@ -182,6 +188,77 @@ namespace TurnCard.Game.UI
                 new Vector2(158f, 30f), new Vector2(0.5f, 0.5f), new Vector2(0f, 4f));
             Place(m_NameText.rectTransform,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 4f));
+
+            AssignPartSprites();
+        }
+
+        /// <summary>
+        /// 把部件精灵直接赋到 Image 上并序列化进预制体。
+        ///
+        /// 这样卡牌模板就是在 <c>CardFace.prefab</c> 里配的：改图、改颜色、改尺寸都在预制体上做，
+        /// CardView 里的两个实例自动同步。运行时只有「按卡牌类型换底色」这种动态内容。
+        /// </summary>
+        private void AssignPartSprites()
+        {
+            // 只有外框适合九宫格（四角固定、中间拉伸）；
+            // 横幅/底板/角标/类型牌是按固定比例画的美术，用 Simple 整体缩放才不变形。
+            // 底色不贴图：它是按卡牌类型染色的纯色块，露在外框镂空处。
+            ApplySliced(FindImage("Frame"), "card_frame", FrameBorderPixels, FrameTargetWidthRatio, false);
+            ApplySimple(FindImage("Banner"), "card_banner");
+            ApplySimple(FindImage("DescPanel"), "card_desc_panel");
+            ApplySimple(m_CostBadge, "card_cost_badge");
+            ApplySimple(FindImage("TypeChip"), "card_type_chip");
+        }
+
+        private Image FindImage(string childName)
+        {
+            Transform child = transform.Find(childName);
+            return child != null ? child.GetComponent<Image>() : null;
+        }
+
+        private static void ApplySimple(Image image, string spriteName)
+        {
+            if (image == null)
+            {
+                return;
+            }
+
+            Sprite sprite = Resources.Load<Sprite>("Art/UI/card_parts/" + spriteName);
+            if (sprite == null)
+            {
+                return;
+            }
+
+            image.sprite = sprite;
+            image.type = Image.Type.Simple;
+            image.color = Color.white;
+        }
+
+        private static void ApplySliced(Image image, string spriteName, float borderPixels,
+            float targetBorderRatio, bool fillCenter = true)
+        {
+            if (image == null)
+            {
+                return;
+            }
+
+            Sprite sprite = Resources.Load<Sprite>("Art/UI/card_parts/" + spriteName);
+            if (sprite == null)
+            {
+                return;
+            }
+
+            image.sprite = sprite;
+            image.type = Image.Type.Sliced;
+            image.fillCenter = fillCenter;
+            image.color = Color.white;
+
+            if (targetBorderRatio > 0f && borderPixels > 0f)
+            {
+                // 边框在屏上的宽度 = 卡宽 × 比例；multiplier 越大边框越细
+                float target = CardView.CardWidth * targetBorderRatio;
+                image.pixelsPerUnitMultiplier = Mathf.Clamp(borderPixels / Mathf.Max(1f, target), 0.05f, 10f);
+            }
         }
 
         /// <summary>文字统一摆位：CreateLabel 会把 pivot 固定成中心，这里显式改回来。</summary>
