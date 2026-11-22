@@ -440,55 +440,128 @@ namespace Window.BattleForm
             m_HandDirty = false;
             if (m_State != null)
             {
-                UnityEngine.Debug.Log("[战斗] 帧末重建手牌，手牌=" + m_State.Hand.Count);
                 BuildHand();
             }
         }
 
+        /// <summary>
+        /// 让视图和手牌数据保持一致：
+        /// 只**补建新抽到的牌**、移除已离手的牌，然后把所有牌平滑推到新位置。
+        /// 旧实现是整组销毁重建，所以手牌一变就会看到一轮「全部飞入」，没有位移过渡。
+        /// </summary>
         private void BuildHand()
         {
-            UnityEngine.Debug.Log("[战斗] BuildHand 进入，手牌=" + m_State.Hand.Count);
-            ClearHand();
-            UnityEngine.Debug.Log("[战斗] BuildHand.1 清空完成");
-
             IReadOnlyList<CardInstance> hand = m_State.Hand;
 
+            // 1) 移除已经不在手牌里的视图（打出/弃牌会自己播飞出动画并先摘掉自己）
+            for (int i = m_HandViews.Count - 1; i >= 0; i--)
+            {
+                CardView view = m_HandViews[i];
+                if (view == null)
+                {
+                    m_HandViews.RemoveAt(i);
+                    continue;
+                }
+
+                bool still = false;
+                for (int k = 0; k < hand.Count; k++)
+                {
+                    if (ReferenceEquals(hand[k], view.Card))
+                    {
+                        still = true;
+                        break;
+                    }
+                }
+
+                if (!still)
+                {
+                    Unsubscribe(view);
+                    m_HandViews.RemoveAt(i);
+                    Destroy(view.gameObject);
+                }
+            }
+
+            // 2) 按手牌顺序整理视图，缺的补建（新牌从抽牌堆飞入）
+            var ordered = new List<CardView>(hand.Count);
+            var fresh = new HashSet<CardView>();
+            for (int i = 0; i < hand.Count; i++)
+            {
+                CardView view = FindView(hand[i]);
+                if (view == null)
+                {
+                    view = CardView.Create(m_HandRoot, hand[i], 1f);
+                    view.Clicked += OnCardClicked;
+                    view.DragMoved += OnCardDragMoved;
+                    view.DragFinished += OnCardDragFinished;
+                    fresh.Add(view);
+                }
+
+                ordered.Add(view);
+            }
+
+            m_HandViews.Clear();
+            m_HandViews.AddRange(ordered);
+
+            // 3) 统一布局：新牌飞入，老牌平滑位移
+            ApplyHandLayout(fresh);
+
+            RefreshInteractivity();
+        }
+
+        /// <summary>按当前手牌数量算位置并过渡过去（新牌用发牌动画，老牌用补间）。</summary>
+        private void ApplyHandLayout(HashSet<CardView> fresh = null)
+        {
+            int count = m_HandViews.Count;
+            if (count == 0)
+            {
+                return;
+            }
+
             // 间距自适应：手牌多了就压缩间隙，避免压到两侧牌堆或互相遮挡
-            // 可用宽度按手牌容器的实际尺寸算，不写死
             float maxWidth = Mathf.Max(CardView.CardWidth * 2f,
                 m_HandRoot.rect.width - HandSidePadding * 2f);
 
             float spacing = CardView.CardWidth + HandGap;
-            if (hand.Count > 1)
+            if (count > 1)
             {
-                float fit = (maxWidth - CardView.CardWidth) / (hand.Count - 1);
+                float fit = (maxWidth - CardView.CardWidth) / (count - 1);
                 spacing = Mathf.Min(spacing, Mathf.Max(CardView.CardWidth * 0.55f, fit));
             }
 
-            float startX = -(hand.Count - 1) * spacing * 0.5f;
+            float startX = -(count - 1) * spacing * 0.5f;
 
-            for (int i = 0; i < hand.Count; i++)
+            for (int i = 0; i < count; i++)
             {
-                UnityEngine.Debug.Log("[战斗] BuildHand.2 创建第 " + i + " 张");
-                CardView view = CardView.Create(m_HandRoot, hand[i], 1f);
-                UnityEngine.Debug.Log("[战斗] BuildHand.3 第 " + i + " 张创建成功");
+                CardView view = m_HandViews[i];
+                if (view == null)
+                {
+                    continue;
+                }
 
                 // 取整，避免像素级错位（像素风尤其明显）
-                view.SetHome(new Vector2(Mathf.Round(startX + i * spacing), 0f));
-                view.Clicked += OnCardClicked;
-                view.DragMoved += OnCardDragMoved;
-                view.DragFinished += OnCardDragFinished;
-                m_HandViews.Add(view);
+                var target = new Vector2(Mathf.Round(startX + i * spacing), 0f);
 
-                // 从抽牌堆位置错峰飞入
-                UnityEngine.Debug.Log("[战斗] BuildHand.4 第 " + i + " 张启动飞入");
-                view.PlayDeal(HandLocalOfDrawPile(), 0.3f, i * 0.045f);
-                UnityEngine.Debug.Log("[战斗] BuildHand.5 第 " + i + " 张完成");
+                view.SetHomeSilent(target);
+                view.transform.SetSiblingIndex(i);
+
+                if (fresh != null && fresh.Contains(view))
+                {
+                    // 新牌：从抽牌堆位置错峰飞入
+                    view.PlayDeal(HandLocalOfDrawPile(), 0.3f, i * 0.045f);
+                }
+                else
+                {
+                    // 老牌：往新位置滑过去，稍微错峰一点点避免整排一起动
+                    view.TweenHome(0.2f, i * 0.015f);
+                }
             }
+        }
 
-            UnityEngine.Debug.Log("[战斗] BuildHand.6 刷新交互");
-            RefreshInteractivity();
-            UnityEngine.Debug.Log("[战斗] BuildHand 完成");
+        private void Unsubscribe(CardView view)
+        {
+            view.Clicked -= OnCardClicked;
+            view.DragMoved -= OnCardDragMoved;
+            view.DragFinished -= OnCardDragFinished;
         }
 
         private void ClearHand()
@@ -527,6 +600,9 @@ namespace Window.BattleForm
 
             m_HandViews.Remove(view);
             view.Interactable = false;
+
+            // 牌离开了手牌 → 剩下的牌要让位，帧末统一重排（带补间）
+            m_HandDirty = true;
 
             Vector2 target = btnDiscardPile != null
                 ? HandLocalOf(btnDiscardPile.transform.position)

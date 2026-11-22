@@ -634,6 +634,33 @@ namespace TurnCard.Game.UI
             m_Rect.anchoredPosition = position;
         }
 
+        /// <summary>只更新目标位置，不动当前显示位置（供布局过渡用）。</summary>
+        public void SetHomeSilent(Vector2 position)
+        {
+            m_HomePosition = position;
+        }
+
+        /// <summary>
+        /// 平滑移动到新的 home 位置。用独立的 <c>layout</c> id，
+        /// 不会和悬停、抬起、翻面那些补间互相打断。
+        /// </summary>
+        public void TweenHome(float duration = 0.18f, float delay = 0f)
+        {
+            if (m_Rect == null)
+            {
+                return;
+            }
+
+            DOTween.Kill(m_Rect, "layout");
+            m_Rect.DOAnchorPos(m_HomePosition, duration)
+                .SetDelay(delay)
+                .SetEase(Ease.OutCubic)
+                .SetId("layout");
+        }
+
+        /// <summary>当前是否正在移动到位（布局过渡期间为 true）。</summary>
+        public bool IsMovingHome { get; private set; }
+
         public void SnapHome()
         {
             m_Rect.anchoredPosition = m_HomePosition;
@@ -822,6 +849,8 @@ namespace TurnCard.Game.UI
             // 悬停放大约 1.25 倍，方便看清文字；同时置顶，避免被相邻的牌遮住
             transform.SetAsLastSibling();
             m_Rect.DOScale(m_BaseScale * HoverScale, 0.14f).SetEase(Ease.OutQuad).SetId("hover");
+            ShowShadow(true);
+            StartFloat();
             ShowKeywordTips();
             m_HoverRoutine = StartCoroutine(HoverRoutine());
         }
@@ -880,6 +909,156 @@ namespace TurnCard.Game.UI
             {
                 StopCoroutine(m_HoverRoutine);
                 m_HoverRoutine = null;
+            }
+
+            StopFloat();
+            ShowShadow(false);
+        }
+
+        // ---------------------------------------------------------------- 悬停：投影 + 浮动
+
+        /// <summary>影子的偏移（相对卡牌，右下方向）。</summary>
+        private static readonly Vector2 ShadowOffset = new Vector2(14f, -18f);
+
+        /// <summary>悬停时卡牌微微抬起的高度。</summary>
+        private const float FloatLift = 20f;
+
+        /// <summary>浮动的最大幅度，刻意压小，避免看起来像在漂走。</summary>
+        private const float FloatAmpMin = 2.5f;
+        private const float FloatAmpMax = 4.5f;
+
+        /// <summary>浮动一个来回的时长。</summary>
+        private const float FloatPeriod = 1.5f;
+
+        private const string ShadowResourcePath = "UI/Card/CardShadow";
+
+        private Image m_Shadow;
+
+        /// <summary>浮动动画的句柄；Sequence 必须持引用才能可靠 Kill。</summary>
+        private Tween m_FloatTween;
+
+        /// <summary>
+        /// 影子画在卡牌**下面一层**（第一个子节点），用卡框贴图的 alpha 当剪影，
+        /// 所以换卡框贴图时影子会自动跟着变，不需要额外的影子素材。
+        /// </summary>
+        private void EnsureShadow()
+        {
+            if (m_Shadow != null || m_Rect == null)
+            {
+                return;
+            }
+
+            var go = new GameObject("imgShadow", typeof(RectTransform));
+            var rect = (RectTransform)go.transform;
+            rect.SetParent(m_Rect, false);
+            rect.SetAsFirstSibling();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = ShadowOffset;
+            rect.offsetMax = ShadowOffset;
+            rect.localScale = Vector3.one;
+
+            var image = go.AddComponent<Image>();
+            image.raycastTarget = false;
+
+            Material material = Resources.Load<Material>(ShadowResourcePath);
+            if (material != null)
+            {
+                image.material = material;
+            }
+
+            Sprite sprite = m_FrontFace != null && m_FrontFace.Background != null
+                ? m_FrontFace.Background.sprite
+                : null;
+            image.sprite = sprite;
+            image.color = new Color(1f, 1f, 1f, 0f);
+
+            m_Shadow = image;
+        }
+
+        private void ShowShadow(bool show)
+        {
+            EnsureShadow();
+            if (m_Shadow == null)
+            {
+                return;
+            }
+
+            m_Shadow.DOKill();
+            if (show)
+            {
+                m_Shadow.gameObject.SetActive(true);
+                m_Shadow.DOFade(1f, 0.16f).SetEase(Ease.OutQuad).SetId("shadow");
+            }
+            else
+            {
+                m_Shadow.DOFade(0f, 0.14f).SetEase(Ease.InQuad).SetId("shadow")
+                    .OnComplete(() =>
+                    {
+                        if (m_Shadow != null)
+                        {
+                            m_Shadow.gameObject.SetActive(false);
+                        }
+                    });
+            }
+        }
+
+        /// <summary>
+        /// 悬停浮动：先抬到「悬浮高度」，再按一个**随机方向**做小幅度往返摆动。
+        /// 方向随机但幅度有上限（2.5~4.5px），所以不会看起来跑偏。
+        /// </summary>
+        private void StartFloat()
+        {
+            if (m_Rect == null)
+            {
+                return;
+            }
+
+            // 已经在浮动了就别起重开，否则 Sequence 会叠在一起
+            if (m_FloatTween != null && m_FloatTween.IsActive())
+            {
+                return;
+            }
+
+            KillFloat();
+
+            float angle = UnityEngine.Random.Range(-35f, 35f) * Mathf.Deg2Rad;
+            float amp = UnityEngine.Random.Range(FloatAmpMin, FloatAmpMax);
+            var wobble = new Vector2(Mathf.Sin(angle) * amp, Mathf.Cos(angle) * amp * 0.7f);
+            var baseTarget = m_HomePosition + new Vector2(0f, FloatLift);
+
+            Sequence seq = DOTween.Sequence().SetId("float");
+            seq.Append(m_Rect.DOAnchorPos(baseTarget, 0.14f).SetEase(Ease.OutQuad));
+            seq.Append(m_Rect.DOAnchorPos(baseTarget + wobble, FloatPeriod)
+                .SetEase(Ease.InOutSine)
+                .SetLoops(-1, LoopType.Yoyo));
+
+            m_FloatTween = seq;
+        }
+
+        /// <summary>只杀浮动。Sequence 必须持有引用再 Kill —— 按 id 杀不掉循环里的子 tween。</summary>
+        private void KillFloat()
+        {
+            if (m_FloatTween != null)
+            {
+                m_FloatTween.Kill();
+                m_FloatTween = null;
+            }
+        }
+
+        private void StopFloat()
+        {
+            if (m_Rect == null)
+            {
+                return;
+            }
+
+            KillFloat();
+
+            if (!m_IsDragging)
+            {
+                DOTween.Kill(m_Rect, "layout");
+                m_Rect.DOAnchorPos(m_HomePosition, 0.16f).SetEase(Ease.OutQuad).SetId("layout");
             }
         }
 

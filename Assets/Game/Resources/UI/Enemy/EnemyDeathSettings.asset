@@ -18,7 +18,7 @@ MonoBehaviour:
   m_FadeDelay: 0.06
   m_SplitDistance: 36
   m_SplitAngle: 6
-  m_CutAngle: -28
+  m_CutAngle: 115
   m_CutSweepFrom: -0.9
   m_EdgeWidth: 0.05
   m_EdgeColor: {r: 1, g: 1, b: 0.86, a: 1}
