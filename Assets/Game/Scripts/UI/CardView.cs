@@ -21,10 +21,9 @@ namespace TurnCard.Game.UI
     public sealed class CardView : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler,
         IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
-        // 尺寸由外框美术反推：外框 481×551（比例 0.873），
-        // 192/220 = 0.873 与之匹配，九宫格拉伸时斜切角不变形。
-        public const float CardWidth = 192f;
-        public const float CardHeight = 220f;
+        // 与整图卡框（cardframeWood 160×196）一致，1:1 显示不缩放
+        public const float CardWidth = 160f;
+        public const float CardHeight = 196f;
         public const float LiftOffset = 46f;
         public const float InspectHoverSeconds = 0.8f;
 
@@ -50,6 +49,9 @@ namespace TurnCard.Game.UI
             public TextMeshProUGUI NameText;
             public TextMeshProUGUI TypeText;
             public TextMeshProUGUI DescriptionText;
+
+            /// <summary>是否要把 Background 染成中性底色（整图模式不染，否则会把卡框图涂黑）。</summary>
+            public bool TintBackground;
         }
 
         [Header("正面")]
@@ -471,8 +473,11 @@ namespace TurnCard.Game.UI
 
             if (face.NameText != null) face.NameText.text = displayName ?? string.Empty;
             if (face.DescriptionText != null) face.DescriptionText.text = formatted;
-            // 底色固定为中性色，不随卡牌类型变化
-            if (face.Background != null) face.Background.color = CardBase;
+            // 底色固定为中性色，不随卡牌类型变化；整图模式下背景是卡框图，不能染
+            if (face.Background != null && face.TintBackground)
+            {
+                face.Background.color = CardBase;
+            }
 
 
 

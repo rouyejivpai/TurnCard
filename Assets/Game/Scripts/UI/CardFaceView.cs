@@ -8,33 +8,71 @@ namespace TurnCard.Game.UI
     /// <summary>
     /// 一张卡面（正面/背面共用同一个预制体）。
     ///
-    /// 之前正反面各手搓了一份结构，改一侧另一侧就漂移。现在结构只在这里定义一次，
-    /// CardView 里放两个 <c>CardFace.prefab</c> 的嵌套实例即可：
-    /// 改布局改一次，正反两面同时生效；颜色/图/文字各自用实例覆盖。
+    /// 模板有两种模式：
+    /// <list type="bullet">
+    /// <item><b>整图模式</b>（默认）：背景是一张完整的卡框图，文字直接叠在图上的对应槽位。
+    /// 改样子就换这张图。</item>
+    /// <item><b>部件模式</b>：外框 / 横幅 / 角标 / 类型牌 / 底板各自一张图，由代码拼装。
+    /// 需要单独换某个部件时才用。</item>
+    /// </list>
+    ///
+    /// 两种模式的结构都只在这里定义一次，CardView 里放两个 <c>CardFace.prefab</c> 的嵌套实例，
+    /// 改模板改一次，正反两面同时生效。
     /// </summary>
     public sealed class CardFaceView : MonoBehaviour
     {
-        /// <summary>外框贴图里的角部像素，九宫格用。</summary>
-        private const float FrameBorderPixels = 54f;
+        /// <summary>整图模式下卡框图的资源名（相对 Resources）。</summary>
+        public const string CardBackgroundResource = "Art/UI/cards/card_frame_wood";
 
-        /// <summary>希望外框在屏上占卡宽的比例。</summary>
-        private const float FrameTargetWidthRatio = 0.14f;
+        [Header("模板模式")]
+        [Tooltip("勾选 = 部件拼装（5 张图）；不勾 = 整图背景（1 张图 + 文字叠加）")]
+        [SerializeField] private bool m_UsePartSprites;
 
         [SerializeField] private Image m_Background;
         [SerializeField] private Image m_Art;
-        [SerializeField] private Image m_CostBadge;
         [SerializeField] private TextMeshProUGUI m_CostText;
         [SerializeField] private TextMeshProUGUI m_NameText;
         [SerializeField] private TextMeshProUGUI m_TypeText;
         [SerializeField] private TextMeshProUGUI m_DescriptionText;
 
+        public bool UsePartSprites => m_UsePartSprites;
         public Image Background => m_Background;
         public Image Art => m_Art;
-        public Image CostBadge => m_CostBadge;
         public TextMeshProUGUI CostText => m_CostText;
         public TextMeshProUGUI NameText => m_NameText;
         public TextMeshProUGUI TypeText => m_TypeText;
         public TextMeshProUGUI DescriptionText => m_DescriptionText;
+
+        // ---- 整图模式槽位（按 cardframeWood 逐行采样量的）----
+        // 图内分区：横幅 y7..23 / 插画窗 y26..107 / 红丝带 y113..123 / 描述板 y124..176
+        private const float CostCenterX = 20f;
+        private const float CostCenterY = 20f;
+        private const float CostBoxSize = 26f;
+        private const float NameCenterY = 15f;
+        private const float NameWidth = 104f;
+        private const float NameHeight = 15f;
+        private const float ArtTop = 26f;
+        private const float ArtBottom = 88f;
+        private const float ArtInset = 12f;
+        private const float DescTop = 124f;
+        private const float DescBottom = 19f;
+        private const float DescInset = 12f;
+        private const float TypeBottom = 23f;
+        private const float TypeSizeX = 40f;
+        private const float TypeSizeY = 11f;
+
+        // ---- 部件模式槽位 ----
+        private const float FrameBorderPixels = 54f;
+        private const float FrameTargetWidthRatio = 0.14f;
+        private const float BannerHeight = 38f;
+        private const float BannerInset = 9f;
+        private const float BadgeSize = 36f;
+        private const float BadgeInset = 6f;
+        private const float PanelHeight = 62f;
+        private const float PanelInset = 8f;
+        private const float PanelBottom = 8f;
+        private const float ChipHeight = 18f;
+        private const float ChipGap = 3f;
 
         /// <summary>导出成 CardView 使用的部件集合。</summary>
         public CardView.FaceWidgets ToWidgets()
@@ -44,125 +82,192 @@ namespace TurnCard.Game.UI
                 Root = (RectTransform)transform,
                 Background = m_Background,
                 Art = m_Art,
-                CostBadge = m_CostBadge,
                 CostText = m_CostText,
                 NameText = m_NameText,
                 TypeText = m_TypeText,
                 DescriptionText = m_DescriptionText,
+                TintBackground = m_UsePartSprites,
             };
 
-            // 老预制体可能只有序列化引用、没有挂组件，这里按名字兜一次
             if (widgets.Art == null)
             {
-                Transform art = transform.Find("Art");
-                if (art != null)
-                {
-                    widgets.Art = art.GetComponent<Image>();
-                }
+                widgets.Art = FindImage("Art");
             }
 
-            if (widgets.CostBadge == null)
+            if (widgets.CostText == null)
             {
-                Transform badge = transform.Find("CostBadge");
-                if (badge != null)
-                {
-                    widgets.CostBadge = badge.GetComponent<Image>();
-                    widgets.CostText = badge.GetComponentInChildren<TextMeshProUGUI>(true);
-                }
+                widgets.CostText = FindText("Cost");
             }
 
             if (widgets.NameText == null)
             {
-                Transform banner = transform.Find("Banner");
-                if (banner != null)
-                {
-                    widgets.NameText = banner.GetComponentInChildren<TextMeshProUGUI>(true);
-                }
+                widgets.NameText = FindText("Name");
             }
 
             if (widgets.TypeText == null)
             {
-                Transform chip = transform.Find("TypeChip");
-                if (chip != null)
-                {
-                    widgets.TypeText = chip.GetComponentInChildren<TextMeshProUGUI>(true);
-                }
+                widgets.TypeText = FindText("Type");
             }
 
             if (widgets.DescriptionText == null)
             {
-                Transform panel = transform.Find("DescPanel");
-                if (panel != null)
-                {
-                    widgets.DescriptionText = panel.GetComponentInChildren<TextMeshProUGUI>(true);
-                }
+                widgets.DescriptionText = FindText("Description");
             }
 
             return widgets;
         }
 
+        private Image FindImage(string childName)
+        {
+            Transform child = transform.Find(childName);
+            return child != null ? child.GetComponent<Image>() : null;
+        }
+
+        private TextMeshProUGUI FindText(string childName)
+        {
+            // 先找直接子节点，再找子节点内部（部件模式文字挂在横幅/底板上）
+            Transform direct = transform.Find(childName);
+            if (direct != null)
+            {
+                var own = direct.GetComponent<TextMeshProUGUI>();
+                if (own != null)
+                {
+                    return own;
+                }
+            }
+
+            foreach (Transform sub in transform)
+            {
+                var nested = sub.Find(childName);
+                if (nested != null)
+                {
+                    return nested.GetComponent<TextMeshProUGUI>();
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>
-        /// 卡牌模板的排版规范（设计像素，基准分辨率 1920×1080）。
-        ///
-        /// 尺寸由外框美术反推：外框 481×551（比例 0.873），卡牌取 192×220（0.873），
-        /// 这样九宫格拉伸时斜切角不变形。
-        ///
-        /// 内部不用绝对坐标硬摆，而是「贴边 + 固定高度」：
-        /// 上：横幅 / 左上：费用角标 / 中：插画 / 下：类型牌 + 描述底板。
-        /// 改卡牌尺寸时只需要改 CardWidth/CardHeight，内部会自动跟随。
+        /// 用代码搭一份标准卡面。编辑器生成预制体、以及没有预制体时的运行时兜底都用它。
+        /// <paramref name="backgroundSprite"/> 为空时尝试从 Resources 读整图卡框。
         /// </summary>
-        private const float BannerHeight = 38f;
-
-        /// <summary>横幅距卡片顶边的距离（让开外框厚度）。</summary>
-        private const float BannerInset = 9f;
-
-        private const float BadgeSize = 36f;
-
-        private const float BadgeInset = 6f;
-
-        private const float DescHeight = 62f;
-
-        private const float DescInset = 8f;
-
-        private const float DescBottom = 8f;
-
-        private const float ChipHeight = 18f;
-
-        private const float ChipGap = 3f;
-
-        /// <summary>插画区左右留白。</summary>
-        private const float ArtInset = 14f;
-
-        public void BuildDefault()
+        public void BuildDefault(Sprite backgroundSprite = null)
         {
             var root = (RectTransform)transform;
             root.anchorMin = new Vector2(0.5f, 0.5f);
             root.anchorMax = new Vector2(0.5f, 0.5f);
             root.pivot = new Vector2(0.5f, 0.5f);
             root.sizeDelta = new Vector2(CardView.CardWidth, CardView.CardHeight);
+            root.localEulerAngles = Vector3.zero;
 
+            if (m_UsePartSprites)
+            {
+                BuildParts(root);
+            }
+            else
+            {
+                BuildSingleBackground(root, backgroundSprite);
+            }
+        }
+
+        /// <summary>整图模式：一张卡框图打底，文字按图上槽位叠加。</summary>
+        private void BuildSingleBackground(RectTransform root, Sprite backgroundSprite)
+        {
             float width = CardView.CardWidth;
             float height = CardView.CardHeight;
 
-            // 底色：露在外框镂空处的部分，按类型着色
+            // 卡框图分区：顶部横幅和费用圆是浅色（用深字），
+            // 底部描述区是深棕底板（用浅字），否则字和底色糊在一起。
+            var ink = new Color(0.235f, 0.141f, 0.086f);
+            var cream = new Color(0.96f, 0.92f, 0.84f);
+
+            if (backgroundSprite == null)
+            {
+                backgroundSprite = Resources.Load<Sprite>(CardBackgroundResource);
+            }
+
+            // 背景：整张卡框图（就是这一张，不再拼各部件）
+            var backdrop = new GameObject("Background", typeof(RectTransform), typeof(Image));
+            var backdropRect = (RectTransform)backdrop.transform;
+            backdropRect.SetParent(root, false);
+            Stretch(backdropRect);
+            m_Background = backdrop.GetComponent<Image>();
+            m_Background.sprite = backgroundSprite;
+            m_Background.type = Image.Type.Simple;
+            m_Background.color = Color.white;
+            m_Background.raycastTarget = true;
+
+            // 插画窗（图上已留好位置，这里只放占位色块，之后换真图）
+            RectTransform art = UiFactory.CreateRect(root, "Art");
+            art.anchorMin = Vector2.zero;
+            art.anchorMax = Vector2.one;
+            art.offsetMin = new Vector2(ArtInset, ArtBottom);
+            art.offsetMax = new Vector2(-ArtInset, -ArtTop);
+            m_Art = art.gameObject.AddComponent<Image>();
+            m_Art.color = CardView.ArtPlaceholderColor;
+            m_Art.raycastTarget = false;
+
+            // 费用：左上角圆形槽
+            m_CostText = UiFactory.CreateLabel(root, "Cost", "0", 14, ink,
+                new Vector2(CostBoxSize, CostBoxSize), new Vector2(0f, 1f),
+                new Vector2(CostCenterX, -CostCenterY));
+            m_CostText.fontStyle = FontStyles.Bold;
+            Place(m_CostText.rectTransform, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f),
+                new Vector2(CostCenterX, -CostCenterY));
+
+            // 名称：顶部横幅
+            m_NameText = UiFactory.CreateLabel(root, "Name", string.Empty, 10, ink,
+                new Vector2(NameWidth, NameHeight), new Vector2(0.5f, 1f),
+                new Vector2(0f, -NameCenterY));
+            Place(m_NameText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -NameCenterY));
+            m_NameText.enableAutoSizing = true;
+            m_NameText.fontSizeMin = 8f;
+            m_NameText.fontSizeMax = 10f;
+
+            // 描述：底部分区
+            m_DescriptionText = UiFactory.CreateLabel(root, "Description", string.Empty, 7, cream,
+                new Vector2(width - DescInset * 2f, height - DescTop - DescBottom),
+                new Vector2(0.5f, 0.5f), Vector2.zero, TextAlignmentOptions.Center);
+            var descRect = m_DescriptionText.rectTransform;
+            descRect.anchorMin = Vector2.zero;
+            descRect.anchorMax = Vector2.one;
+            descRect.offsetMin = new Vector2(DescInset, DescBottom);
+            descRect.offsetMax = new Vector2(-DescInset, -DescTop);
+            m_DescriptionText.enableAutoSizing = true;
+            m_DescriptionText.fontSizeMin = 5f;
+            m_DescriptionText.fontSizeMax = 7f;
+
+            // 类型：底部左下角小字
+            m_TypeText = UiFactory.CreateLabel(root, "Type", string.Empty, 8,
+                new Color(0.96f, 0.92f, 0.84f, 0.8f), new Vector2(TypeSizeX, TypeSizeY),
+                new Vector2(1f, 0f), new Vector2(-DescInset, TypeBottom));
+            Place(m_TypeText.rectTransform, new Vector2(1f, 0f), new Vector2(1f, 0.5f),
+                new Vector2(-DescInset, TypeBottom));
+            m_TypeText.alignment = TextAlignmentOptions.Right;
+        }
+
+        /// <summary>部件模式：外框 / 横幅 / 角标 / 类型牌 / 底板各自一张图。</summary>
+        private void BuildParts(RectTransform root)
+        {
+            float width = CardView.CardWidth;
+            float height = CardView.CardHeight;
+            var ink = new Color(0.235f, 0.141f, 0.086f);
+
             m_Background = gameObject.AddComponent<Image>();
             m_Background.color = CardView.CardBase;
             m_Background.raycastTarget = true;
 
-            var ink = new Color(0.235f, 0.141f, 0.086f);
-
-            // 1) 外框：铺满整张卡，九宫格
             RectTransform frame = UiFactory.CreateRect(root, "Frame");
             Stretch(frame);
             var frameImage = frame.gameObject.AddComponent<Image>();
             frameImage.raycastTarget = false;
 
-            // 2) 顶部名称横幅：贴顶居中，固定高度
             Image banner = CardSkin.CreatePart(root, "Banner", CardSkin.Banner,
                 new Vector2(width - 18f, BannerHeight), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -BannerInset));
 
-            // 3) 左上费用角标：贴左上角，固定尺寸
             Image badge = CardSkin.CreatePart(root, "CostBadge", CardSkin.Badge,
                 new Vector2(BadgeSize, BadgeSize), new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(BadgeInset, -BadgeInset - 2f));
@@ -175,88 +280,64 @@ namespace TurnCard.Game.UI
                 badge = badgeRect.GetComponent<Image>();
             }
 
-            m_CostBadge = badge;
             m_CostText = UiFactory.CreateLabel(badge.transform, "Cost", "0", 20, ink,
                 new Vector2(BadgeSize, BadgeSize), new Vector2(0.5f, 0.5f), Vector2.zero);
             Place(m_CostText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
 
-            // 4) 插画区：左右留白，上让开横幅、下让开类型牌
             float artTop = BannerHeight + 4f;
-            float artBottom = DescBottom + DescHeight + ChipGap + ChipHeight + 4f;
+            float artBottom = PanelBottom + PanelHeight + ChipGap + ChipHeight + 4f;
             RectTransform art = UiFactory.CreateRect(root, "Art");
-            art.anchorMin = new Vector2(0f, 0f);
-            art.anchorMax = new Vector2(1f, 1f);
+            art.anchorMin = Vector2.zero;
+            art.anchorMax = Vector2.one;
             art.offsetMin = new Vector2(ArtInset, artBottom);
             art.offsetMax = new Vector2(-ArtInset, -artTop);
-            var artImage = art.gameObject.AddComponent<Image>();
-            artImage.color = CardView.ArtPlaceholderColor;
-            artImage.raycastTarget = false;
-            m_Art = artImage;
+            m_Art = art.gameObject.AddComponent<Image>();
+            m_Art.color = CardView.ArtPlaceholderColor;
+            m_Art.raycastTarget = false;
 
-            // 5) 描述底板：贴底居中，固定高度
             Image panel = CardSkin.CreatePart(root, "DescPanel", CardSkin.Panel,
-                new Vector2(width - DescInset * 2f, DescHeight), new Vector2(0.5f, 0f),
-                new Vector2(0.5f, 0f), new Vector2(0f, DescBottom));
+                new Vector2(width - PanelInset * 2f, PanelHeight), new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f), new Vector2(0f, PanelBottom));
 
             m_DescriptionText = UiFactory.CreateLabel(
                 panel != null ? panel.transform : root, "Description", string.Empty, 10, ink,
-                new Vector2(width - DescInset * 2f - 14f, DescHeight - 12f),
+                new Vector2(width - PanelInset * 2f - 14f, PanelHeight - 12f),
                 new Vector2(0.5f, 0.5f), Vector2.zero, TextAlignmentOptions.Center);
+            Place(m_DescriptionText.rectTransform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
             m_DescriptionText.enableAutoSizing = true;
             m_DescriptionText.fontSizeMin = 7f;
             m_DescriptionText.fontSizeMax = 10f;
-            Place(m_DescriptionText.rectTransform,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
 
-            // 6) 类型牌：压在描述底板上沿
             Image chip = CardSkin.CreatePart(root, "TypeChip", CardSkin.Chip,
                 new Vector2(62f, ChipHeight), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, DescBottom + DescHeight + ChipGap));
+                new Vector2(0f, PanelBottom + PanelHeight + ChipGap));
 
             m_TypeText = UiFactory.CreateLabel(
                 chip != null ? chip.transform : root, "Type", string.Empty, 10, ink,
                 new Vector2(62f, ChipHeight), new Vector2(0.5f, 0.5f), Vector2.zero);
             Place(m_TypeText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
 
-            // 7) 名称文字：压在横幅上
             m_NameText = UiFactory.CreateLabel(
                 banner != null ? banner.transform : root, "Name", string.Empty, 15, ink,
                 new Vector2(width - 56f, BannerHeight - 8f), new Vector2(0.5f, 0.5f), Vector2.zero);
+            Place(m_NameText.rectTransform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
             m_NameText.enableAutoSizing = true;
             m_NameText.fontSizeMin = 9f;
             m_NameText.fontSizeMax = 15f;
-            Place(m_NameText.rectTransform,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
 
             AssignPartSprites();
         }
 
-        private static void Stretch(RectTransform rect)
-        {
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-        }
-
-
+        /// <summary>部件模式：把 5 张部件图直接赋到 Image 上。</summary>
         private void AssignPartSprites()
         {
-            // 只有外框适合九宫格（四角固定、中间拉伸）；
-            // 横幅/底板/角标/类型牌是按固定比例画的美术，用 Simple 整体缩放才不变形。
-            // 底色不贴图：它是按卡牌类型染色的纯色块，露在外框镂空处。
             ApplySliced(FindImage("Frame"), "card_frame", FrameBorderPixels, FrameTargetWidthRatio, false);
             ApplySimple(FindImage("Banner"), "card_banner");
             ApplySimple(FindImage("DescPanel"), "card_desc_panel");
-            ApplySimple(m_CostBadge, "card_cost_badge");
+            ApplySimple(FindImage("CostBadge"), "card_cost_badge");
             ApplySimple(FindImage("TypeChip"), "card_type_chip");
-        }
-
-        private Image FindImage(string childName)
-        {
-            Transform child = transform.Find(childName);
-            return child != null ? child.GetComponent<Image>() : null;
         }
 
         private static void ApplySimple(Image image, string spriteName)
@@ -298,10 +379,19 @@ namespace TurnCard.Game.UI
 
             if (targetBorderRatio > 0f && borderPixels > 0f)
             {
-                // 边框在屏上的宽度 = 卡宽 × 比例；multiplier 越大边框越细
                 float target = CardView.CardWidth * targetBorderRatio;
-                image.pixelsPerUnitMultiplier = Mathf.Clamp(borderPixels / Mathf.Max(1f, target), 0.05f, 10f);
+                image.pixelsPerUnitMultiplier = Mathf.Clamp(
+                    borderPixels / Mathf.Max(1f, target), 0.05f, 10f);
             }
+        }
+
+        private static void Stretch(RectTransform rect)
+        {
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            rect.pivot = new Vector2(0.5f, 0.5f);
         }
 
         /// <summary>文字统一摆位：CreateLabel 会把 pivot 固定成中心，这里显式改回来。</summary>

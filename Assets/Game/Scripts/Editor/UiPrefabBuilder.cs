@@ -14,6 +14,9 @@ namespace TurnCard.EditorTools
         private const string FolderPath = "Assets/Game/Resources/UI";
         private const string CardPrefabPath = FolderPath + "/CardView.prefab";
         private const string CardFacePrefabPath = FolderPath + "/CardFace.prefab";
+
+        /// <summary>整图模式的卡框图（160×196）。</summary>
+        private const string CardBackdropPath = "Assets/Game/Art/BG/cardframeWood.png";
         private const string PilePrefabPath = FolderPath + "/PilePanel.prefab";
         private const string KeywordTipPrefabPath = FolderPath + "/KeywordTip.prefab";
 
@@ -58,7 +61,15 @@ namespace TurnCard.EditorTools
 
             var go = new GameObject("CardFace", typeof(RectTransform));
             var face = go.AddComponent<CardFaceView>();
-            face.BuildDefault();
+
+            // 整图模式：直接把卡框图赋给背景（预制体里序列化，运行时不依赖 Resources）
+            var backdrop = AssetDatabase.LoadAssetAtPath<Sprite>(CardBackdropPath);
+            if (backdrop == null)
+            {
+                Debug.LogWarning("[预制体] 没找到卡框图：" + CardBackdropPath + "，卡面会是空白背景");
+            }
+
+            face.BuildDefault(backdrop);
             ClearFonts(go);
 
             PrefabUtility.SaveAsPrefabAsset(go, CardFacePrefabPath);
