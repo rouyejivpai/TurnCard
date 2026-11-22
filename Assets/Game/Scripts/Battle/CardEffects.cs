@@ -78,6 +78,10 @@ namespace TurnCard.Game.Battle
                 { "retain_self", new RetainSelfEffect() },
                 { "flip_self", new FlipSelfEffect() },
                 { "choose_flip", new ChooseFlipEffect() },
+                { "self_damage", new SelfDamageEffect() },
+                { "self_heal", new SelfHealEffect() },
+                { "next_hits", new NextHitsEffect() },
+                { "flip_pair", new FlipPairEffect() },
             };
 
         private static Dictionary<string, ICardEffect> s_Specials;
@@ -638,6 +642,57 @@ namespace TurnCard.Game.Battle
             public void Apply(CardEffectContext context, string[] args)
             {
                 context.State.BeginChoice(ChoiceKind.FlipHandCard);
+            }
+        }
+
+        /// <summary>触发者自己失去生命：<c>self_damage:&lt;点数&gt;</c>（不经护甲，用于「疯狂」）。</summary>
+        private sealed class SelfDamageEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                if (context.SelfEnemy == null)
+                {
+                    return;
+                }
+
+                context.State.ApplySelfDamage(context.SelfEnemy, Arg(args, 0, 1));
+            }
+        }
+
+        /// <summary>触发者自己回血：<c>self_heal:&lt;点数&gt;</c>（用于「嗜血」「自愈」）。</summary>
+        private sealed class SelfHealEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                if (context.SelfEnemy == null)
+                {
+                    return;
+                }
+
+                context.State.ApplySelfHeal(context.SelfEnemy, Arg(args, 0, 1));
+            }
+        }
+
+        /// <summary>下一次攻击追加段数：<c>next_hits:&lt;段数&gt;</c>（用于「嗜血」）。</summary>
+        private sealed class NextHitsEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                if (context.SelfEnemy == null)
+                {
+                    return;
+                }
+
+                context.SelfEnemy.BonusHits += Arg(args, 0, 1);
+            }
+        }
+
+        /// <summary>翻面与自己同 pairId 的其他敌人（羁绊）。</summary>
+        private sealed class FlipPairEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                context.State.FlipPairedAllies(context.SelfEnemy);
             }
         }
 

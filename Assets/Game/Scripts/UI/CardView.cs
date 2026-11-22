@@ -19,7 +19,7 @@ namespace TurnCard.Game.UI
     /// 敌人卡与背面预览也复用它。
     /// </summary>
     public sealed class CardView : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler,
-        IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
+        IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler, ICardFlipView
     {
         // ---- 卡牌尺寸：只改 CardScale，其它全部派生 ----
         // 美术原生像素（cardframeWood.png 的实际尺寸，不要改）

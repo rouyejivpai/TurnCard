@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ea630782f35e51940b7b00838c974647, type: 3}
+  m_Name: 8
+  m_EditorClassIdentifier: 
+  m_Id: 8
+  m_Pool: 1
+  m_FlipHpMode: 1
+  m_FlipHpRatio: 1
+  m_IntentMode: 0
+  m_FrontBuffs: 22;20
+  m_BackBuffs: 
+  m_FrontArmor: 0
+  m_BackArmor: 0
+  m_FrontName: "\u5267\u56E2\u821E\u8005"
+  m_FrontHp: 46
+  m_FrontAttack: 0
+  m_FrontDescription: "\u53CC\u751F\xB7\u7F81\u7ECA\uFF1A\u6B7B\u4EA1\u65F6\u4F7F\u5267\u56E2\u4E4B\u517D\u7FFB\u9762\uFF1B\u53CC\u751F\xB7\u75AF\u72C2\uFF1A\u9020\u6210\u672A\u683C\u6321\u4F24\u5BB3\u540E\u5931\u53BB2\u751F\u547D\u83B7\u5F971\u529B\u91CF"
+  m_FrontArt: {fileID: 21300000, guid: 39081c743856f2c408b4525959108be2, type: 3}
+  m_Twin: 1
+  m_PairId: 1
+  m_Note: "\u53CC\u751F\uFF1A\u4E24\u9762\u7279\u6027\u90FD\u5199\u5728\u6B63\u9762\u5217\uFF08\u7FFB\u9762\u4E0D\u91CD\u8F7Dbuff\uFF09\uFF1B\u610F\u56FE\u5F85\u8865\uFF08\u5F3A\u5316/\u6CBB\u6108\u4E3A\u53CB\u65B9\u76EE\u6807\uFF09"
+  m_BackName: "\u5931\u63A7\u7684\u821E\u8005"
+  m_BackHp: 46
+  m_BackAttack: 0
+  m_BackDescription: "\u72C2\u4E71\uFF1A\u9020\u62104\u70B9\u4F24\u5BB33\u6B21"
+  m_BackArt: {fileID: 21300000, guid: 0ea79d3ef9100d442899d67d2b5f39dc, type: 3}

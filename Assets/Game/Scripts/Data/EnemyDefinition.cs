@@ -28,18 +28,26 @@ namespace TurnCard.Game.Data
 
     public readonly struct EnemyForm
     {
-        public EnemyForm(string displayName, int maxHp, int attack, string description)
+        public EnemyForm(string displayName, int maxHp, int attack, string description,
+            Sprite art = null)
         {
             DisplayName = displayName;
             MaxHp = maxHp;
             Attack = attack;
             Description = description;
+            Art = art;
         }
 
         public string DisplayName { get; }
         public int MaxHp { get; }
         public int Attack { get; }
         public string Description { get; }
+
+        /// <summary>
+        /// 这一形态的立绘（48×64 网格的像素画，仓库里是 96×128 的 2× 导出）。
+        /// 为空时由视图画占位色块，不允许静默留白。
+        /// </summary>
+        public Sprite Art { get; }
     }
 
     /// <summary>
@@ -81,10 +89,25 @@ namespace TurnCard.Game.Data
         [SerializeField] private int m_FrontAttack;
         [TextArea] [SerializeField] private string m_FrontDescription = string.Empty;
 
+        [Tooltip("正面立绘（48×64 网格；空值走占位）")]
+        [SerializeField] private Sprite m_FrontArt;
+
+        [Tooltip("双生：正反面共用一份血量与 buff（翻面时不清 buff、不加载反面初始 buff）")]
+        [SerializeField] private int m_Twin;
+
+        [Tooltip("羁绊配对：同 pairId 的敌人互为羁绊对象（一方死亡时翻面另一方）")]
+        [SerializeField] private int m_PairId;
+
+        [Tooltip("备注（占位说明、待补数值等），不参与逻辑")]
+        [TextArea] [SerializeField] private string m_Note = string.Empty;
+
         [SerializeField] private string m_BackName = string.Empty;
         [SerializeField] private int m_BackHp;
         [SerializeField] private int m_BackAttack;
         [TextArea] [SerializeField] private string m_BackDescription = string.Empty;
+
+        [Tooltip("背面立绘（同上）")]
+        [SerializeField] private Sprite m_BackArt;
 
         public int Id => m_Id;
 
@@ -99,11 +122,19 @@ namespace TurnCard.Game.Data
         public int FrontArmor => m_FrontArmor;
         public int BackArmor => m_BackArmor;
 
+        /// <summary>双生：正反面共用血量与 buff。表里 twin=1。</summary>
+        public bool Twin => m_Twin != 0;
+
+        /// <summary>羁绊配对 id，0 表示没有配对。</summary>
+        public int PairId => m_PairId;
+
+        public string Note => m_Note;
+
         public EnemyForm Front => new EnemyForm(m_FrontName, m_FrontHp, m_FrontAttack,
-            m_FrontDescription);
+            m_FrontDescription, m_FrontArt);
 
         public EnemyForm Back => new EnemyForm(m_BackName, m_BackHp, m_BackAttack,
-            m_BackDescription);
+            m_BackDescription, m_BackArt);
 
         public EnemyForm GetForm(CardFaceSide side)
         {

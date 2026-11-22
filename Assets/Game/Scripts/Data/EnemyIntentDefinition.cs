@@ -75,6 +75,9 @@ namespace TurnCard.Game.Data
         [Tooltip("buff 持续回合数，-1 表示用 buff 自己的默认（永久/按次数）")]
         [SerializeField] private int m_Turns = -1;
 
+        [Tooltip("意图图标资源名（Resources/Art/UI/enemy 下）；留空则按意图类型自动取")]
+        [SerializeField] private string m_Icon = string.Empty;
+
         public int Id => m_Id;
         public int EnemyId => m_EnemyId;
         public CardFaceSide Form => string.Equals(m_Form, "back", System.StringComparison.OrdinalIgnoreCase)
@@ -86,5 +89,8 @@ namespace TurnCard.Game.Data
         public int BuffId => m_BuffId;
         public BuffTarget BuffTarget => m_BuffTarget;
         public int Turns => m_Turns;
+
+        /// <summary>意图图标资源名；为空时由视图按类型回退。</summary>
+        public string Icon => m_Icon;
     }
 }

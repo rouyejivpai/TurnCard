@@ -53,6 +53,56 @@ namespace TurnCard.Game.Battle
         /// <summary>护甲，每回合开始清零（壁垒 buff 可以拦住这次清零）。</summary>
         public int Armor { get; set; }
 
+        /// <summary>羁绊配对 id（0 = 无配对），同 id 的敌人互为羁绊对象。</summary>
+        public int PairId => Definition.PairId;
+
+        /// <summary>下一次攻击额外增加的段数（嗜血类 buff 累积，执行后清零）。</summary>
+        public int BonusHits { get; set; }
+
+        public int ConsumeBonusHits()
+        {
+            int bonus = BonusHits;
+            BonusHits = 0;
+            return bonus;
+        }
+
+        /// <summary>回血（不超过当前形态的满血）。</summary>
+        public void Heal(int amount)
+        {
+            if (amount <= 0 || IsDead)
+            {
+                return;
+            }
+
+            Hp = Math.Min(Form.MaxHp, Hp + amount);
+        }
+
+        /// <summary>直接扣血：不经过护甲、不吃「受到的伤害」修正（自伤用）。</summary>
+        public void LoseHpDirect(int amount)
+        {
+            if (amount <= 0 || IsDead)
+            {
+                return;
+            }
+
+            Hp -= amount;
+            if (Hp > 0)
+            {
+                return;
+            }
+
+            if (Side == CardFaceSide.Front)
+            {
+                int before = Hp;
+                Side = CardFaceSide.Back;
+                Hp = ResolveFlipHp(before);
+                return;
+            }
+
+            Hp = 0;
+            IsDead = true;
+        }
+
         /// <summary>晕眩：本回合跳过行动。</summary>
         public bool Stunned { get; set; }
 
@@ -744,6 +794,15 @@ namespace TurnCard.Game.Battle
                         }
 
                         break;
+
+                    case Data.BuffTriggerAction.StunAndFlip:
+                        if (enemyOwner != null)
+                        {
+                            enemyOwner.Stunned = true;
+                            FlipEnemy(enemyOwner);
+                        }
+
+                        break;
                 }
 
                 string spec = buff.Definition.TriggerEffect;
@@ -876,6 +935,12 @@ namespace TurnCard.Game.Battle
                 ApplyFormBuffs(instance);            // 怪物特性 = 初始 buff
                 instance.RefillIntents(IntentsFor(instance));
                 m_Enemies.Add(instance);
+            }
+
+            // 开幕特性：初始 buff 挂完之后跑一次（给玩家虚弱、给自己力量/荆棘等）
+            foreach (EnemyInstance enemy in m_Enemies)
+            {
+                RunTriggers(enemy.Buffs, Data.BuffTrigger.BattleStart, null, enemy);
             }
 
             Shuffle(m_DrawPile);
@@ -1015,13 +1080,21 @@ namespace TurnCard.Game.Battle
                         int perHit = ApplyBuffModifiers(intent.Value + enemy.AttackBonus,
                             "damage_dealt", enemy.Buffs);
                         int hpBefore = PlayerHp;
-                        for (int hit = 0; hit < intent.Hits; hit++)
+                        bool unblocked = false;
+                        // 嗜血类 buff 累积的额外段数，打完即清零
+                        int hits = intent.Hits + enemy.ConsumeBonusHits();
+                        for (int hit = 0; hit < hits; hit++)
                         {
                             int raw = ApplyBuffModifiers(perHit, "damage_taken", PlayerBuffs, true);
                             int absorbed = Math.Min(PlayerArmor, raw);
                             PlayerArmor -= absorbed;
                             int toHp = raw - absorbed;
                             PlayerHp = Math.Max(0, PlayerHp - toHp);
+                            if (toHp > 0)
+                            {
+                                unblocked = true;
+                            }
+
                             log.Add($"{enemy.Form.DisplayName} 造成 {raw} 点伤害（护甲吸收 {absorbed}，生命 -{toHp}）");
 
                             if (PlayerHp <= 0)
@@ -1033,6 +1106,13 @@ namespace TurnCard.Game.Battle
                         }
 
                         enemy.DealtDamageThisTurn = PlayerHp < hpBefore;
+
+                        // 「造成未格挡的伤害后」类特性（疯狂 / 嗜血）
+                        if (unblocked)
+                        {
+                            RunTriggers(enemy.Buffs, Data.BuffTrigger.DealtUnblocked, null, enemy);
+                        }
+
                         break;
                     }
 
@@ -1130,8 +1210,9 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>
-        /// 敌人翻面后的统一处理：正反 buff 不共享（清空后加载新面初始 buff），
-        /// 重新洗/排意图，最后发事件给表现层。
+        /// 敌人翻面后的统一处理。
+        /// 默认正反 buff 不共享（清空后加载新面初始 buff）；
+        /// 双生（twin）的敌人共用血量和 buff，翻面时两者都不动。
         /// </summary>
         private void OnEnemyFlipped(EnemyInstance enemy)
         {
@@ -1140,8 +1221,15 @@ namespace TurnCard.Game.Battle
                 return;
             }
 
-            enemy.Buffs.Clear();
-            ApplyFormBuffs(enemy);
+            if (!enemy.Definition.Twin)
+            {
+                enemy.Buffs.Clear();
+                ApplyFormBuffs(enemy);
+
+                // 反面自己的「开幕」特性：换面即生效（例如呼啸山庄的开幕力量+荆棘）
+                RunTriggers(enemy.Buffs, Data.BuffTrigger.BattleStart, null, enemy);
+            }
+
             enemy.RefillIntents(IntentsFor(enemy));
             EnemyFlipped?.Invoke(enemy);
         }
@@ -1517,13 +1605,87 @@ namespace TurnCard.Game.Battle
 
             if (enemy.IsDead)
             {
-                enemy.Buffs.Clear();
-                RunTriggers(PlayerBuffs, Data.BuffTrigger.Death, enemy);
-                EnemyDied?.Invoke(enemy);
-                CheckBattleEnd();
+                HandleEnemyDeath(enemy);
             }
 
             return flipped;
+        }
+
+        /// <summary>
+        /// 敌人死亡的统一处理：先跑「自己的死亡特性」（羁绊）和「友方死亡特性」（灵感），
+        /// 再清 buff、跑玩家侧的死亡触发，最后广播事件。
+        /// </summary>
+        private void HandleEnemyDeath(EnemyInstance enemy)
+        {
+            if (enemy == null)
+            {
+                return;
+            }
+
+            RunTriggers(enemy.Buffs, Data.BuffTrigger.SelfDeath, null, enemy);
+
+            foreach (EnemyInstance ally in m_Enemies)
+            {
+                if (ally == null || ReferenceEquals(ally, enemy) || ally.IsDead)
+                {
+                    continue;
+                }
+
+                RunTriggers(ally.Buffs, Data.BuffTrigger.AllyDeath, null, ally);
+            }
+
+            enemy.Buffs.Clear();
+            RunTriggers(PlayerBuffs, Data.BuffTrigger.Death, enemy);
+            EnemyDied?.Invoke(enemy);
+            CheckBattleEnd();
+        }
+
+        /// <summary>羁绊：翻面与自己同 pairId 的其他敌人。</summary>
+        public void FlipPairedAllies(EnemyInstance source)
+        {
+            if (source == null || source.PairId == 0)
+            {
+                return;
+            }
+
+            foreach (EnemyInstance ally in m_Enemies)
+            {
+                if (ally == null || ReferenceEquals(ally, source) || ally.IsDead)
+                {
+                    continue;
+                }
+
+                if (ally.PairId != source.PairId)
+                {
+                    continue;
+                }
+
+                FlipEnemy(ally);
+            }
+        }
+
+        /// <summary>让敌人自己失去生命（不经过护甲、不吃伤害修正），用于「疯狂」这类自伤。</summary>
+        public void ApplySelfDamage(EnemyInstance enemy, int amount)
+        {
+            if (enemy == null || enemy.IsDead || amount <= 0)
+            {
+                return;
+            }
+
+            // 自伤直接扣血，不走 TakeDamage 的护甲吸收
+            enemy.LoseHpDirect(amount);
+            DamageApplied?.Invoke(enemy, amount);
+
+            if (enemy.IsDead)
+            {
+                HandleEnemyDeath(enemy);
+            }
+        }
+
+        /// <summary>敌人自己回血，用于「嗜血」「自愈」。</summary>
+        public void ApplySelfHeal(EnemyInstance enemy, int amount)
+        {
+            enemy?.Heal(amount);
         }
 
         /// <summary>
@@ -1554,9 +1716,7 @@ namespace TurnCard.Game.Battle
 
                 if (hit.Enemy.IsDead)
                 {
-                    hit.Enemy.Buffs.Clear();
-                    RunTriggers(PlayerBuffs, Data.BuffTrigger.Death, hit.Enemy);
-                    EnemyDied?.Invoke(hit.Enemy);
+                    HandleEnemyDeath(hit.Enemy);
                 }
             }
 

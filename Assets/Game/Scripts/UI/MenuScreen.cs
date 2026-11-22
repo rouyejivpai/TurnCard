@@ -21,6 +21,12 @@ namespace TurnCard.Game.UI
 
         private readonly List<GameObject> m_Buttons = new List<GameObject>();
 
+        protected override void OnShow()
+        {
+            // 预制体里的字体是生成当时写进去的，这里统一成当前全局字体（像素字 + 回退链）
+            UiFactory.EnsureFont(transform);
+        }
+
         public void SetTitle(string text)
         {
             if (txtTitle != null) txtTitle.text = text;

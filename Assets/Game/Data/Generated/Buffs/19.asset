@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b95ecc669196734498f45e6b7d56ede, type: 3}
+  m_Name: OpeningSelfVulnerable
+  m_EditorClassIdentifier: 
+  m_Id: 19
+  m_Name: 
+  m_DisplayName: "\u5F00\u5E55\xB7\u81EA\u6613\u4F24"
+  m_Description: "\u8BE5\u5F62\u6001\u767B\u573A\u65F6\u5BF9\u81EA\u5DF1\u65BD\u52A0
+    4 \u56DE\u5408\u6613\u4F24"
+  m_Icon: buff_vulnerable
+  m_StackRule: 1
+  m_Consume: 2
+  m_MaxStacks: 1
+  m_Modifier: 
+  m_Trigger: 9
+  m_TriggerAction: 0
+  m_TriggerCount: 0
+  m_RuleBlock: 
+  m_TriggerEffect: buff_self:1,1,4

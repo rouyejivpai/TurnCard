@@ -10,6 +10,10 @@ namespace TurnCard.Game.UI
     /// </summary>
     public static class UiFactory
     {
+        /// <summary>
+        /// 全局字体：工程内的中文字体资产，退回 TMP 默认字体。
+        /// （曾试过改成 ArkPixel12 像素字，因大字号发块、缺字要靠回退混排而撤回，见 Docs/19「字体」）
+        /// </summary>
         private const string FontResourcePath = "Fonts/SimHei SDF";
 
         private static TMP_FontAsset s_Font;

@@ -34,7 +34,7 @@ namespace Window.BattleForm
         private RectTransform m_HandRoot;
         private RectTransform m_ArrowLayer;
         private BezierArrow m_Arrow;
-        private readonly List<EnemyView> m_EnemyViews = new List<EnemyView>();
+        private readonly List<EnemyCardView> m_EnemyCardViews = new List<EnemyCardView>();
         private RectTransform m_EnemyArea;
         private EnemyInstance m_LastHitEnemy;
         private bool m_HandDirty;
@@ -180,11 +180,13 @@ namespace Window.BattleForm
         /// </summary>
         private const float EnemySpacing = 36f;
 
-        /// <summary>敌人卡在屏上的目标高度；缩放由它反推，改卡牌尺寸时会自动跟随。</summary>
-        private const float EnemyCardHeight = 245f;
+        /// <summary>
+        /// 敌人卡尺寸：48×64 网格 ×4（见 <c>Docs/21-敌人卡面.md</c>）。
+        /// 预制体已经按这个尺寸出图，代码里不再缩放。
+        /// </summary>
+        private const float EnemyCardWidth = 192f;
 
-        /// <summary>敌人卡缩放 = 目标高度 / 卡牌高度。</summary>
-        private static float EnemyCardScale => EnemyCardHeight / CardView.CardHeight;
+        private const float EnemyCardHeight = 256f;
 
         /// <summary>
         /// 敌人区：优先使用预制体里的 EnemyArea 节点（位置与站位都可以手动编辑）。
@@ -225,46 +227,50 @@ namespace Window.BattleForm
             for (int c = m_EnemyArea.childCount - 1; c >= 0; c--)
             {
                 Transform child = m_EnemyArea.GetChild(c);
-                if (child.GetComponent<EnemyView>() != null)
+                if (child.GetComponent<EnemyCardView>() != null)
                 {
                     Destroy(child.gameObject);
                 }
             }
 
-            m_EnemyViews.Clear();
+            m_EnemyCardViews.Clear();
 
             int count = m_State.Enemies.Count;
-            float scale = EnemyCardScale;
 
             // 预制体配了 Slot 就按 Slot 摆，否则按数量自动横排
             bool hasSlots = m_EnemyArea.Find("Slot1") != null;
 
-            float cardW = CardView.CardWidth * scale;
+            float cardW = EnemyCardWidth;
             float width = count * cardW + Mathf.Max(0, count - 1) * EnemySpacing;
 
             if (!hasSlots)
             {
-                m_EnemyArea.sizeDelta = new Vector2(width, CardView.CardHeight * scale);
+                m_EnemyArea.sizeDelta = new Vector2(width, EnemyCardHeight);
             }
 
             float left = -width * 0.5f + cardW * 0.5f;
 
             for (int i = 0; i < count; i++)
             {
-                var view = EnemyView.Create(m_EnemyArea, m_State.Enemies[i], scale,
-                    new Vector2(0.5f, 0.5f), Vector2.zero);
+                EnemyCardView view = EnemyCardView.Create(m_EnemyArea, m_State.Enemies[i]);
+                if (view == null)
+                {
+                    continue;
+                }
 
                 var rect = view.Rect;
                 rect.anchorMin = new Vector2(0.5f, 0.5f);
                 rect.anchorMax = new Vector2(0.5f, 0.5f);
                 rect.pivot = new Vector2(0.5f, 0.5f);
 
+                // 横向始终按「卡宽 + 间距」自动居中排开：卡牌尺寸是固定的（192×256），
+                // 让站位跟着卡宽走才不会因为改尺寸而错位。
+                // Slot 只贡献纵向位置，美术/策划仍然可以在预制体里调整整排的高度。
                 var slot = hasSlots ? m_EnemyArea.Find("Slot" + (i + 1)) as RectTransform : null;
-                rect.anchoredPosition = slot != null
-                    ? slot.anchoredPosition
-                    : new Vector2(left + i * (cardW + EnemySpacing), 0f);
+                float y = slot != null ? slot.anchoredPosition.y : 0f;
+                rect.anchoredPosition = new Vector2(left + i * (cardW + EnemySpacing), y);
 
-                m_EnemyViews.Add(view);
+                m_EnemyCardViews.Add(view);
             }
 
             // Slot 只是站位标记，不显示
@@ -375,7 +381,7 @@ namespace Window.BattleForm
                 PlayHitFeedback(amount);
 
                 // 伤害落地才扣血，所以血条必须在这一刻刷新（之前只在出手前刷过一次）
-                EnemyView hitView = ViewFor(enemy);
+                EnemyCardView hitView = ViewFor(enemy);
                 if (hitView != null)
                 {
                     hitView.RefreshVisual();
@@ -397,7 +403,7 @@ namespace Window.BattleForm
 
             state.EnemyFlipped += enemy =>
             {
-                EnemyView flipView = ViewFor(enemy);
+                EnemyCardView flipView = ViewFor(enemy);
                 if (flipView != null)
                 {
                     flipView.PlayFlip(BattleFxSettings.Current.FlipDuration, null);
@@ -406,7 +412,7 @@ namespace Window.BattleForm
 
             state.EnemyDied += _ =>
             {
-                RefreshEnemyViews();
+                RefreshEnemyCardViews();
             };
 
             state.BattleEnded += victory =>
@@ -633,7 +639,7 @@ namespace Window.BattleForm
             if (m_State.HasPendingInstants)
             {
                 m_State.ResolvePendingInstants();
-                RefreshEnemyViews();
+                RefreshEnemyCardViews();
                 yield return PlayDamageQueue(m_ChoiceView, m_State.FirstAliveEnemy(), default, HitOrigin.Instant);
             }
 
@@ -690,7 +696,8 @@ namespace Window.BattleForm
             m_BtnConfirmChoice.targetGraphic = box.GetComponent<Image>();
             m_BtnConfirmChoice.onClick.AddListener(OnConfirmChoiceClicked);
 
-            UiFactory.CreateLabel(box, "Confirm", "✓", 34, Color.white,
+            // √ 而不是 ✓：两份字体都没有 U+2713
+            UiFactory.CreateLabel(box, "Confirm", "√", 34, Color.white,
                 new Vector2(96f, 56f), new Vector2(0.5f, 0.5f), Vector2.zero);
 
             box.gameObject.SetActive(false);
@@ -703,8 +710,8 @@ namespace Window.BattleForm
                 return;
             }
 
-            EnemyView hovered = ViewUnder(eventData.position);
-            foreach (EnemyView enemyView in m_EnemyViews)
+            EnemyCardView hovered = ViewUnder(eventData.position);
+            foreach (EnemyCardView enemyView in m_EnemyCardViews)
             {
                 if (enemyView != null)
                 {
@@ -730,7 +737,7 @@ namespace Window.BattleForm
                 return;
             }
 
-            foreach (EnemyView enemyView in m_EnemyViews)
+            foreach (EnemyCardView enemyView in m_EnemyCardViews)
             {
                 if (enemyView != null)
                 {
@@ -740,7 +747,7 @@ namespace Window.BattleForm
 
             HideArrow();
 
-            EnemyView hovered = ViewUnder(eventData.position);
+            EnemyCardView hovered = ViewUnder(eventData.position);
             if (hovered != null && !hovered.Enemy.IsDead && !m_Busy)
             {
                 StartCoroutine(PlayCardRoutine(view, hovered.Enemy));
@@ -848,7 +855,7 @@ namespace Window.BattleForm
                 TurnCard.Game.Audio.Sfx.Attack(amount);
 
                 bool hit = false;
-                EnemyView hitTargetView = ViewFor(next.Enemy) ?? ViewFor(target);
+                EnemyCardView hitTargetView = ViewFor(next.Enemy) ?? ViewFor(target);
                 Vector2 to = hitTargetView != null
                     ? (Vector2)m_FxLayer.InverseTransformPoint(hitTargetView.Rect.position)
                     : (Vector2)m_FxLayer.InverseTransformPoint(m_FormRect.position);
@@ -938,7 +945,7 @@ namespace Window.BattleForm
 
                     if (m_State.LastInstantFlipEnemy != null)
                     {
-                        EnemyView flippedView = ViewFor(m_State.LastInstantFlipEnemy);
+                        EnemyCardView flippedView = ViewFor(m_State.LastInstantFlipEnemy);
                         m_State.ClearLastInstantFlipEnemy();
                         if (flippedView != null)
                         {
@@ -946,7 +953,7 @@ namespace Window.BattleForm
                         }
                     }
 
-                    RefreshEnemyViews();
+                    RefreshEnemyCardViews();
 
                     yield return PlayDamageQueue(view, target, playedFace, HitOrigin.Instant);
 
@@ -1020,7 +1027,7 @@ namespace Window.BattleForm
         /// 敌人出招的表现：攻击放弹道（每段一发），防御/强化/削弱放提示。
         /// 伤害本身仍由 ResolveEnemyTurn 结算，这里只负责「看得见」。
         /// </summary>
-        private IEnumerator PlayEnemyIntent(EnemyView enemyView, EnemyIntentDefinition intent, BattleFxSettings fx)
+        private IEnumerator PlayEnemyIntent(EnemyCardView enemyView, EnemyIntentDefinition intent, BattleFxSettings fx)
         {
             if (enemyView == null)
             {
@@ -1094,7 +1101,7 @@ namespace Window.BattleForm
             // 敌人出招：从左到右逐个播动作，全部播完再统一结算
             // （结算顺序同样是列表顺序，即地图上的从左到右）
             UnityEngine.Debug.Log("[回合] 4 敌人开始出招");
-            foreach (EnemyView enemyView in m_EnemyViews)
+            foreach (EnemyCardView enemyView in m_EnemyCardViews)
             {
                 if (enemyView == null || enemyView.Enemy.IsDead)
                 {
@@ -1115,7 +1122,7 @@ namespace Window.BattleForm
             m_State.ResolveEnemyTurn();
             UnityEngine.Debug.Log("[回合] 6 敌人结算完成 hp=" + m_State.PlayerHp);
 
-            RefreshEnemyViews();
+            RefreshEnemyCardViews();
 
             int hpLost = hpBefore - m_State.PlayerHp;
             if (hpLost > 0)
@@ -1317,14 +1324,14 @@ namespace Window.BattleForm
 
 
         /// <summary>找到某个敌人对应的视图。</summary>
-        private EnemyView ViewFor(EnemyInstance enemy)
+        private EnemyCardView ViewFor(EnemyInstance enemy)
         {
             if (enemy == null)
             {
                 return null;
             }
 
-            foreach (EnemyView view in m_EnemyViews)
+            foreach (EnemyCardView view in m_EnemyCardViews)
             {
                 if (view != null && ReferenceEquals(view.Enemy, enemy))
                 {
@@ -1336,9 +1343,9 @@ namespace Window.BattleForm
         }
 
         /// <summary>屏幕坐标下命中的敌人视图（用于拖拽选目标）。</summary>
-        private EnemyView ViewUnder(Vector2 screenPosition)
+        private EnemyCardView ViewUnder(Vector2 screenPosition)
         {
-            foreach (EnemyView view in m_EnemyViews)
+            foreach (EnemyCardView view in m_EnemyCardViews)
             {
                 if (view == null || view.Enemy.IsDead)
                 {
@@ -1355,9 +1362,9 @@ namespace Window.BattleForm
         }
 
         /// <summary>刷新所有敌人的显示。</summary>
-        private void RefreshEnemyViews()
+        private void RefreshEnemyCardViews()
         {
-            foreach (EnemyView view in m_EnemyViews)
+            foreach (EnemyCardView view in m_EnemyCardViews)
             {
                 if (view != null)
                 {
@@ -1371,7 +1378,7 @@ namespace Window.BattleForm
         {
             TurnCard.Game.Audio.Sfx.Hit();
 
-            EnemyView view = m_LastHitEnemy != null ? ViewFor(m_LastHitEnemy) : null;
+            EnemyCardView view = m_LastHitEnemy != null ? ViewFor(m_LastHitEnemy) : null;
             RectTransform enemyRect = view != null ? view.Rect : m_FormRect;
             if (enemyRect == null)
             {

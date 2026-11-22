@@ -239,6 +239,18 @@ namespace TurnCard.EditorTools
             return problems.ToString();
         }
 
+        /// <summary>
+        /// 这些列允许「在 Unity 里手配」：表里留空时**不写** SO，保留 Inspector 里的现值。
+        /// 用于资源绑定类字段（图标、立绘、血条）——它们改起来频繁、且不需要跟策划同步数值。
+        /// 想清空就把表里那格写成 <c>-</c>。
+        /// </summary>
+        private static readonly HashSet<string> PreserveWhenBlank = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "m_Icon",
+            "m_FrontArt",
+            "m_BackArt",
+        };
+
         private static void ApplyRow(Object asset, List<string> header, List<string> row,
             HashSet<string> usedProperties, Dictionary<string, string> knownFields,
             StringBuilder log, TableSpec spec, int rowNumber)
@@ -268,6 +280,23 @@ namespace TurnCard.EditorTools
                 }
 
                 string raw = Value(row, c);
+
+                // 资源类字段：表里留空 = 保留 Unity 里配的值；写 "-" = 清空
+                if (PreserveWhenBlank.Contains(propertyName))
+                {
+                    string trimmed = raw == null ? string.Empty : raw.Trim();
+                    if (trimmed.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    if (trimmed == "-")
+                    {
+                        Assign(serialized, property, string.Empty, knownFields, out _);
+                        continue;
+                    }
+                }
+
                 if (!Assign(serialized, property, raw, knownFields, out string error))
                 {
                     log.AppendLine($"{spec.TableName} 第 {rowNumber} 行「{column}」：{error}");
@@ -358,9 +387,37 @@ namespace TurnCard.EditorTools
                     }
 
                     Object referenced = AssetDatabase.LoadAssetAtPath<Object>(value);
+
+                    // Sprite 字段要显式取子资产：图片的主资产是 Texture2D，
+                    // 直接 LoadAssetAtPath<Object> 拿到的是贴图，塞进 Sprite 字段会变成断引用。
+                    Type expectedType = null;
+                    if (knownFields != null &&
+                        knownFields.TryGetValue(property.name, out string fieldTypeName))
+                    {
+                        expectedType = Type.GetType(fieldTypeName);
+                    }
+
+                    if (expectedType == typeof(Sprite))
+                    {
+                        var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(value);
+                        if (sprite == null)
+                        {
+                            error = $"「{value}」不是 Sprite（图片的导入类型需要设为 Sprite）";
+                            return false;
+                        }
+
+                        referenced = sprite;
+                    }
+
                     if (referenced == null)
                     {
                         error = $"找不到资源「{value}」（路径需从 Assets/ 开始）";
+                        return false;
+                    }
+
+                    if (expectedType != null && !expectedType.IsInstanceOfType(referenced))
+                    {
+                        error = $"「{value}」的类型是 {referenced.GetType().Name}，字段需要 {expectedType.Name}";
                         return false;
                     }
 

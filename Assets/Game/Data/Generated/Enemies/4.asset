@@ -25,7 +25,12 @@ MonoBehaviour:
   m_FrontHp: 40
   m_FrontAttack: 0
   m_FrontDescription: "\u653B\u51FB\u3001\u548F\u5531\u3001\u7B2C 4 \u56DE\u5408\u5316\u6811\u3002"
+  m_FrontArt: {fileID: 21300000, guid: a6a145a94bf3dcc4a911d4b546064c29, type: 3}
+  m_Twin: 0
+  m_PairId: 0
+  m_Note: "\u5F85\u8865: \u5438\u6536\u53CD\u566C\uFF08\u6309\u5438\u6536\u91CF\u4E0B\u56DE\u5408\u5931\u53BB\u529B\u91CF\uFF09"
   m_BackName: "\u4E00\u68F5\u6811"
   m_BackHp: 50
   m_BackAttack: 0
   m_BackDescription: "\u5438\u6536\u4F24\u5BB3\uFF0C\u4E00\u56DE\u5408\u540E\u7FFB\u9762\u3002"
+  m_BackArt: {fileID: 0}

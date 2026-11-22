@@ -52,6 +52,18 @@ namespace TurnCard.Game.Data
 
         /// <summary>自己这一回合没有对对方造成伤害（回合结束时判定）。</summary>
         NoDamageDealt,
+
+        /// <summary>战斗开始（敌方在 Setup 时、玩家在开局时各跑一次）。</summary>
+        BattleStart,
+
+        /// <summary>自己造成了「未被格挡」的伤害（敌人打穿护甲、或玩家直接掉血）。</summary>
+        DealtUnblocked,
+
+        /// <summary>自己死亡。</summary>
+        SelfDeath,
+
+        /// <summary>友方（同场其他敌人）死亡。</summary>
+        AllyDeath,
     }
 
     /// <summary>条件满足后做什么。</summary>
@@ -65,6 +77,9 @@ namespace TurnCard.Game.Data
 
         /// <summary>晕眩：跳过下一次行动。</summary>
         Stun,
+
+        /// <summary>晕眩并翻面（呼啸山庄「攻击落空」的惩罚）。</summary>
+        StunAndFlip,
     }
 
     /// <summary>一条被动修饰器：对某个属性做一次运算。</summary>

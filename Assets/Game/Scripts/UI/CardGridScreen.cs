@@ -25,6 +25,12 @@ namespace TurnCard.Game.UI
 
         private readonly List<CardView> m_Cards = new List<CardView>();
 
+        protected override void OnShow()
+        {
+            // 预制体里的字体是生成当时写进去的，这里统一成当前全局字体（像素字 + 回退链）
+            UiFactory.EnsureFont(transform);
+        }
+
         /// <summary>三个标签：标题、副标题（可空）、底部提示（可空）。</summary>
         public void SetHeader(string title, string subtitle = null, string hint = null)
         {

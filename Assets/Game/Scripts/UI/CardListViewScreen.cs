@@ -39,6 +39,9 @@ namespace TurnCard.Game.UI
 
         protected override void OnShow()
         {
+            // 预制体里的字体是生成当时写进去的，这里统一成当前全局字体（像素字 + 回退链）
+            UiFactory.EnsureFont(transform);
+
             // OnShow 可能被多次调用（重新打开），先清监听避免叠加
             if (btnOverlay != null)
             {

@@ -22,7 +22,8 @@ namespace TurnCard.Game.Procedure
             {
                 MapNode node = Run.Map[i];
                 bool isNext = i == next;
-                string label = (node.Cleared ? "✔ " : string.Empty) + node.Label +
+                // 用 √ 而不是 ✔：项目里两份字体都没有 U+2714，会渲染成豆腐块
+                string label = (node.Cleared ? "√ " : string.Empty) + node.Label +
                                (isNext ? "  ← 下一步" : string.Empty);
 
                 int index = i;

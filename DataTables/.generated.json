@@ -4,43 +4,43 @@
             "table": "Cards",
             "hash": "6CEAAB39BECE77FD07C6260333CC58A0D4651A0BF5B58FE66414287945F37B89",
             "rows": 16,
-            "generatedAt": "2026-11-21 02:59:22"
+            "generatedAt": "2026-11-23 03:35:58"
         },
         {
             "table": "Enemies",
-            "hash": "2BD7CBC505847CBE7445799543953D81B1EEC26741C4E1A8E050422E9265C2D3",
-            "rows": 7,
-            "generatedAt": "2026-11-21 02:59:22"
+            "hash": "C43CD6FB68DC19456DE3D82148735B216FA06A6BAEA692152319440B67D5F38D",
+            "rows": 24,
+            "generatedAt": "2026-11-23 03:35:59"
         },
         {
             "table": "Keywords",
             "hash": "9C3FDA7A3C87502E0FCF4D8A826ABD15973D4EC882F555FFFE54C3EDDFAA26B3",
             "rows": 3,
-            "generatedAt": "2026-11-21 02:59:22"
+            "generatedAt": "2026-11-23 03:35:59"
         },
         {
             "table": "StarterDeck",
             "hash": "9FD37DECD498D8D878D5DE81FE638415376D37AB91B084AA9F578DE897831668",
             "rows": 16,
-            "generatedAt": "2026-11-21 02:59:23"
+            "generatedAt": "2026-11-23 03:35:59"
         },
         {
             "table": "EnemyIntents",
-            "hash": "C7FC54524F7BDF2BE16FE1386C808028410C8E46928680AE0B00BD09F451B53F",
-            "rows": 35,
-            "generatedAt": "2026-11-21 02:59:24"
+            "hash": "F54FE9052B5DFBF5C0F1280B9006763D28C832E67AA5DC1E2F0EBDCB70679DC0",
+            "rows": 38,
+            "generatedAt": "2026-11-23 03:35:59"
         },
         {
             "table": "Encounters",
             "hash": "3145E78EF29B20B9E8B8266547F8795DF5AC5DCBE56E36B76C9814DB5EF5B5CA",
             "rows": 6,
-            "generatedAt": "2026-11-21 02:59:24"
+            "generatedAt": "2026-11-23 03:35:59"
         },
         {
             "table": "Buffs",
-            "hash": "BD394D357EB0D5ED0647ADAEFDF952D65A3DCA9CB10D49413F47F80F85E342D9",
-            "rows": 13,
-            "generatedAt": "2026-11-21 02:59:24"
+            "hash": "F58F8648BB3AB25409022550CFD9626348CCB98FA4EE2E449A5293E4EA07B3ED",
+            "rows": 24,
+            "generatedAt": "2026-11-23 03:35:59"
         }
     ]
 }

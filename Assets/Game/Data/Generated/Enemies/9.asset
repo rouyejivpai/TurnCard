@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ea630782f35e51940b7b00838c974647, type: 3}
+  m_Name: 9
+  m_EditorClassIdentifier: 
+  m_Id: 9
+  m_Pool: 1
+  m_FlipHpMode: 1
+  m_FlipHpRatio: 1
+  m_IntentMode: 0
+  m_FrontBuffs: 22;21
+  m_BackBuffs: 
+  m_FrontArmor: 0
+  m_BackArmor: 0
+  m_FrontName: "\u5267\u56E2\u4E4B\u517D"
+  m_FrontHp: 32
+  m_FrontAttack: 0
+  m_FrontDescription: "\u53CC\u751F\xB7\u7F81\u7ECA\uFF1A\u6B7B\u4EA1\u65F6\u4F7F\u821E\u8005\u7FFB\u9762\uFF1B\u53CC\u751F\xB7\u55DC\u8840\uFF1A\u9020\u6210\u672A\u683C\u6321\u4F24\u5BB3\u540E\u56DE\u590D2\u751F\u547D\u3001\u4E0B\u6B21\u653B\u51FB+1\u6BB5"
+  m_FrontArt: {fileID: 0}
+  m_Twin: 1
+  m_PairId: 1
+  m_Note: "\u53CC\u751F\uFF1B\u65E0\u7ACB\u7ED8\u7D20\u6750\uFF0C\u8D70\u5360\u4F4D"
+  m_BackName: "\u5931\u63A7\u7684\u5267\u56E2\u4E4B\u517D"
+  m_BackHp: 32
+  m_BackAttack: 0
+  m_BackDescription: "\u6495\u54AC\uFF1A\u9020\u62102\u70B9\u4F24\u5BB36\u6B21"
+  m_BackArt: {fileID: 0}
