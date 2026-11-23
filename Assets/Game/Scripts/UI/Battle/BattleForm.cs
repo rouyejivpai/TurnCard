@@ -41,6 +41,11 @@ namespace Window.BattleForm
 
         private BattleStageView m_Stage;
 
+        // 玩家 HUD：血条（与敌人卡同样的 RectMask2D 裁剪）+ 独立的 buff 区
+        private RectTransform m_HpClip;
+        private TextMeshProUGUI m_HpText;
+        private RectTransform m_BuffArea;
+
         private CardGridScreen m_RewardScreen;
         private bool m_RewardPicked;
         private bool m_VictoryHandled;
@@ -78,11 +83,31 @@ namespace Window.BattleForm
             // 所以舞台区在运行时搭（和 EnemyArea 的兜底逻辑同一条路子），
             // 宝箱/路线选项本身仍然是预制体。
             EnsureStage();
+            ResolvePlayerHud();
 
             EnsureFonts();
             UnityEngine.Debug.Log("[战斗] E 字体完成");
             BuildRuntime();
             UnityEngine.Debug.Log("[战斗] F BuildRuntime 完成");
+        }
+
+        /// <summary>
+        /// 玩家 HUD 的引用：血条裁剪窗口、血量文字、buff 区容器。
+        /// 预制体里的层级：goPlayerHud / goHpBar / goHpClip / imgHpFill，goBuffArea 是血条下方的独立子节点。
+        /// </summary>
+        private void ResolvePlayerHud()
+        {
+            Transform hud = m_FormRect.Find("goPlayerHud");
+            if (hud == null)
+            {
+                return;
+            }
+
+            m_HpClip = hud.Find("goHpBar/goHpClip") as RectTransform;
+            m_HpText = hud.Find("goHpBar/txtHp") == null
+                ? null
+                : hud.Find("goHpBar/txtHp").GetComponent<TextMeshProUGUI>();
+            m_BuffArea = hud.Find("goBuffArea") as RectTransform;
         }
 
         /// <summary>
@@ -419,21 +444,22 @@ namespace Window.BattleForm
             m_State = new BattleState();
             HookState(m_State);
 
-            // 玩家 buff 图标条：挂在状态文字下方，订阅容器事件自动刷新
-            if (txtStatus != null)
+            // 玩家 buff 图标条：挂在血条下方的 buff 区里，订阅容器事件自动刷新
+            Transform buffRoot = m_BuffArea != null ? m_BuffArea : (txtStatus != null ? txtStatus.transform : null);
+            if (buffRoot != null)
             {
                 // 同一界面重开时，先清掉上一场留下的图标条，否则会越叠越多
-                for (int i = txtStatus.transform.childCount - 1; i >= 0; i--)
+                for (int i = buffRoot.childCount - 1; i >= 0; i--)
                 {
-                    Transform child = txtStatus.transform.GetChild(i);
+                    Transform child = buffRoot.GetChild(i);
                     if (child.name == "BuffStrip")
                     {
                         Destroy(child.gameObject);
                     }
                 }
 
-                BuffIconStrip.Attach((RectTransform)txtStatus.transform, m_State.PlayerBuffs,
-                    new Vector2(0.5f, 0f), new Vector2(0.5f, 1f), new Vector2(0f, -6f));
+                BuffIconStrip.Attach((RectTransform)buffRoot, m_State.PlayerBuffs,
+                    new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero);
             }
 
             // 有全局进度时用牌组，没有（直接运行本场景调试）就用全部卡牌
@@ -1515,9 +1541,24 @@ namespace Window.BattleForm
                 return;
             }
 
+            // 血量用和敌人卡一样的血条：裁剪窗口按比例伸缩
+            int maxHp = BattleState.PlayerMaxHp;
+            int hp = m_State.PlayerHp;
+            float ratio = maxHp <= 0 ? 0f : Mathf.Clamp01(hp / (float)maxHp);
+            if (m_HpClip != null)
+            {
+                Vector2 anchorMax = m_HpClip.anchorMax;
+                anchorMax.x = ratio;
+                m_HpClip.anchorMax = anchorMax;
+            }
+
+            if (m_HpText != null)
+            {
+                m_HpText.text = hp + "/" + maxHp;
+            }
+
             txtStatus.text =
-                $"生命 {m_State.PlayerHp}/{BattleState.PlayerMaxHp}    护甲 {m_State.PlayerArmor}" +
-                $"    能量 {m_State.Energy}/{BattleState.MaxEnergy}";
+                $"护甲 {m_State.PlayerArmor}    能量 {m_State.Energy}/{BattleState.MaxEnergy}";
             txtDrawCount.text = m_State.DrawPile.Count.ToString();
             txtDiscardCount.text = m_State.DiscardPile.Count.ToString();
             RefreshInteractivity();
