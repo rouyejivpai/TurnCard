@@ -66,7 +66,34 @@ CardView            (Image 底板，兼作点击热区)
 - 敌人卡与背面预览都是「只显示不绑定卡牌实例」的模式（`CardView.CreateDisplay`），
   它们不会触发背面查看，也不参与拖拽。
 
-## 6. 仍然是代码搭建的部分
+## 6. 可打出描边（shader）
+
+**旧做法**：`UIEdgeGlow` 按「UV 到矩形边缘的距离」算光圈，所以永远是**圆角矩形**，
+跟卡框的真实轮廓无关——卡框换成有缺口的形状时会明显穿帮。已删除。
+
+**现在的做法**：`TurnCard/UICardOutline`（`Shaders/UICardOutline.shader`），
+把**卡框贴图的 alpha 当轮廓**，在轮廓外侧膨胀出一圈描边：
+
+```
+outline = dilate(alpha, r) - alpha      // r = 描边宽度
+near 圈给实边，far 圈（1.9r）给柔化外扩
+```
+
+要点：
+
+| 项 | 说明 |
+| --- | --- |
+| 形状来源 | `_ShapeTex` = 当前那一面的 `Background.sprite.texture`；换皮肤描边自动跟着变，不需要单独出描边图 |
+| 光晕图尺寸 | 比卡牌大 `outlinePadding`（默认 12px），描边画在卡牌**外侧**，不会盖住卡面 |
+| UV 映射 | 光晕图比卡牌大，`_Expand = (卡宽 + 2×padding) / 卡宽`，先把 uv 映射回卡牌本体再采样 |
+| 呼吸 | `_PulseAmount / _PulseSpeed` 让描边亮度轻微起伏 |
+| 材质 | `Resources/UI/Card/CardOutline.mat`；因 UGUI 不支持 MaterialPropertyBlock，**按卡框贴图缓存材质实例**（材质数 = 皮肤数） |
+| 参数 | `Resources/Config/CardVisualSettings.asset`：颜色 / 宽度 / 外扩 / 强度 / 呼吸 / 柔化 |
+
+实测（在真实 `cardframeWood` 的 alpha 上模拟）：卡面内部 `outline=0`，
+圆角外沿 `outline≈0.29`，说明描边沿的是卡框轮廓而不是矩形边界。
+
+## 7. 仍然是代码搭建的部分
 
 | 位置 | 内容 | 计划 |
 | --- | --- | --- |
