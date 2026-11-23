@@ -34,7 +34,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _ColorMask: 15
-    - _Expand: 1.14
+    - _Expand: 1.1
     - _Intensity: 1.2
     - _PulseAmount: 0.22
     - _PulseSpeed: 2.6
@@ -44,7 +44,7 @@ Material:
     - _StencilOp: 0
     - _StencilReadMask: 255
     - _StencilWriteMask: 255
-    - _Width: 0.035
+    - _Width: 0.025
     m_Colors:
-    - _Color: {r: 1, g: 0.8399999, b: 0.34999996, a: 1}
+    - _Color: {r: 1, g: 0.84, b: 0.35, a: 1}
   m_BuildTextureStacks: []

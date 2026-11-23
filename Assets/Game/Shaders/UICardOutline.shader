@@ -139,13 +139,13 @@ Shader "TurnCard/UICardOutline"
 
                 float center = ShapeAlpha(uv);
 
-                // 近距离一圈（实边）+ 远距离一圈（柔化外扩）
+                // 只在「紧贴轮廓」的一圈内画：半径就是描边宽度，
+                // 不再往外叠柔光，否则会糊成一圈很大的光晕、看起来离卡牌很远。
                 float near = RingMax(uv, _Width);
-                float far = RingMax(uv, _Width * 1.9);
+                float a = saturate(near - center);
 
-                float outline = saturate(near - center);
-                float soft = saturate(far - center) * (1.0 - _Softness) * 0.65;
-                float a = saturate(outline + soft);
+                // 柔化：只是把边缘 gamma 一下，不改变描边厚度
+                a = lerp(a, a * a, _Softness);
 
                 // 呼吸：整体亮度轻微起伏，静止时也能看出「可打出」
                 float pulse = 1.0 + _PulseAmount * sin(_Time.y * _PulseSpeed);

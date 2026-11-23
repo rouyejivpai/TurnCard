@@ -75,8 +75,7 @@ CardView            (Image 底板，兼作点击热区)
 把**卡框贴图的 alpha 当轮廓**，在轮廓外侧膨胀出一圈描边：
 
 ```
-outline = dilate(alpha, r) - alpha      // r = 描边宽度
-near 圈给实边，far 圈（1.9r）给柔化外扩
+outline = dilate(alpha, r) − alpha      // r = 描边宽度（只画这一圈）
 ```
 
 要点：
@@ -84,14 +83,20 @@ near 圈给实边，far 圈（1.9r）给柔化外扩
 | 项 | 说明 |
 | --- | --- |
 | 形状来源 | `_ShapeTex` = 当前那一面的 `Background.sprite.texture`；换皮肤描边自动跟着变，不需要单独出描边图 |
-| 光晕图尺寸 | 比卡牌大 `outlinePadding`（默认 12px），描边画在卡牌**外侧**，不会盖住卡面 |
+| 光晕图尺寸 | 比卡牌大 `outlinePadding`（默认 10px），描边画在卡牌**外侧**，不会盖住卡面 |
 | UV 映射 | 光晕图比卡牌大，`_Expand = (卡宽 + 2×padding) / 卡宽`，先把 uv 映射回卡牌本体再采样 |
+| **厚度** | 采样半径**就是** `outlineWidth`，只画贴边的一圈，**不要再加更大半径的柔光**——否则会糊成一片、看起来离卡牌很远 |
+| 柔化 | `_Softness` 只对描边做 gamma，不改变厚度 |
 | 呼吸 | `_PulseAmount / _PulseSpeed` 让描边亮度轻微起伏 |
 | 材质 | `Resources/UI/Card/CardOutline.mat`；因 UGUI 不支持 MaterialPropertyBlock，**按卡框贴图缓存材质实例**（材质数 = 皮肤数） |
-| 参数 | `Resources/Config/CardVisualSettings.asset`：颜色 / 宽度 / 外扩 / 强度 / 呼吸 / 柔化 |
+| 参数 | `Resources/Config/CardVisualSettings.asset`：颜色 / 宽度 / 外扩 / 强度 / 呼吸 / 柔化（默认 5px / 10px / 1.0 / 0.3） |
 
-实测（在真实 `cardframeWood` 的 alpha 上模拟）：卡面内部 `outline=0`，
-圆角外沿 `outline≈0.29`，说明描边沿的是卡框轮廓而不是矩形边界。
+> **注意**：`cardframeWood` 这张卡框本身在贴图里有 8~14 像素的透明边距（显示时 12~21px），
+> 而且轮廓在竖直方向上略呈弧形。描边跟的是**这张图的不透明轮廓**，不是卡牌 RectTransform 的矩形边——
+> 这是刻意的（否则又回到"永远画一个圆角矩形"的老问题）。
+
+实测（在真实 `cardframeWood` 的 alpha 上模拟）：描边带宽 5px 时，
+在 y=0.05/0.25/0.5/0.75/0.95 各行，描边都落在**轮廓外侧 0.8~7.2px** 内，紧贴边缘。
 
 ## 7. 仍然是代码搭建的部分
 
