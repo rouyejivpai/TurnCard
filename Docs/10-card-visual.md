@@ -72,28 +72,29 @@ CardView            (Image 底板，兼作点击热区)
 跟卡框的真实轮廓无关——卡框换成有缺口的形状时会明显穿帮。已删除。
 
 **现在的做法**：`TurnCard/UICardOutline`（`Shaders/UICardOutline.shader`），
-把**卡框贴图的 alpha 当轮廓**，在轮廓外侧膨胀出一圈描边：
+**直接替换 `Background` 的材质**，在卡框贴图自带的透明边距里画描边。
 
 ```
 outline = dilate(alpha, r) − alpha      // r = 描边宽度（只画这一圈）
+最终颜色 = 卡面 × 自身 alpha + 描边色 × ring，按 alpha 合成
 ```
 
 要点：
 
 | 项 | 说明 |
 | --- | --- |
-| 形状来源 | `_ShapeTex` = 当前那一面的 `Background.sprite.texture`；换皮肤描边自动跟着变，不需要单独出描边图 |
-| 光晕图尺寸 | 比卡牌大 `outlinePadding`（默认 10px），描边画在卡牌**外侧**，不会盖住卡面 |
-| UV 映射 | 光晕图比卡牌大，`_Expand = (卡宽 + 2×padding) / 卡宽`，先把 uv 映射回卡牌本体再采样 |
-| **厚度** | 采样半径**就是** `outlineWidth`，只画贴边的一圈，**不要再加更大半径的柔光**——否则会糊成一片、看起来离卡牌很远 |
+| 为什么能画在 Background 上 | 卡框贴图自带透明边距（`cardframeWood` 左 8 / 上 4 / 右 10 / 下 10 贴图像素，显示时 6~15px），描边就落在这圈边距里，**不需要额外垫一张大一圈的图** |
+| 形状来源 | 就是 `Background` 自己的 `_MainTex`，不需要 `_ShapeTex`；换皮肤描边自动跟着变 |
+| 开关方式 | `SetPlayable(true/false)` 把两面 `Background.material` 在描边材质 / 默认材质之间切换 |
+| **厚度上限** | 描边宽度必须 **≤ 贴图边距**，否则会被 Image 的矩形裁掉。`cardframeWood` 最窄处（上边）只有 4 贴图像素 ≈ 6 显示像素，所以默认宽度取 5px |
 | 柔化 | `_Softness` 只对描边做 gamma，不改变厚度 |
 | 呼吸 | `_PulseAmount / _PulseSpeed` 让描边亮度轻微起伏 |
-| 材质 | `Resources/UI/Card/CardOutline.mat`；因 UGUI 不支持 MaterialPropertyBlock，**按卡框贴图缓存材质实例**（材质数 = 皮肤数） |
-| 参数 | `Resources/Config/CardVisualSettings.asset`：颜色 / 宽度 / 外扩 / 强度 / 呼吸 / 柔化（默认 5px / 10px / 1.0 / 0.3） |
+| 材质 | `Resources/UI/Card/CardOutline.mat`；**所有卡牌共用一个材质**（形状来自各自的 `_MainTex`），不产生材质实例 |
+| 参数 | `Resources/Config/CardVisualSettings.asset`：颜色 / 宽度 / 强度 / 呼吸 / 柔化（默认 5px / 1.0 / 0.3） |
 
-> **注意**：`cardframeWood` 这张卡框本身在贴图里有 8~14 像素的透明边距（显示时 12~21px），
-> 而且轮廓在竖直方向上略呈弧形。描边跟的是**这张图的不透明轮廓**，不是卡牌 RectTransform 的矩形边——
-> 这是刻意的（否则又回到"永远画一个圆角矩形"的老问题）。
+> 历史：最早是 `UIEdgeGlow`（按矩形 UV 到边缘的距离算光圈，永远是圆角矩形）；
+> 中间试过"独立节点 + `_ShapeTex` 采样卡框"（需要一个比卡牌大一圈的节点，且要按贴图缓存材质）；
+> 现在改为直接画在 `Background` 上——节点更少、材质只有一份、也不用再管外扩尺寸。
 
 实测（在真实 `cardframeWood` 的 alpha 上模拟）：描边带宽 5px 时，
 在 y=0.05/0.25/0.5/0.75/0.95 各行，描边都落在**轮廓外侧 0.8~7.2px** 内，紧贴边缘。

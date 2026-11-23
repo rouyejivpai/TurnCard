@@ -99,9 +99,7 @@ namespace TurnCard.Game.UI
             new System.Collections.Generic.Queue<QueuedFlip>();
         private Coroutine m_HoverRoutine;
 
-        private Image m_Glow;
         private static Material s_GlowMaterial;
-        private static readonly Dictionary<Texture, Material> s_GlowMaterials = new Dictionary<Texture, Material>();
 
         /// <summary>描边材质资产（Resources 下，保证 shader 不被打包剔除）。</summary>
         private const string GlowMaterialResource = "UI/Card/CardOutline";
@@ -213,7 +211,6 @@ namespace TurnCard.Game.UI
             EnsureFont();
             ApplySkin(m_FrontFace);
             ApplySkin(m_BackFace);
-            BuildGlow();
         }
 
 
@@ -303,7 +300,6 @@ namespace TurnCard.Game.UI
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
 
-            BuildGlow();
 
             m_FrontFace = BuildFace("FrontFace", false);
             m_BackFace = BuildFace("BackFace", true);
@@ -311,128 +307,71 @@ namespace TurnCard.Game.UI
             EnsureFont();
             ApplySkin(m_FrontFace);
             ApplySkin(m_BackFace);
-            BuildGlow();
             ApplySide(CardFaceSide.Front, false, 0f, null, null);
         }
 
         /// <summary>
-        /// 「当前可打出」的柔和白边。用 shader 按 UV 算一圈内发光，
-        /// 不吃贴图，任何卡牌尺寸都能用。
+        /// 「当前可打出」的描边。直接画在 Background 这张图上——
+        /// 卡框贴图自带透明边距（cardframeWood 左 8 / 上 4 / 右 10 / 下 10 贴图像素），
+        /// 描边就落在边距里，不需要额外垫一张大一圈的图。
         /// </summary>
-        private void BuildGlow()
+        private void EnsureGlowMaterial()
         {
-            if (m_Glow != null)
+            if (s_GlowMaterial != null)
             {
                 return;
             }
 
-            var existing = transform.Find("PlayableGlow");
-            if (existing != null)
+            // 用 Resources 里的材质资产，保证打包时 shader 不会因为没人引用被剔掉
+            s_GlowMaterial = Resources.Load<Material>(GlowMaterialResource);
+            if (s_GlowMaterial == null)
             {
-                m_Glow = existing.GetComponent<Image>();
-                if (m_Glow != null)
+                Shader shader = Shader.Find("TurnCard/UICardOutline");
+                if (shader == null)
                 {
                     return;
                 }
+
+                s_GlowMaterial = new Material(shader);
             }
 
+            // 这些参数所有卡牌共用，改共享材质即可
             CardVisualSettings cfg = CardVisualSettings.Current;
-            float pad = cfg.OutlinePadding;
-
-            var go = new GameObject("PlayableGlow", typeof(RectTransform), typeof(Image));
-            var rect = (RectTransform)go.transform;
-            rect.SetParent(transform, false);
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            // 外扩一圈：描边画在卡牌轮廓的**外侧**，不外扩就会被卡面盖住
-            rect.offsetMin = new Vector2(-pad, -pad);
-            rect.offsetMax = new Vector2(pad, pad);
-            rect.SetAsFirstSibling();
-
-            m_Glow = go.GetComponent<Image>();
-            m_Glow.sprite = TurnCard.Game.UI.Fx.UiSprites.Square;
-            m_Glow.type = Image.Type.Simple;
-            m_Glow.raycastTarget = false;
-
-            if (s_GlowMaterial == null)
-            {
-                // 用 Resources 里的材质资产，保证打包时 shader 不会因为没人引用被剔掉
-                s_GlowMaterial = Resources.Load<Material>(GlowMaterialResource);
-                if (s_GlowMaterial == null)
-                {
-                    Shader shader = Shader.Find("TurnCard/UICardOutline");
-                    if (shader != null)
-                    {
-                        s_GlowMaterial = new Material(shader);
-                    }
-                }
-            }
-
-            if (s_GlowMaterial != null)
-            {
-                m_Glow.material = s_GlowMaterial;
-
-                // 这些参数所有卡牌共用，改共享材质即可
-                s_GlowMaterial.SetColor("_Color", cfg.OutlineColor);
-                s_GlowMaterial.SetFloat("_Width", cfg.OutlineWidth / CardWidth);
-                s_GlowMaterial.SetFloat("_Expand", (CardWidth + pad * 2f) / CardWidth);
-                s_GlowMaterial.SetFloat("_Intensity", cfg.OutlineIntensity);
-                s_GlowMaterial.SetFloat("_PulseAmount", cfg.PulseAmount);
-                s_GlowMaterial.SetFloat("_PulseSpeed", cfg.PulseSpeed);
-                s_GlowMaterial.SetFloat("_Softness", cfg.Softness);
-            }
-            else
-            {
-                m_Glow.color = new Color(1f, 1f, 1f, 0f);
-            }
-
-            UpdateGlowShape();
-            SetPlayable(false);
+            s_GlowMaterial.SetColor("_Color", cfg.OutlineColor);
+            s_GlowMaterial.SetFloat("_Width", cfg.OutlineWidth / CardWidth);
+            s_GlowMaterial.SetFloat("_Intensity", cfg.OutlineIntensity);
+            s_GlowMaterial.SetFloat("_PulseAmount", cfg.PulseAmount);
+            s_GlowMaterial.SetFloat("_PulseSpeed", cfg.PulseSpeed);
+            s_GlowMaterial.SetFloat("_Softness", cfg.Softness);
         }
 
-        /// <summary>
-        /// 把当前显示那一面的卡框贴图传给描边 shader：描边完全由这张图的 alpha 轮廓决定，
-        /// 所以换了卡框（皮肤）描边会自动跟着变，不需要为每个皮肤单独做描边图。
-        ///
-        /// UGUI 的 Graphic 不支持 MaterialPropertyBlock，所以这里按「卡框贴图」缓存材质实例：
-        /// 同一种皮肤共用一份，材质数量等于皮肤数，不会随卡牌数量增长。
-        /// </summary>
-        private void UpdateGlowShape()
-        {
-            if (m_Glow == null || s_GlowMaterial == null)
-            {
-                return;
-            }
-
-            FaceWidgets face = m_ShownSide == CardFaceSide.Front ? m_FrontFace : m_BackFace;
-            Sprite sprite = face != null && face.Background != null ? face.Background.sprite : null;
-            Texture texture = sprite != null ? sprite.texture : null;
-            if (texture == null)
-            {
-                return;
-            }
-
-            if (s_GlowMaterials.TryGetValue(texture, out Material cached) && cached != null)
-            {
-                m_Glow.material = cached;
-                return;
-            }
-
-            var material = new Material(s_GlowMaterial);
-            material.SetTexture("_ShapeTex", texture);
-            s_GlowMaterials[texture] = material;
-            m_Glow.material = material;
-        }
-
-        /// <summary>当前是否「可以打出」。只有可打出的牌才显示光边。</summary>
+        /// <summary>当前是否「可以打出」：只有可打出的牌，Background 才换成描边材质。</summary>
         public void SetPlayable(bool playable)
         {
-            if (m_Glow == null)
+            EnsureGlowMaterial();
+            if (s_GlowMaterial == null)
             {
                 return;
             }
 
-            m_Glow.enabled = playable;
+            ApplyGlowMaterial(m_FrontFace, playable);
+            ApplyGlowMaterial(m_BackFace, playable);
+        }
+
+        private static void ApplyGlowMaterial(FaceWidgets face, bool playable)
+        {
+            if (face == null || face.Background == null)
+            {
+                return;
+            }
+
+            Material material = playable ? s_GlowMaterial : null;
+            if (face.Background.material == material)
+            {
+                return;
+            }
+
+            face.Background.material = material;
         }
 
         private FaceWidgets BuildFace(string name, bool isBack)
@@ -669,9 +608,7 @@ namespace TurnCard.Game.UI
                 m_BackFace.Root.gameObject.SetActive(!front);
             }
 
-            // 描边跟着当前面走：正反面的卡框贴图不同，轮廓也就不同
             m_ShownSide = front ? CardFaceSide.Front : CardFaceSide.Back;
-            UpdateGlowShape();
         }
 
         /// <summary>
