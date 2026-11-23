@@ -39,6 +39,13 @@ namespace Window.BattleForm
         private EnemyInstance m_LastHitEnemy;
         private bool m_HandDirty;
 
+        private BattleStageView m_Stage;
+
+        private CardGridScreen m_RewardScreen;
+        private bool m_RewardPicked;
+        private bool m_VictoryHandled;
+        private int m_BattleRound;
+
         /// <summary>选择模式：等玩家选一张手牌并点确认。</summary>
         /// <summary>正在播放的翻面动画数量（同牌串行、跨牌并行）。</summary>
         private int m_FlipAnimating;
@@ -67,10 +74,79 @@ namespace Window.BattleForm
             m_FxLayer.offsetMax = Vector2.zero;
             m_HandRoot = goHand != null ? (RectTransform)goHand.transform : m_FormRect;
 
+            // 舞台区：这个窗口的绑定是 UIBind 索引式的，手工改预制体会打乱绑定，
+            // 所以舞台区在运行时搭（和 EnemyArea 的兜底逻辑同一条路子），
+            // 宝箱/路线选项本身仍然是预制体。
+            EnsureStage();
+
             EnsureFonts();
             UnityEngine.Debug.Log("[战斗] E 字体完成");
             BuildRuntime();
             UnityEngine.Debug.Log("[战斗] F BuildRuntime 完成");
+        }
+
+        /// <summary>
+        /// 搭舞台区：与 EnemyArea 同区域，里面放「宝箱」和「路线选项」两个容器。
+        /// 只在运行时建一次；敌人区仍然由 <see cref="BuildEnemyArea"/> 管理。
+        /// </summary>
+        private void EnsureStage()
+        {
+            if (m_Stage != null)
+            {
+                return;
+            }
+
+            m_Stage = GetComponentInChildren<BattleStageView>(true);
+            if (m_Stage != null)
+            {
+                return;
+            }
+
+            // 以 EnemyArea 的矩形为准（没有就以窗体中心上方为基准）
+            RectTransform anchorRect = m_EnemyArea;
+            if (anchorRect == null)
+            {
+                Transform authored = m_FormRect.Find("EnemyArea");
+                anchorRect = authored as RectTransform;
+            }
+
+            var stageGo = new GameObject("StageArea", typeof(RectTransform), typeof(BattleStageView));
+            var stageRect = (RectTransform)stageGo.transform;
+            stageRect.SetParent(m_FormRect, false);
+            stageRect.anchorMin = new Vector2(0.5f, 1f);
+            stageRect.anchorMax = new Vector2(0.5f, 1f);
+            stageRect.pivot = new Vector2(0.5f, 1f);
+            stageRect.anchoredPosition = new Vector2(0f, -203.98f);
+            stageRect.sizeDelta = new Vector2(900f, 347f);
+
+            if (anchorRect != null)
+            {
+                stageRect.anchorMin = anchorRect.anchorMin;
+                stageRect.anchorMax = anchorRect.anchorMax;
+                stageRect.pivot = anchorRect.pivot;
+                stageRect.anchoredPosition = anchorRect.anchoredPosition;
+                stageRect.sizeDelta = anchorRect.sizeDelta;
+                stageRect.SetSiblingIndex(anchorRect.GetSiblingIndex());
+            }
+
+            RectTransform chest = CreateStageContainer(stageRect, "goChest");
+            RectTransform routes = CreateStageContainer(stageRect, "goRoutes");
+
+            m_Stage = stageGo.GetComponent<BattleStageView>();
+            m_Stage.Initialize(chest, routes);
+        }
+
+        private static RectTransform CreateStageContainer(RectTransform parent, string name)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            var rect = (RectTransform)go.transform;
+            rect.SetParent(parent, false);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            go.SetActive(false);
+            return rect;
         }
 
         protected override void OnShow()
@@ -318,6 +394,8 @@ namespace Window.BattleForm
 
         private void StartBattle()
         {
+            m_VictoryHandled = false;
+
             m_Content = Resources.Load<BattleContent>("BattleContent");
             if (m_Content == null || m_Content.Cards.Length == 0)
             {
@@ -332,6 +410,16 @@ namespace Window.BattleForm
             // 玩家 buff 图标条：挂在状态文字下方，订阅容器事件自动刷新
             if (txtStatus != null)
             {
+                // 同一界面重开时，先清掉上一场留下的图标条，否则会越叠越多
+                for (int i = txtStatus.transform.childCount - 1; i >= 0; i--)
+                {
+                    Transform child = txtStatus.transform.GetChild(i);
+                    if (child.name == "BuffStrip")
+                    {
+                        Destroy(child.gameObject);
+                    }
+                }
+
                 BuffIconStrip.Attach((RectTransform)txtStatus.transform, m_State.PlayerBuffs,
                     new Vector2(0.5f, 0f), new Vector2(0.5f, 1f), new Vector2(0f, -6f));
             }
@@ -414,10 +502,18 @@ namespace Window.BattleForm
 
             state.BattleEnded += victory =>
             {
+                if (victory)
+                {
+                    // 胜利不再弹结果面板，交给舞台区走「宝箱 → 选卡 → 路线」
+                    // （BeginVictoryFlow 内部自己做了去重）
+                    BeginVictoryFlow();
+                    return;
+                }
+
                 if (!m_ResultShown)
                 {
                     m_ResultShown = true;
-                    StartCoroutine(ShowResultDelayed(victory));
+                    StartCoroutine(ShowResultDelayed(false));
                 }
             };
         }
@@ -1054,8 +1150,159 @@ namespace Window.BattleForm
 
             if (battleEnded)
             {
-                ShowResult(true);
+                BeginVictoryFlow();
             }
+        }
+
+        // ---------------------------------------------------------------- 胜利后的舞台流程
+        // 胜利 → 宝箱（自动出现，等玩家点）→ 0.5s → 三选一 → 舞台区路线选项 → 同一界面重开下一场。
+        // 不再弹「战斗胜利」结果面板，也不再切场景。
+
+        private const int GoldReward = 25;
+
+        /// <summary>胜利后进入奖励房：舞台区放宝箱。</summary>
+        private void BeginVictoryFlow()
+        {
+            if (m_VictoryHandled)
+            {
+                return;
+            }
+
+            m_VictoryHandled = true;
+
+            if (btnEndTurn != null)
+            {
+                btnEndTurn.interactable = false;
+            }
+
+            if (m_Stage == null)
+            {
+                // 预制体没挂舞台区时退回旧行为，避免卡死流程
+                ShowResult(true);
+                return;
+            }
+
+            m_RewardPicked = false;
+            m_Stage.ShowChest(OnChestOpened);
+        }
+
+        /// <summary>宝箱被点开：等 FlowSettings 里的延迟再弹选卡界面。</summary>
+        private void OnChestOpened()
+        {
+            float delay = FlowSettings.Current.ChestOpenDelay;
+            DG.Tweening.DOVirtual.DelayedCall(Mathf.Max(0f, delay), OpenRewardSelection);
+        }
+
+        private void OpenRewardSelection()
+        {
+            TurnCard.Game.Run.RunState run = TurnCard.Game.Run.RunState.Current;
+            run.AddGold(GoldReward);
+
+            CardGridScreen screen = UIHost.Shared.Open<CardGridScreen>(CardGridScreen.ResourcePath);
+            if (screen == null)
+            {
+                ShowRoutes();
+                return;
+            }
+
+            m_RewardScreen = screen;
+            m_RewardPicked = false;
+
+            screen.SetHeader("战斗胜利",
+                $"获得 {GoldReward} 金币    当前金币 {run.Gold}",
+                "点击一张牌拿走；也可以跳过");
+
+            List<CardDefinition> offer = PickRewardCards();
+            screen.ShowCards(offer, 1.25f, offer.Count, card =>
+            {
+                if (m_RewardPicked)
+                {
+                    return;
+                }
+
+                m_RewardPicked = true;
+                if (card != null)
+                {
+                    run.AddCard(card.Id);
+                }
+
+                CloseRewardSelection();
+                ShowRoutes();
+            });
+
+            screen.AddButton("跳过", () =>
+            {
+                if (m_RewardPicked)
+                {
+                    return;
+                }
+
+                m_RewardPicked = true;
+                CloseRewardSelection();
+                ShowRoutes();
+            });
+        }
+
+        private void CloseRewardSelection()
+        {
+            if (m_RewardScreen == null)
+            {
+                return;
+            }
+
+            var form = m_RewardScreen.GetComponent<UnityGameFramework.Runtime.UIForm>();
+            if (form != null)
+            {
+                UIHost.Shared.Close(form);
+            }
+
+            m_RewardScreen = null;
+        }
+
+        /// <summary>舞台区显示下一幕选项（占位）。</summary>
+        private void ShowRoutes()
+        {
+            if (m_Stage == null)
+            {
+                return;
+            }
+
+            m_Stage.ShowRoutes(FlowSettings.Current.RouteOptionCount, index =>
+            {
+                m_BattleRound++;
+                m_Stage.ShowBattle();
+                RestartBattle();
+            });
+        }
+
+        /// <summary>同一界面重开一场：清掉手牌与敌人卡，重建 BattleState。</summary>
+        private void RestartBattle()
+        {
+            ClearHand();
+            m_ResultShown = false;
+            m_RewardPicked = false;
+            m_VictoryHandled = false;
+            StartBattle();
+        }
+
+        private static List<CardDefinition> PickRewardCards()
+        {
+            var result = new List<CardDefinition>();
+            BattleContent content = Resources.Load<BattleContent>("BattleContent");
+            if (content == null || content.Cards.Length == 0)
+            {
+                return result;
+            }
+
+            var pool = new List<CardDefinition>(content.Cards);
+            for (int i = 0; i < 3 && pool.Count > 0; i++)
+            {
+                int index = UnityEngine.Random.Range(0, pool.Count);
+                result.Add(pool[index]);
+                pool.RemoveAt(index);
+            }
+
+            return result;
         }
 
         /// <summary>
