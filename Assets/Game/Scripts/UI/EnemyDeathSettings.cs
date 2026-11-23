@@ -4,7 +4,7 @@ namespace TurnCard.Game.UI
 {
     /// <summary>
     /// 敌人死亡表现参数（纯表现层，不影响结算）。
-    /// 放在 <c>Resources/UI/Enemy/EnemyDeathSettings.asset</c>，改数值不用改代码。
+    /// 放在 <c>Resources/Config/EnemyDeathSettings.asset</c>，改数值不用改代码。
     ///
     /// 注意区分两类参数：
     /// <list type="bullet">
@@ -99,7 +99,7 @@ namespace TurnCard.Game.UI
         /// <summary>整段动画时长（分离结束时收尾）。</summary>
         public float TotalDuration => CutDuration + SplitDuration;
 
-        private const string ResourcePath = "UI/Enemy/EnemyDeathSettings";
+        private const string ResourcePath = "Config/EnemyDeathSettings";
 
         private static EnemyDeathSettings s_Current;
 

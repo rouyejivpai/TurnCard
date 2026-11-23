@@ -518,6 +518,7 @@ namespace Window.BattleForm
             }
 
             // 间距自适应：手牌多了就压缩间隙，避免压到两侧牌堆或互相遮挡
+            HandLayoutSettings cfg = HandLayoutSettings.Current;
             float maxWidth = Mathf.Max(CardView.CardWidth * 2f,
                 m_HandRoot.rect.width - HandSidePadding * 2f);
 
@@ -525,7 +526,7 @@ namespace Window.BattleForm
             if (count > 1)
             {
                 float fit = (maxWidth - CardView.CardWidth) / (count - 1);
-                spacing = Mathf.Min(spacing, Mathf.Max(CardView.CardWidth * 0.55f, fit));
+                spacing = Mathf.Min(spacing, Mathf.Max(CardView.CardWidth * cfg.MinSpacingRatio, fit));
             }
 
             float startX = -(count - 1) * spacing * 0.5f;
@@ -552,7 +553,7 @@ namespace Window.BattleForm
                 else
                 {
                     // 老牌：往新位置滑过去，稍微错峰一点点避免整排一起动
-                    view.TweenHome(0.2f, i * 0.015f);
+                    view.TweenHome(cfg.LayoutDuration, i * cfg.LayoutStagger);
                 }
             }
         }

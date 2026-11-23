@@ -52,7 +52,7 @@ namespace TurnCard.Game.UI
         private static IntentIconSet s_IntentIconSet;
         private static bool s_IntentIconSetLoaded;
 
-        private const string IntentIconSetResource = "UI/Enemy/IntentIconSet";
+        private const string IntentIconSetResource = "Config/IntentIconSet";
 
         private struct QueuedFlip
         {

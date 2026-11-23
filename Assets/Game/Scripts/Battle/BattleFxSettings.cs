@@ -4,7 +4,7 @@ namespace TurnCard.Game.Battle
 {
     /// <summary>
     /// 战斗表现参数（纯表现层，不影响结算）。
-    /// 放在 Resources/BattleFxSettings.asset，改数值不用改代码。
+    /// 放在 <c>Resources/Config/BattleFxSettings.asset</c>，改数值不用改代码。
     /// </summary>
     [CreateAssetMenu(menuName = "TurnCard/Data/Battle Fx Settings", fileName = "BattleFxSettings")]
     public sealed class BattleFxSettings : ScriptableObject
@@ -41,6 +41,8 @@ namespace TurnCard.Game.Battle
 
         private static BattleFxSettings s_Current;
 
+        private const string ResourcePath = "Config/BattleFxSettings";
+
         /// <summary>运行时读取；没有配置资产时用一套默认值，保证不会崩。</summary>
         public static BattleFxSettings Current
         {
@@ -48,7 +50,7 @@ namespace TurnCard.Game.Battle
             {
                 if (s_Current == null)
                 {
-                    s_Current = Resources.Load<BattleFxSettings>("BattleFxSettings");
+                    s_Current = Resources.Load<BattleFxSettings>(ResourcePath);
                     if (s_Current == null)
                     {
                         s_Current = CreateInstance<BattleFxSettings>();

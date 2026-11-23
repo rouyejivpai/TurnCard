@@ -114,6 +114,9 @@ namespace TurnCard.Game.UI
         /// <summary>悬停时的放大倍率。</summary>
         public const float HoverScale = 1.25f;
 
+        /// <summary>影子材质（只是 shader 载体，偏移/浓淡由 HandLayoutSettings 控制）。</summary>
+        private const string ShadowResourcePath = "UI/Card/CardShadow";
+
         public bool AllowInspect = true;
         public Vector2 HomePosition => m_HomePosition;
         public bool Interactable { get; set; } = true;
@@ -848,7 +851,7 @@ namespace TurnCard.Game.UI
 
             // 悬停放大约 1.25 倍，方便看清文字；同时置顶，避免被相邻的牌遮住
             transform.SetAsLastSibling();
-            m_Rect.DOScale(m_BaseScale * HoverScale, 0.14f).SetEase(Ease.OutQuad).SetId("hover");
+            m_Rect.DOScale(m_BaseScale * Layout.HoverScale, 0.14f).SetEase(Ease.OutQuad).SetId("hover");
             ShowShadow(true);
             StartFloat();
             ShowKeywordTips();
@@ -917,20 +920,8 @@ namespace TurnCard.Game.UI
 
         // ---------------------------------------------------------------- 悬停：投影 + 浮动
 
-        /// <summary>影子的偏移（相对卡牌，右下方向）。</summary>
-        private static readonly Vector2 ShadowOffset = new Vector2(14f, -18f);
-
-        /// <summary>悬停时卡牌微微抬起的高度。</summary>
-        private const float FloatLift = 20f;
-
-        /// <summary>浮动的最大幅度，刻意压小，避免看起来像在漂走。</summary>
-        private const float FloatAmpMin = 2.5f;
-        private const float FloatAmpMax = 4.5f;
-
-        /// <summary>浮动一个来回的时长。</summary>
-        private const float FloatPeriod = 1.5f;
-
-        private const string ShadowResourcePath = "UI/Card/CardShadow";
+        /// <summary>手牌表现参数（悬停放大 / 抬起 / 浮动 / 投影）都在这里，见 Resources/Config/HandLayoutSettings。</summary>
+        private static HandLayoutSettings Layout => HandLayoutSettings.Current;
 
         private Image m_Shadow;
 
@@ -954,8 +945,9 @@ namespace TurnCard.Game.UI
             rect.SetAsFirstSibling();
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
-            rect.offsetMin = ShadowOffset;
-            rect.offsetMax = ShadowOffset;
+            Vector2 offset = Layout.ShadowOffset;
+            rect.offsetMin = offset;
+            rect.offsetMax = offset;
             rect.localScale = Vector3.one;
 
             var image = go.AddComponent<Image>();
@@ -988,11 +980,11 @@ namespace TurnCard.Game.UI
             if (show)
             {
                 m_Shadow.gameObject.SetActive(true);
-                m_Shadow.DOFade(1f, 0.16f).SetEase(Ease.OutQuad).SetId("shadow");
+                m_Shadow.DOFade(Layout.ShadowOpacity, Layout.ShadowFade).SetEase(Ease.OutQuad).SetId("shadow");
             }
             else
             {
-                m_Shadow.DOFade(0f, 0.14f).SetEase(Ease.InQuad).SetId("shadow")
+                m_Shadow.DOFade(0f, Layout.ShadowFade).SetEase(Ease.InQuad).SetId("shadow")
                     .OnComplete(() =>
                     {
                         if (m_Shadow != null)
@@ -1022,14 +1014,15 @@ namespace TurnCard.Game.UI
 
             KillFloat();
 
-            float angle = UnityEngine.Random.Range(-35f, 35f) * Mathf.Deg2Rad;
-            float amp = UnityEngine.Random.Range(FloatAmpMin, FloatAmpMax);
+            HandLayoutSettings cfg = Layout;
+            float angle = UnityEngine.Random.Range(-cfg.FloatAngleRange, cfg.FloatAngleRange) * Mathf.Deg2Rad;
+            float amp = UnityEngine.Random.Range(cfg.FloatAmplitudeMin, cfg.FloatAmplitudeMax);
             var wobble = new Vector2(Mathf.Sin(angle) * amp, Mathf.Cos(angle) * amp * 0.7f);
-            var baseTarget = m_HomePosition + new Vector2(0f, FloatLift);
+            var baseTarget = m_HomePosition + new Vector2(0f, cfg.LiftHeight);
 
             Sequence seq = DOTween.Sequence().SetId("float");
             seq.Append(m_Rect.DOAnchorPos(baseTarget, 0.14f).SetEase(Ease.OutQuad));
-            seq.Append(m_Rect.DOAnchorPos(baseTarget + wobble, FloatPeriod)
+            seq.Append(m_Rect.DOAnchorPos(baseTarget + wobble, cfg.FloatPeriod)
                 .SetEase(Ease.InOutSine)
                 .SetLoops(-1, LoopType.Yoyo));
 
@@ -1058,7 +1051,7 @@ namespace TurnCard.Game.UI
             if (!m_IsDragging)
             {
                 DOTween.Kill(m_Rect, "layout");
-                m_Rect.DOAnchorPos(m_HomePosition, 0.16f).SetEase(Ease.OutQuad).SetId("layout");
+                m_Rect.DOAnchorPos(m_HomePosition, Layout.ReturnDuration).SetEase(Ease.OutQuad).SetId("layout");
             }
         }
 
