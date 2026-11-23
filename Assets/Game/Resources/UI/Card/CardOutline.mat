@@ -36,7 +36,7 @@ Material:
     - _ColorMask: 15
     - _Expand: 1.0833334
     - _Intensity: 1
-    - _OuterAlpha: 0.35
+    - _OuterAlpha: 0
     - _PulseAmount: 0.22
     - _PulseSpeed: 2.6
     - _Softness: 0.3
@@ -45,12 +45,12 @@ Material:
     - _StencilOp: 0
     - _StencilReadMask: 255
     - _StencilWriteMask: 255
-    - _WaveBand: 0.6
+    - _WaveBand: 0.056
     - _WaveEnd: 2.4
-    - _WaveSpeed: 1.1
+    - _WaveSpeed: 0.2
     - _WaveStart: 0.2
-    - _WaveStrength: 0.55
-    - _Width: 0.020833334
+    - _WaveStrength: 0.5496
+    - _Width: 0.017041666
     m_Colors:
     - _Color: {r: 1, g: 0.78, b: 0.25, a: 1}
     - _PaleColor: {r: 1, g: 0.95, b: 0.75, a: 1}

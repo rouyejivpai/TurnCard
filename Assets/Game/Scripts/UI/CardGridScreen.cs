@@ -91,6 +91,12 @@ namespace TurnCard.Game.UI
                 CardView view = CardView.Create(goCards, instance, scale);
                 view.SetHome(position);
                 view.Interactable = click != null;
+
+                // 关键：奖励/商店这类「点一下就拿走」的卡牌必须走 ChoiceMode。
+                // 否则 OnPointerClick 里会命中战斗规则 Card.Face.NeedsTarget → 直接 return，
+                // 表现得就像「有些选项点不了」（攻击牌基本都中招）。
+                view.ChoiceMode = click != null;
+
                 m_Cards.Add(view);
 
                 if (click != null)

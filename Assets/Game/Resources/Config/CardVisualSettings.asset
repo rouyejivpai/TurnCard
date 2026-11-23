@@ -14,11 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_OutlineColor: {r: 1, g: 0.78, b: 0.25, a: 1}
   m_OutlinePaleColor: {r: 1, g: 0.95, b: 0.75, a: 1}
-  m_OutlineOuterAlpha: 0.35
-  m_OutlineWidth: 5
+  m_OutlineOuterAlpha: 0
+  m_OutlineWidth: 4.09
   m_OutlineIntensity: 1
   m_Softness: 0.3
   m_WaveColor: {r: 1, g: 1, b: 0.92, a: 1}
-  m_WaveStrength: 0.55
-  m_WaveSpeed: 1.1
-  m_WaveBand: 0.35
+  m_WaveStrength: 0.5496
+  m_WaveSpeed: 0.2
+  m_WaveBand: 0.056
