@@ -171,14 +171,16 @@ Shader "TurnCard/UICardOutline"
                 // 柔化只压边缘，不改厚度
                 outlineA = lerp(outlineA, outlineA * outlineA, _Softness);
 
-                // 卡牌本体内部不画描边
-                outlineA *= (1.0 - center);
+                // 卡牌本体内部既没有描边、也没有波。
+                // 内部像素的 d 永远是第一档（t≈1/6），如果不用 center 挡掉，
+                // 波扫到那个相位时整张卡会一起亮——这就是「整卡闪烁」的原因。
+                float outside = 1.0 - saturate(center);
+                outlineA *= outside;
 
-                // ---- 由内向外扩散的波：用同一个 t，所以不会超出描边范围 ----
                 float phase = frac(_Time.y * _WaveSpeed);
                 float band = max(_WaveBand, 0.02);
                 float wave = saturate(1.0 - abs(t - phase) / band);
-                wave = wave * wave * (1.0 - phase) * _WaveStrength;
+                wave = wave * wave * (1.0 - phase) * _WaveStrength * outside;
 
                 float ring = saturate(outlineA + wave);
                 float3 ringRgb = lerp(outlineRgb, _WaveColor.rgb, wave / max(ring, 1e-4));
