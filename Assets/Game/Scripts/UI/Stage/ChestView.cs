@@ -44,14 +44,16 @@ namespace TurnCard.Game.UI
         {
             m_Opened = opened;
 
+            // 注意：必须切 GameObject 的激活状态，不能只切 Image.enabled——
+            // 预制体里 imgOpen 默认是隐藏的，节点不激活时 enabled 改什么都没用。
             if (m_ClosedArt != null)
             {
-                m_ClosedArt.enabled = !opened;
+                m_ClosedArt.gameObject.SetActive(!opened);
             }
 
             if (m_OpenArt != null)
             {
-                m_OpenArt.enabled = opened;
+                m_OpenArt.gameObject.SetActive(opened);
             }
 
             if (m_Hint != null)
