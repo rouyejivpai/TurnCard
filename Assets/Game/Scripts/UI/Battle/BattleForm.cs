@@ -118,8 +118,8 @@ namespace Window.BattleForm
             Transform armor = hud.Find("goArmor");
             if (armor == null)
             {
-                // 预制体里还没摆徽标时，运行时补一个（和 EnemyCard 的角标同样的做法）
-                armor = CreateRuntimeArmorBadge(hud);
+                Debug.LogError("[战斗] goPlayerHud 下缺少 goArmor（护甲徽标），" +
+                               "请在 BattleFormWindow.prefab 里补上");
             }
 
             if (armor != null)
@@ -149,50 +149,6 @@ namespace Window.BattleForm
             {
                 m_ArmorRoot.SetActive(false);
             }
-        }
-
-        /// <summary>运行时补一个护甲徽标：血条左侧，图标 + 数字。</summary>
-        private Transform CreateRuntimeArmorBadge(Transform hud)
-        {
-            var go = new GameObject("goArmor", typeof(RectTransform));
-            var rect = (RectTransform)go.transform;
-            rect.SetParent(hud, false);
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(1f, 1f);
-            rect.anchoredPosition = new Vector2(-158f, 0f);
-            rect.sizeDelta = new Vector2(96f, 44f);
-
-            var iconGo = new GameObject("imgArmorIcon", typeof(RectTransform), typeof(Image));
-            var iconRect = (RectTransform)iconGo.transform;
-            iconRect.SetParent(rect, false);
-            iconRect.anchorMin = new Vector2(0f, 0.5f);
-            iconRect.anchorMax = new Vector2(0f, 0.5f);
-            iconRect.pivot = new Vector2(0f, 0.5f);
-            iconRect.anchoredPosition = new Vector2(0f, 0f);
-            // 意图图标是 10×10 的美术，按 ×4 显示才不糊
-            iconRect.sizeDelta = new Vector2(40f, 40f);
-            var iconImage = iconGo.GetComponent<Image>();
-            iconImage.raycastTarget = false;
-            iconImage.preserveAspect = true;
-
-            var textGo = new GameObject("txtArmor", typeof(RectTransform), typeof(TextMeshProUGUI));
-            var textRect = (RectTransform)textGo.transform;
-            textRect.SetParent(rect, false);
-            textRect.anchorMin = new Vector2(0f, 0.5f);
-            textRect.anchorMax = new Vector2(0f, 0.5f);
-            textRect.pivot = new Vector2(0f, 0.5f);
-            textRect.anchoredPosition = new Vector2(44f, 0f);
-            textRect.sizeDelta = new Vector2(50f, 44f);
-            var text = textGo.GetComponent<TextMeshProUGUI>();
-            text.text = "0";
-            text.fontSize = 30f;
-            text.alignment = TextAlignmentOptions.Left;
-            text.color = new Color(0.72f, 0.86f, 1f);
-            text.raycastTarget = false;
-            UiFactory.EnsureFont(text.transform);
-
-            return rect;
         }
 
         /// <summary>
