@@ -38,6 +38,11 @@ namespace TurnCard.Game.UI
         [SerializeField] private Image m_IntentIcon;
         [SerializeField] private TextMeshProUGUI m_IntentValue;
 
+        [Header("意图气泡 · 附加意图（如攻击同时加贪婪）")]
+        [SerializeField] private GameObject m_ExtraIntentRoot;
+        [SerializeField] private Image m_ExtraIntentIcon;
+        [SerializeField] private TextMeshProUGUI m_ExtraIntentValue;
+
         [Header("血量横幅")]
         [SerializeField] private RectTransform m_HpClip;
         [SerializeField] private Image m_HpFill;
@@ -282,6 +287,41 @@ namespace TurnCard.Game.UI
                     m_IntentValue.text = intent.Value.ToString();
                     m_IntentValue.color = new Color(1f, 0.85f, 0.55f);
                     break;
+            }
+
+            RefreshExtraIntent(intent);
+        }
+
+        /// <summary>
+        /// 附加意图：这条招式除了主效果外还附带 buff（如浮士德「攻击并 +1 贪婪」），
+        /// 就在主图标右侧再显示一个「强化」图标 + 层数，形成双意图。
+        /// </summary>
+        private void RefreshExtraIntent(EnemyIntentDefinition intent)
+        {
+            if (m_ExtraIntentRoot == null)
+            {
+                return;
+            }
+
+            bool hasExtra = intent != null && intent.BuffId != 0 &&
+                            intent.Intent != EnemyIntentType.ApplyBuff &&
+                            intent.Intent != EnemyIntentType.BuffAllies;
+
+            m_ExtraIntentRoot.SetActive(hasExtra);
+            if (!hasExtra)
+            {
+                return;
+            }
+
+            if (m_ExtraIntentIcon != null)
+            {
+                m_ExtraIntentIcon.sprite = ResolveIntentIcon(intent, EnemyIntentType.Buff);
+                m_ExtraIntentIcon.preserveAspect = true;
+            }
+
+            if (m_ExtraIntentValue != null)
+            {
+                m_ExtraIntentValue.text = "+" + intent.BuffStacks;
             }
         }
 
