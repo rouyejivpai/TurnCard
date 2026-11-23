@@ -338,11 +338,15 @@ namespace TurnCard.Game.UI
             // 这些参数所有卡牌共用，改共享材质即可
             CardVisualSettings cfg = CardVisualSettings.Current;
             s_GlowMaterial.SetColor("_Color", cfg.OutlineColor);
+            s_GlowMaterial.SetColor("_PaleColor", cfg.OutlinePaleColor);
+            s_GlowMaterial.SetFloat("_OuterAlpha", cfg.OutlineOuterAlpha);
             s_GlowMaterial.SetFloat("_Width", cfg.OutlineWidth / CardWidth);
             s_GlowMaterial.SetFloat("_Intensity", cfg.OutlineIntensity);
-            s_GlowMaterial.SetFloat("_PulseAmount", cfg.PulseAmount);
-            s_GlowMaterial.SetFloat("_PulseSpeed", cfg.PulseSpeed);
             s_GlowMaterial.SetFloat("_Softness", cfg.Softness);
+            s_GlowMaterial.SetColor("_WaveColor", cfg.WaveColor);
+            s_GlowMaterial.SetFloat("_WaveStrength", cfg.WaveStrength);
+            s_GlowMaterial.SetFloat("_WaveSpeed", cfg.WaveSpeed);
+            s_GlowMaterial.SetFloat("_WaveBand", cfg.WaveBand);
         }
 
         /// <summary>当前是否「可以打出」：只有可打出的牌，Background 才换成描边材质。</summary>

@@ -12,10 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3e605e277fcd6b74ba48f0f29a643430, type: 3}
   m_Name: CardVisualSettings
   m_EditorClassIdentifier: 
-  m_OutlineColor: {r: 1, g: 0.84, b: 0.35, a: 1}
+  m_OutlineColor: {r: 1, g: 0.78, b: 0.25, a: 1}
+  m_OutlinePaleColor: {r: 1, g: 0.95, b: 0.75, a: 1}
+  m_OutlineOuterAlpha: 0.35
   m_OutlineWidth: 5
-  m_OutlinePadding: 10
   m_OutlineIntensity: 1
-  m_PulseAmount: 0.22
-  m_PulseSpeed: 2.6
   m_Softness: 0.3
+  m_WaveColor: {r: 1, g: 1, b: 0.92, a: 1}
+  m_WaveStrength: 0.55
+  m_WaveSpeed: 1.1
+  m_WaveBand: 0.35

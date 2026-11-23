@@ -34,17 +34,25 @@ Material:
     m_Ints: []
     m_Floats:
     - _ColorMask: 15
-    - _Expand: 1.1
-    - _Intensity: 1.2
+    - _Expand: 1.0833334
+    - _Intensity: 1
+    - _OuterAlpha: 0.35
     - _PulseAmount: 0.22
     - _PulseSpeed: 2.6
-    - _Softness: 0.55
+    - _Softness: 0.3
     - _Stencil: 0
     - _StencilComp: 8
     - _StencilOp: 0
     - _StencilReadMask: 255
     - _StencilWriteMask: 255
-    - _Width: 0.025
+    - _WaveBand: 0.6
+    - _WaveEnd: 2.4
+    - _WaveSpeed: 1.1
+    - _WaveStart: 0.2
+    - _WaveStrength: 0.55
+    - _Width: 0.020833334
     m_Colors:
-    - _Color: {r: 1, g: 0.84, b: 0.35, a: 1}
+    - _Color: {r: 1, g: 0.78, b: 0.25, a: 1}
+    - _PaleColor: {r: 1, g: 0.95, b: 0.75, a: 1}
+    - _WaveColor: {r: 1, g: 1, b: 0.92, a: 1}
   m_BuildTextureStacks: []

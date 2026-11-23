@@ -9,14 +9,20 @@ Shader "TurnCard/UICardOutline"
     Properties
     {
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
-        _Color ("Outline Color", Color) = (1, 0.84, 0.35, 1)
+
+        [Header(Outline)]
+        _Color ("Inner Color (贴边)", Color) = (1, 0.78, 0.25, 1)
+        _PaleColor ("Outer Color (外沿)", Color) = (1, 0.95, 0.75, 1)
         _Width ("Outline Width (uv)", Range(0.001, 0.25)) = 0.021
         _Intensity ("Intensity", Range(0, 4)) = 1.0
-
-        _PulseAmount ("Pulse Amount", Range(0, 1)) = 0.22
-        _PulseSpeed ("Pulse Speed", Float) = 2.6
-
         _Softness ("Softness", Range(0, 1)) = 0.3
+        _OuterAlpha ("Outer Alpha", Range(0, 1)) = 0.35
+
+        [Header(Wave)]
+        _WaveColor ("Wave Color", Color) = (1, 1, 0.92, 1)
+        _WaveStrength ("Wave Strength", Range(0, 2)) = 0.55
+        _WaveSpeed ("Wave Speed", Float) = 1.1
+        _WaveBand ("Wave Band (0-1 of width)", Range(0.02, 1)) = 0.35
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -82,11 +88,17 @@ Shader "TurnCard/UICardOutline"
 
             sampler2D _MainTex;
             fixed4 _Color;
+            fixed4 _PaleColor;
             float _Width;
             float _Intensity;
-            float _PulseAmount;
-            float _PulseSpeed;
             float _Softness;
+            float _OuterAlpha;
+            fixed4 _WaveColor;
+            float _WaveStrength;
+            float _WaveSpeed;
+            float _WaveStart;
+            float _WaveEnd;
+            float _WaveBand;
             float4 _ClipRect;
 
             v2f vert (appdata_t v)
@@ -111,7 +123,7 @@ Shader "TurnCard/UICardOutline"
                 return tex2D(_MainTex, uv).a;
             }
 
-            // 一圈 8 方向的最大 alpha = 膨胀；半径就是描边厚度
+            // 一圈 8 方向的最大 alpha = 膨胀
             float RingMax(float2 uv, float radius)
             {
                 float m = 0;
@@ -127,24 +139,53 @@ Shader "TurnCard/UICardOutline"
                 return m;
             }
 
+            // 到卡牌轮廓的近似距离：沿 1/6~6/6 倍宽度分档探测。
+            // 单半径采样会漏掉落在两档之间的像素（描边出现断裂），所以必须分档；
+            // 档位越密，内深外浅的渐变越连续。
+            float DistanceToShape(float2 uv, float maxR)
+            {
+                float stepR = maxR / 6.0;
+                if (RingMax(uv, stepR) > 0.5) return stepR;
+                if (RingMax(uv, stepR * 2.0) > 0.5) return stepR * 2.0;
+                if (RingMax(uv, stepR * 3.0) > 0.5) return stepR * 3.0;
+                if (RingMax(uv, stepR * 4.0) > 0.5) return stepR * 4.0;
+                if (RingMax(uv, stepR * 5.0) > 0.5) return stepR * 5.0;
+                if (RingMax(uv, stepR * 6.0) > 0.5) return stepR * 6.0;
+                return maxR * 1.01;
+            }
+
             fixed4 frag (v2f i) : SV_Target
             {
                 fixed4 face = tex2D(_MainTex, i.texcoord) * i.color;
 
-                // 只在「紧贴轮廓外侧」的一圈里画描边
                 float center = ShapeAlpha(i.texcoord);
-                float near = RingMax(i.texcoord, _Width);
-                float ring = saturate(near - center);
+                float d = DistanceToShape(i.texcoord, _Width);
 
-                // 柔化只影响边缘软硬，不改变厚度
-                ring = lerp(ring, ring * ring, _Softness);
+                // t：0 = 贴着卡牌，1 = 描边最外沿
+                float t = saturate(d / max(_Width, 1e-4));
 
-                float pulse = 1.0 + _PulseAmount * sin(_Time.y * _PulseSpeed);
-                ring = saturate(ring * _Color.a * _Intensity * pulse);
+                // 内深外浅：颜色从饱和色渐变到浅色，不透明度同步下降
+                float3 outlineRgb = lerp(_Color.rgb, _PaleColor.rgb, t);
+                float outlineA = (1.0 - t) * lerp(1.0, _OuterAlpha, t);
 
-                // 把卡面和描边按 alpha 合成，返回非预乘颜色（配合 SrcAlpha OneMinusSrcAlpha）
+                // 柔化只压边缘，不改厚度
+                outlineA = lerp(outlineA, outlineA * outlineA, _Softness);
+
+                // 卡牌本体内部不画描边
+                outlineA *= (1.0 - center);
+
+                // ---- 由内向外扩散的波：用同一个 t，所以不会超出描边范围 ----
+                float phase = frac(_Time.y * _WaveSpeed);
+                float band = max(_WaveBand, 0.02);
+                float wave = saturate(1.0 - abs(t - phase) / band);
+                wave = wave * wave * (1.0 - phase) * _WaveStrength;
+
+                float ring = saturate(outlineA + wave);
+                float3 ringRgb = lerp(outlineRgb, _WaveColor.rgb, wave / max(ring, 1e-4));
+                ring = saturate(ring * _Intensity);
+
                 float a = saturate(face.a + ring);
-                float3 rgb = (face.rgb * face.a + _Color.rgb * ring) / max(a, 1e-4);
+                float3 rgb = (face.rgb * face.a + ringRgb * ring) / max(a, 1e-4);
 
                 a *= UnityGet2DClipping(i.worldPosition.xy, _ClipRect);
 
