@@ -396,6 +396,18 @@ namespace Window.BattleForm
         {
             m_VictoryHandled = false;
 
+            // 同一界面重开时要清掉上一场残留的交互状态：
+            // 胜利流程会把「结束回合」按钮关掉，不重置的话第二场开始就是禁用的。
+            m_Busy = false;
+            m_HandDirty = false;
+            m_ResultShown = false;
+            m_RewardPicked = false;
+
+            if (btnEndTurn != null)
+            {
+                btnEndTurn.interactable = true;
+            }
+
             m_Content = Resources.Load<BattleContent>("BattleContent");
             if (m_Content == null || m_Content.Cards.Length == 0)
             {
