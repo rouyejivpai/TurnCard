@@ -101,6 +101,9 @@ namespace TurnCard.Game.Data
         [Tooltip("备注（占位说明、待补数值等），不参与逻辑")]
         [TextArea] [SerializeField] private string m_Note = string.Empty;
 
+        [Tooltip("1 = 预留/占位，不参与随机抽取（编队表仍可手动引用）")]
+        [SerializeField] private int m_Disabled;
+
         [SerializeField] private string m_BackName = string.Empty;
         [SerializeField] private int m_BackHp;
         [SerializeField] private int m_BackAttack;
@@ -129,6 +132,9 @@ namespace TurnCard.Game.Data
         public int PairId => m_PairId;
 
         public string Note => m_Note;
+
+        /// <summary>占位怪：不参与随机抽取，避免 HP=1 的半成品进战斗。</summary>
+        public bool Disabled => m_Disabled != 0;
 
         public EnemyForm Front => new EnemyForm(m_FrontName, m_FrontHp, m_FrontAttack,
             m_FrontDescription, m_FrontArt);

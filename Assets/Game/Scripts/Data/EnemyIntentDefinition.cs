@@ -33,6 +33,15 @@ namespace TurnCard.Game.Data
 
         /// <summary>自己翻面（强制，不经过血量归零）。</summary>
         FlipSelf,
+
+        /// <summary>
+        /// 回血：数值是回血量，目标由 buffTarget 决定
+        /// （Self = 自己，AllAllies = 所有存活敌人）。
+        /// </summary>
+        Heal,
+
+        /// <summary>给所有存活敌人施加 buff（用 buffId / value / turns 指定）。</summary>
+        BuffAllies,
     }
 
     /// <summary>buff 施加给谁。</summary>
@@ -40,6 +49,9 @@ namespace TurnCard.Game.Data
     {
         Player,
         Self,
+
+        /// <summary>所有存活的敌人（舞者的「强化 / 治愈」用）。</summary>
+        AllAllies,
     }
 
     /// <summary>

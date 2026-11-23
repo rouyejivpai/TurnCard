@@ -806,6 +806,21 @@ namespace TurnCard.Game.Battle
                 }
 
                 string spec = buff.Definition.TriggerEffect;
+
+                // 「自愈」：回血量 = 层数，执行后清零（狼人的 2 层自愈 = 回 2 点）。
+                if (enemyOwner != null &&
+                    string.Equals(spec, "heal_by_stacks", StringComparison.OrdinalIgnoreCase))
+                {
+                    int healAmount = buff.Stacks;
+                    if (healAmount > 0)
+                    {
+                        enemyOwner.Heal(healAmount);
+                    }
+
+                    owner.Consume(buff, buff.Stacks);
+                    continue;
+                }
+
                 if (!string.IsNullOrWhiteSpace(spec))
                 {
                     var context = new CardEffectContext
@@ -1140,10 +1155,75 @@ namespace TurnCard.Game.Battle
                             break;
                         }
 
+                        if (intent.BuffTarget == BuffTarget.AllAllies)
+                        {
+                            int stacks = Math.Max(1, intent.Value);
+                            foreach (EnemyInstance ally in m_Enemies)
+                            {
+                                if (ally == null || ally.IsDead)
+                                {
+                                    continue;
+                                }
+
+                                ally.Buffs.Add(buff, stacks, intent.Turns);
+                            }
+
+                            log.Add($"{enemy.Form.DisplayName} 为全体友方施加 {buff.DisplayName} x{stacks}");
+                            break;
+                        }
+
                         bool onSelf = intent.BuffTarget == BuffTarget.Self;
                         BuffContainer target = onSelf ? enemy.Buffs : PlayerBuffs;
                         target.Add(buff, Math.Max(1, intent.Value), intent.Turns);
                         log.Add($"{enemy.Form.DisplayName} {(onSelf ? "获得" : "施加")} {buff.DisplayName} x{Math.Max(1, intent.Value)}");
+                        break;
+                    }
+
+                    case Data.EnemyIntentType.Heal:
+                    {
+                        int amount = Math.Max(1, intent.Value);
+                        if (intent.BuffTarget == BuffTarget.AllAllies)
+                        {
+                            foreach (EnemyInstance ally in m_Enemies)
+                            {
+                                if (ally == null || ally.IsDead)
+                                {
+                                    continue;
+                                }
+
+                                ally.Heal(amount);
+                            }
+
+                            log.Add($"{enemy.Form.DisplayName} 为全体友方恢复 {amount} 点生命");
+                            break;
+                        }
+
+                        enemy.Heal(amount);
+                        log.Add($"{enemy.Form.DisplayName} 恢复 {amount} 点生命");
+                        break;
+                    }
+
+                    case Data.EnemyIntentType.BuffAllies:
+                    {
+                        BuffDefinition buff = FindBuff(intent.BuffId);
+                        if (buff == null)
+                        {
+                            log.Add($"{enemy.Form.DisplayName} 施加了未知 buff {intent.BuffId}");
+                            break;
+                        }
+
+                        int stacks = Math.Max(1, intent.Value);
+                        foreach (EnemyInstance ally in m_Enemies)
+                        {
+                            if (ally == null || ally.IsDead)
+                            {
+                                continue;
+                            }
+
+                            ally.Buffs.Add(buff, stacks, intent.Turns);
+                        }
+
+                        log.Add($"{enemy.Form.DisplayName} 强化全体友方：{buff.DisplayName} x{stacks}");
                         break;
                     }
 

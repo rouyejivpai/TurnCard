@@ -257,6 +257,27 @@ namespace TurnCard.Game.UI
                     m_IntentValue.text = string.Empty;
                     m_IntentValue.color = new Color(1f, 0.85f, 0.55f);
                     break;
+
+                // 回血 / 全体强化：用增益色，图标借「增益」那张
+                case EnemyIntentType.Heal:
+                    m_IntentValue.text = "+" + intent.Value;
+                    m_IntentValue.color = new Color(0.62f, 1f, 0.72f);
+                    if (m_IntentIcon != null)
+                    {
+                        m_IntentIcon.sprite = ResolveIntentIcon(intent, EnemyIntentType.Buff);
+                    }
+
+                    break;
+
+                case EnemyIntentType.BuffAllies:
+                    m_IntentValue.text = "+" + intent.Value;
+                    m_IntentValue.color = new Color(0.75f, 1f, 0.7f);
+                    if (m_IntentIcon != null)
+                    {
+                        m_IntentIcon.sprite = ResolveIntentIcon(intent, EnemyIntentType.Buff);
+                    }
+
+                    break;
                 default:
                     m_IntentValue.text = intent.Value.ToString();
                     m_IntentValue.color = new Color(1f, 0.85f, 0.55f);
