@@ -29,6 +29,7 @@ MonoBehaviour:
   m_Twin: 0
   m_PairId: 0
   m_Note: "\u7279\u6027: \u7D2F\u8BA1\u53D7\u51FB3\u6B21\u7FFB\u9762\uFF08buff 7\uFF09"
+  m_Disabled: 0
   m_BackName: "\u706B\u7130\u7CBE\u7075"
   m_BackHp: 12
   m_BackAttack: 0

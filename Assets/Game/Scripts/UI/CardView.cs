@@ -99,6 +99,9 @@ namespace TurnCard.Game.UI
             new System.Collections.Generic.Queue<QueuedFlip>();
         private Coroutine m_HoverRoutine;
 
+        /// <summary>显示用的费用覆盖（贪婪免费额度）；null = 用卡面原始费用。</summary>
+        private int? m_CostOverride;
+
         private static Material s_GlowMaterial;
 
         /// <summary>描边材质资产（Resources 下，保证 shader 不被打包剔除）。</summary>
@@ -1054,7 +1057,30 @@ namespace TurnCard.Game.UI
             }
         }
 
-        /// <summary>当前显示那一面的原始文本（带标记，未格式化）。</summary>
+        /// <summary>
+        /// 覆盖手牌上显示的费用（贪婪的「本回合第一张免费」用它把数字显示成 0）。
+        /// 传 null 恢复成卡面原始费用。
+        /// </summary>
+        public void SetCostOverride(int? cost)
+        {
+            m_CostOverride = cost;
+
+            if (cost.HasValue)
+            {
+                FaceWidgets face = m_ShownSide == CardFaceSide.Back ? m_BackFace : m_FrontFace;
+                if (face != null && face.CostText != null)
+                {
+                    face.CostText.text = cost.Value.ToString();
+                    face.CostText.color = new Color(1f, 0.86f, 0.35f);
+                }
+
+                return;
+            }
+
+            // 清除覆盖：直接按数据重刷，正反面费用各自恢复
+            RefreshVisual();
+        }
+
         private string ShownRawText => m_ShownSide == CardFaceSide.Back ? m_BackRaw : m_FrontRaw;
 
         /// <summary>悬停时在卡牌左侧列出这一面提到的关键词（含其描述里引用的其他关键词）。</summary>

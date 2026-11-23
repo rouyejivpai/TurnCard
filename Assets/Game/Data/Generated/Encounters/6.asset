@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Group: 5
   m_Order: 0
-  m_EnemyId: 2
+  m_EnemyId: 4
   m_Pool: 1

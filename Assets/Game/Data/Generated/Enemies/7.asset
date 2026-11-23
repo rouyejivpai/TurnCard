@@ -30,6 +30,7 @@ MonoBehaviour:
   m_PairId: 0
   m_Note: "\u753B\u7709\u5F00\u5E55: \u58C1\u5792+\u62A4\u7532+\u81EA\u865A\u5F314/\u7834\u7532\u7FFB\u9762\uFF1B\u547C\u5578\u5F00\u5E55:
     \u529B\u91CF+\u8346\u68D8+\u81EA\u6613\u4F244/\u7A7A\u6325\u6655\u7729\u7FFB\u9762"
+  m_Disabled: 0
   m_BackName: "\u547C\u5578\u5C71\u5E84"
   m_BackHp: 60
   m_BackAttack: 0

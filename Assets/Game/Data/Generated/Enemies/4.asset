@@ -18,7 +18,7 @@ MonoBehaviour:
   m_FlipHpRatio: 1
   m_IntentMode: 0
   m_FrontBuffs: 
-  m_BackBuffs: 13
+  m_BackBuffs: 10;29
   m_FrontArmor: 0
   m_BackArmor: 0
   m_FrontName: "\u6301\u5251\u8D24\u8005"
@@ -29,6 +29,7 @@ MonoBehaviour:
   m_Twin: 0
   m_PairId: 0
   m_Note: "\u5F85\u8865: \u5438\u6536\u53CD\u566C\uFF08\u6309\u5438\u6536\u91CF\u4E0B\u56DE\u5408\u5931\u53BB\u529B\u91CF\uFF09"
+  m_Disabled: 0
   m_BackName: "\u4E00\u68F5\u6811"
   m_BackHp: 50
   m_BackAttack: 0

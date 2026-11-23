@@ -30,6 +30,7 @@ MonoBehaviour:
   m_PairId: 0
   m_Note: "\u5360\u4F4D\uFF1A\u6570\u503C/\u7279\u6027/\u610F\u56FE\u5F85\u8865\uFF08\u539F\u8868\u4E3A
     \u2014\uFF09"
+  m_Disabled: 1
   m_BackName: "\u5267\u4F5C\u4E4B\u624B"
   m_BackHp: 1
   m_BackAttack: 0

@@ -59,6 +59,9 @@ namespace TurnCard.Game.Battle
         /// <summary>下一次攻击额外增加的段数（嗜血类 buff 累积，执行后清零）。</summary>
         public int BonusHits { get; set; }
 
+        /// <summary>本回合「吸收」吃掉的伤害总量（贤者的吸收反噬据此换算力量损失）。</summary>
+        public int AbsorbedThisTurn { get; set; }
+
         public int ConsumeBonusHits()
         {
             int bonus = BonusHits;
@@ -932,6 +935,10 @@ namespace TurnCard.Game.Battle
             m_DiscardPile.Clear();
             m_Enemies.Clear();
 
+            // 代价按「单场战斗」记：新一场清空，本场因贪婪免费打出的牌才记账
+            m_FreePlayedThisBattle.Clear();
+            m_FreeCardUsedThisTurn = false;
+
             foreach (CardDefinition card in cards)
             {
                 var instance = new CardInstance(card);
@@ -998,6 +1005,7 @@ namespace TurnCard.Game.Battle
             InstantCountThisTurn = 0;
             PendingChoice = ChoiceKind.None;
             SelectedForChoice = null;
+            m_FreeCardUsedThisTurn = false;
             TurnNumber++;
             TurnStarted?.Invoke(TurnNumber);
             Energy = MaxEnergy;
@@ -1009,6 +1017,17 @@ namespace TurnCard.Game.Battle
 
             // buff：回合开始触发，然后扣掉按回合消耗的层数
             RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnStart, PickRandomAliveEnemy());
+
+            // 敌人自己的回合开始触发（自愈等挂在自己身上的 buff 靠这里结算）
+            foreach (EnemyInstance enemy in m_Enemies)
+            {
+                if (enemy == null || enemy.IsDead)
+                {
+                    continue;
+                }
+
+                RunTriggers(enemy.Buffs, Data.BuffTrigger.TurnStart, null, enemy);
+            }
 
             // 敌人护甲同样每回合清零
             foreach (EnemyInstance enemy in m_Enemies)
@@ -1028,7 +1047,114 @@ namespace TurnCard.Game.Battle
                     enemy.RefillIntents(IntentsFor(enemy));
                 }
             }
+
+            ResolveAbsorbBacklash();
             DrawUpTo(HandSize);
+        }
+
+        /// <summary>护甲/生命类 buff id（表里约定，改表时要同步）。</summary>
+        private const int BuffAbsorb = 10;
+        private const int BuffGreed = 27;
+        private const int BuffPrice = 28;
+        private const int BuffAbsorbBacklash = 29;
+        private const int BuffStrengthDown = 30;
+
+        /// <summary>本回合的「贪婪」免费额度是否已用掉。</summary>
+        private bool m_FreeCardUsedThisTurn;
+
+        /// <summary>本场战斗里「因贪婪而免费」打出过的卡牌 id（代价据此触发）。</summary>
+        private readonly HashSet<int> m_FreePlayedThisBattle = new HashSet<int>();
+
+        /// <summary>场上是否还有活着的敌人带着某个 buff。</summary>
+        public bool AnyAliveEnemyHasBuff(int buffId)
+        {
+            foreach (EnemyInstance enemy in m_Enemies)
+            {
+                if (enemy != null && !enemy.IsDead && enemy.Buffs.Has(buffId))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 实际要付的费用：场上还有「贪婪」且本回合还没免费过 → 第一张牌 0 费。
+        /// </summary>
+        public int EffectiveCost(CardFace face)
+        {
+            if (!m_FreeCardUsedThisTurn && AnyAliveEnemyHasBuff(BuffGreed))
+            {
+                return 0;
+            }
+
+            return face.Cost;
+        }
+
+        /// <summary>本回合的免费额度是否还在（手牌显示 0 费用时用）。</summary>
+        public bool FreeCardAvailable => !m_FreeCardUsedThisTurn && AnyAliveEnemyHasBuff(BuffGreed);
+
+        /// <summary>「代价」：梅菲斯特回 3 点血，玩家吃 3 点伤害（先扣护甲）。</summary>
+        private void ApplyPriceOnce()
+        {
+            foreach (EnemyInstance enemy in m_Enemies)
+            {
+                if (enemy == null || enemy.IsDead || !enemy.Buffs.Has(BuffPrice))
+                {
+                    continue;
+                }
+
+                enemy.Heal(3);
+
+                int absorbed = Math.Min(PlayerArmor, 3);
+                PlayerArmor -= absorbed;
+                int toHp = 3 - absorbed;
+                if (toHp > 0)
+                {
+                    PlayerHp = Math.Max(0, PlayerHp - toHp);
+                }
+
+                if (PlayerHp <= 0)
+                {
+                    IsDefeat = true;
+                    BattleEnded?.Invoke(false);
+                }
+
+                return;
+            }
+        }
+
+        /// <summary>
+        /// 吸收反噬：把本回合吸收的伤害按 4:1 换算成下回合的力量损失。
+        /// 在玩家回合开始时结算（此时敌人在上一回合攒的吸收量已经确定）。
+        /// </summary>
+        private void ResolveAbsorbBacklash()
+        {
+            BuffDefinition strengthDown = FindBuff(BuffStrengthDown);
+            foreach (EnemyInstance enemy in m_Enemies)
+            {
+                if (enemy == null || enemy.IsDead)
+                {
+                    continue;
+                }
+
+                int absorbed = enemy.AbsorbedThisTurn;
+                enemy.AbsorbedThisTurn = 0;
+
+                if (absorbed <= 0 || !enemy.Buffs.Has(BuffAbsorbBacklash) || strengthDown == null)
+                {
+                    continue;
+                }
+
+                int loss = absorbed / 4;
+                if (loss <= 0)
+                {
+                    continue;
+                }
+
+                enemy.Buffs.Add(strengthDown, loss, 1);
+            }
         }
 
         /// <summary>结束玩家回合：手牌全部进弃牌堆（Q2），然后敌人行动。</summary>
@@ -1408,7 +1534,7 @@ namespace TurnCard.Game.Battle
                 return PlayResult.InvalidTarget;
             }
 
-            if (card.Face.Cost > Energy)
+            if (EffectiveCost(card.Face) > Energy)
             {
                 return PlayResult.NotEnoughEnergy;
             }
@@ -1441,7 +1567,25 @@ namespace TurnCard.Game.Battle
             }
 
             CardFace face = card.Face;
-            Energy -= face.Cost;
+
+            // 「贪婪」：本回合第一张牌免费；记下这张牌，供「代价」判定
+            int cost = EffectiveCost(face);
+            bool isFree = cost == 0 && face.Cost > 0;
+            bool playedFreeBefore = m_FreePlayedThisBattle.Contains(card.Definition.Id);
+
+            Energy -= cost;
+
+            if (isFree)
+            {
+                m_FreeCardUsedThisTurn = true;
+                m_FreePlayedThisBattle.Add(card.Definition.Id);
+            }
+
+            // 「代价」：本场因贪婪免费打出过的牌，再次打出时敌人回血并对玩家造成伤害
+            if (playedFreeBefore && AnyAliveEnemyHasBuff(BuffPrice))
+            {
+                ApplyPriceOnce();
+            }
 
             var context = new CardEffectContext
             {
@@ -1651,6 +1795,13 @@ namespace TurnCard.Game.Battle
         {
             if (enemy == null || enemy.IsDead || amount <= 0)
             {
+                return false;
+            }
+
+            // 「吸收」：这一下完全吃掉，并记进本回合的吸收量（贤者的吸收反噬要用）
+            if (enemy.Buffs.Has(BuffAbsorb))
+            {
+                enemy.AbsorbedThisTurn += amount;
                 return false;
             }
 

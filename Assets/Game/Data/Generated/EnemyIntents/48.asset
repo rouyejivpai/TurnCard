@@ -10,13 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2289118fb8b10804193651a715a1738c, type: 3}
-  m_Name: 8
+  m_Name: 48
   m_EditorClassIdentifier: 
-  m_Id: 8
-  m_EnemyId: 3
+  m_Id: 48
+  m_EnemyId: 24
   m_Form: back
   m_Intent: 0
-  m_Value: 12
+  m_Value: 9
   m_Hits: 1
   m_BuffId: 0
   m_BuffTarget: 0

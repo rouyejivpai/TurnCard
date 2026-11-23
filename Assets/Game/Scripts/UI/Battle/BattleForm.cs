@@ -57,6 +57,9 @@ namespace Window.BattleForm
         private bool m_VictoryHandled;
         private int m_BattleRound;
 
+        /// <summary>当前手牌是否正显示成 0 费（贪婪），用于避免每帧重刷。</summary>
+        private bool m_CostFreeShown;
+
         /// <summary>选择模式：等玩家选一张手牌并点确认。</summary>
         /// <summary>正在播放的翻面动画数量（同牌串行、跨牌并行）。</summary>
         private int m_FlipAnimating;
@@ -474,6 +477,7 @@ namespace Window.BattleForm
             m_HandDirty = false;
             m_ResultShown = false;
             m_RewardPicked = false;
+            m_CostFreeShown = false;
 
             if (btnEndTurn != null)
             {
@@ -1637,9 +1641,39 @@ namespace Window.BattleForm
             txtStatus.text = $"能量 {m_State.Energy}/{BattleState.MaxEnergy}";
             txtDrawCount.text = m_State.DrawPile.Count.ToString();
             txtDiscardCount.text = m_State.DiscardPile.Count.ToString();
+            RefreshHandCosts();
             RefreshInteractivity();
 
             RefreshPlayableStates();
+        }
+
+        /// <summary>
+        /// 贪婪生效时把手牌费用显示成 0（免额度用掉后恢复原价）。
+        /// 只在状态切换时刷一次，避免每帧重刷整手牌。
+        /// </summary>
+        private void RefreshHandCosts()
+        {
+            if (m_State == null)
+            {
+                return;
+            }
+
+            bool free = m_State.FreeCardAvailable;
+            if (free == m_CostFreeShown)
+            {
+                return;
+            }
+
+            m_CostFreeShown = free;
+            foreach (CardView view in m_HandViews)
+            {
+                if (view == null)
+                {
+                    continue;
+                }
+
+                view.SetCostOverride(free ? 0 : (int?)null);
+            }
         }
 
         private void RefreshInteractivity()
