@@ -22,7 +22,9 @@ namespace TurnCard.Game.UI
         [SerializeField] private RectTransform m_ChestRoot;
         [SerializeField] private RectTransform m_RouteRoot;
 
-        private ChestView m_Chest;
+        [Tooltip("宝箱：预制体里已经摆好就直接用，没摆才按 Resources 实例化")]
+        [SerializeField] private ChestView m_Chest;
+
         private readonly List<RouteOptionView> m_Routes = new List<RouteOptionView>();
 
         /// <summary>运行时搭舞台区时用：注入两个容器（预制体里则是序列化好的）。</summary>
@@ -49,12 +51,22 @@ namespace TurnCard.Game.UI
             }
         }
 
+        /// <summary>舞台区在预制体里可能是隐藏的，显示内容前先把自己打开。</summary>
+        private void EnsureVisible()
+        {
+            if (!gameObject.activeSelf)
+            {
+                gameObject.SetActive(true);
+            }
+        }
+
         /// <summary>
         /// 显示宝箱（关闭态），等玩家点击。
         /// 点击后切到打开态并回调，延迟由调用方控制（见 FlowSettings.ChestOpenDelay）。
         /// </summary>
         public void ShowChest(Action onOpened)
         {
+            EnsureVisible();
             ClearRoutes();
 
             if (m_RouteRoot != null)
@@ -69,6 +81,12 @@ namespace TurnCard.Game.UI
             }
 
             m_ChestRoot.gameObject.SetActive(true);
+
+            if (m_Chest == null)
+            {
+                // 优先用预制体里已经摆好的那张宝箱
+                m_Chest = m_ChestRoot.GetComponentInChildren<ChestView>(true);
+            }
 
             if (m_Chest == null)
             {
@@ -96,6 +114,7 @@ namespace TurnCard.Game.UI
         /// <summary>显示下一幕选项；onPick 收到的是选项下标。</summary>
         public void ShowRoutes(int count, Action<int> onPick)
         {
+            EnsureVisible();
             HideChest();
 
             if (m_RouteRoot == null)

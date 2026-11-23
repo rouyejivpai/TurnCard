@@ -40,19 +40,23 @@ namespace TurnCard.EditorTools
 
         private static void BuildChest()
         {
-            var root = new GameObject("Chest", typeof(RectTransform), typeof(Image), typeof(Button),
-                typeof(ChestView));
+            // 根只做容器 + 按钮，两张图各占一个子节点，美术替换时不容易搞错
+            var root = new GameObject("Chest", typeof(RectTransform), typeof(CanvasGroup),
+                typeof(Button), typeof(ChestView));
             var rect = (RectTransform)root.transform;
             rect.sizeDelta = new Vector2(220f, 220f);
 
-            var closed = root.GetComponent<Image>();
-            closed.color = new Color(0.42f, 0.30f, 0.16f);   // 占位：闭箱
-            closed.raycastTarget = true;
+            RectTransform closed = UiFactory.CreateRect(rect, "imgClosed");
+            Stretch(closed, 8f);
+            var closedImage = closed.gameObject.AddComponent<Image>();
+            closedImage.color = new Color(0.42f, 0.30f, 0.16f);   // 占位：闭箱
+            // 关闭态这张图同时是点击热区：Button 需要一张可命中的 Graphic
+            closedImage.raycastTarget = true;
 
             RectTransform open = UiFactory.CreateRect(rect, "imgOpen");
-            Stretch(open);
+            Stretch(open, 8f);
             var openImage = open.gameObject.AddComponent<Image>();
-            openImage.color = new Color(0.86f, 0.68f, 0.28f);  // 占位：开箱
+            openImage.color = new Color(0.86f, 0.68f, 0.28f);     // 占位：开箱
             openImage.raycastTarget = false;
             open.gameObject.SetActive(false);
 
@@ -62,11 +66,14 @@ namespace TurnCard.EditorTools
             label.alignment = TextAlignmentOptions.Center;
             label.raycastTarget = false;
 
+            var button = root.GetComponent<Button>();
+            button.targetGraphic = closedImage;
+
             var view = root.GetComponent<ChestView>();
             var so = new SerializedObject(view);
-            so.FindProperty("m_ClosedArt").objectReferenceValue = closed;
+            so.FindProperty("m_ClosedArt").objectReferenceValue = closedImage;
             so.FindProperty("m_OpenArt").objectReferenceValue = openImage;
-            so.FindProperty("m_Button").objectReferenceValue = root.GetComponent<Button>();
+            so.FindProperty("m_Button").objectReferenceValue = button;
             so.FindProperty("m_Hint").objectReferenceValue = label.gameObject;
             so.ApplyModifiedPropertiesWithoutUndo();
 
@@ -101,12 +108,12 @@ namespace TurnCard.EditorTools
             Object.DestroyImmediate(root);
         }
 
-        private static void Stretch(RectTransform rect)
+        private static void Stretch(RectTransform rect, float inset = 0f)
         {
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
+            rect.offsetMin = new Vector2(inset, inset);
+            rect.offsetMax = new Vector2(-inset, -inset);
         }
     }
 }
