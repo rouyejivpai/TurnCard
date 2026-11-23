@@ -531,6 +531,25 @@ namespace TurnCard.Game.Battle
         public IReadOnlyList<CardInstance> DiscardPile => m_DiscardPile;
         public IReadOnlyList<EnemyInstance> Enemies => m_Enemies;
 
+        /// <summary>调试台用：往抽牌堆塞一张牌（放最上面，下一次抽牌就能摸到）。</summary>
+        public void DebugAddToDrawPile(Data.CardDefinition definition)
+        {
+            if (definition == null)
+            {
+                return;
+            }
+
+            var instance = new CardInstance(definition);
+            instance.Flipped += OnCardFlipped;
+            m_DrawPile.Insert(0, instance);
+        }
+
+        /// <summary>调试台用：直接改当前能量。</summary>
+        public void DebugSetEnergy(int value)
+        {
+            Energy = System.Math.Max(0, value);
+        }
+
         private int m_PlayerHp;
 
         /// <summary>本回合已经结算过多少次「瞬发」（闪电破击这类牌要用）。</summary>

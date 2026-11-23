@@ -30,6 +30,9 @@ namespace Window.BattleForm
         private BattleState m_State;
         private BattleContent m_Content;
         private RectTransform m_FormRect;
+
+        /// <summary>调试台指定的下一场阵容（null = 按池子随机抽）。</summary>
+        public static TurnCard.Game.Data.EnemyDefinition[] DebugPendingLineup;
         private RectTransform m_FxLayer;
         private RectTransform m_HandRoot;
         private RectTransform m_ArrowLayer;
@@ -523,7 +526,8 @@ namespace Window.BattleForm
 
             // 阵容来自配置表：同一 group 的多行按 order 从左到右排开
             UnityEngine.Debug.Log("[战斗] 2 解析阵容");
-            var lineup = ResolveEncounter(TurnCard.Game.Data.EnemyPool.Normal);
+            var lineup = DebugPendingLineup ?? ResolveEncounter(TurnCard.Game.Data.EnemyPool.Normal);
+            DebugPendingLineup = null;
             UnityEngine.Debug.Log("[战斗] 3 阵容人数=" + lineup.Length);
 
             m_State.Setup(deck, lineup);
@@ -1369,6 +1373,63 @@ namespace Window.BattleForm
             m_RewardPicked = false;
             m_VictoryHandled = false;
             StartBattle();
+        }
+
+        // ---------------- 调试台入口（不进正式逻辑分支） ----------------
+
+        /// <summary>用指定阵容重开一场；传 null 表示按池子随机。</summary>
+        public void DebugRestartWith(TurnCard.Game.Data.EnemyDefinition[] lineup)
+        {
+            DebugPendingLineup = lineup;
+            RestartBattle();
+        }
+
+        /// <summary>往本场抽牌堆塞一张牌（同时已经加进 RunState 牌组）。</summary>
+        public bool DebugAddCardToBattle(TurnCard.Game.Data.CardDefinition def)
+        {
+            if (m_State == null || def == null)
+            {
+                return false;
+            }
+
+            m_State.DebugAddToDrawPile(def);
+            RefreshHud();
+            return true;
+        }
+
+        public bool DebugSetEnergy(int value)
+        {
+            if (m_State == null)
+            {
+                return false;
+            }
+
+            m_State.DebugSetEnergy(value);
+            RefreshHud();
+            return true;
+        }
+
+        public bool DebugKillAll()
+        {
+            if (m_State == null || m_State.Enemies.Count == 0)
+            {
+                return false;
+            }
+
+            bool killed = false;
+            var snapshot = new List<EnemyInstance>(m_State.Enemies);
+            foreach (EnemyInstance enemy in snapshot)
+            {
+                // 敌人血量归零会先翻面（双形态），所以要多打几轮才真的死
+                for (int i = 0; i < 8 && enemy != null && !enemy.IsDead; i++)
+                {
+                    m_State.DamageEnemy(enemy, 9999);
+                    killed = true;
+                }
+            }
+
+            RefreshAllHpBars();
+            return killed;
         }
 
         private static List<CardDefinition> PickRewardCards()
