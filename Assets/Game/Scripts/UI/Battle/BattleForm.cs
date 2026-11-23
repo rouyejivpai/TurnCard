@@ -494,6 +494,9 @@ namespace Window.BattleForm
                 return;
             }
 
+            // 开幕幕布：每次开战从头播一遍（同一界面重开也会重播）
+            CurtainView.PlayAll();
+
             UnityEngine.Debug.Log("[战斗] 1 创建 BattleState");
             m_State = new BattleState();
             HookState(m_State);
