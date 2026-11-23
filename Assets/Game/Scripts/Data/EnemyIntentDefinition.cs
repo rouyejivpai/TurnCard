@@ -78,8 +78,11 @@ namespace TurnCard.Game.Data
         [Tooltip("攻击段数，仅攻击意图使用")]
         [SerializeField] private int m_Hits = 1;
 
-        [Tooltip("施加的 buff id，仅 ApplyBuff 意图使用")]
+        [Tooltip("施加的 buff id；ApplyBuff / BuffAllies 使用，Attack 也可附带（伤害同时上 buff）")]
         [SerializeField] private int m_BuffId;
+
+        [Tooltip("附带 buff 的层数（攻击附带 buff 时用；留空按 1）")]
+        [SerializeField] private int m_BuffStacks = 1;
 
         [Tooltip("buff 施加给玩家还是自己")]
         [SerializeField] private BuffTarget m_BuffTarget = BuffTarget.Player;
@@ -99,6 +102,9 @@ namespace TurnCard.Game.Data
         public int Value => m_Value;
         public int Hits => Mathf.Max(1, m_Hits);
         public int BuffId => m_BuffId;
+
+        /// <summary>附带 buff 的层数（最少 1）。</summary>
+        public int BuffStacks => Mathf.Max(1, m_BuffStacks);
         public BuffTarget BuffTarget => m_BuffTarget;
         public int Turns => m_Turns;
 

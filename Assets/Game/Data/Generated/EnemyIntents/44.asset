@@ -19,6 +19,7 @@ MonoBehaviour:
   m_Value: 10
   m_Hits: 1
   m_BuffId: 0
+  m_BuffStacks: 0
   m_BuffTarget: 2
   m_Turns: -1
   m_Icon: 

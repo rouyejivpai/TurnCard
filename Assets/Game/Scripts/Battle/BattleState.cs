@@ -1335,6 +1335,35 @@ namespace TurnCard.Game.Battle
 
                         enemy.DealtDamageThisTurn = PlayerHp < hpBefore;
 
+                        // 攻击附带 buff（如浮士德「贪婪一击」：造成伤害并 +1 贪婪）
+                        if (intent.BuffId != 0)
+                        {
+                            BuffDefinition attached = FindBuff(intent.BuffId);
+                            if (attached != null)
+                            {
+                                if (intent.BuffTarget == BuffTarget.AllAllies)
+                                {
+                                    foreach (EnemyInstance ally in m_Enemies)
+                                    {
+                                        if (ally != null && !ally.IsDead)
+                                        {
+                                            ally.Buffs.Add(attached, intent.BuffStacks, intent.Turns);
+                                        }
+                                    }
+                                }
+                                else if (intent.BuffTarget == BuffTarget.Self)
+                                {
+                                    enemy.Buffs.Add(attached, intent.BuffStacks, intent.Turns);
+                                }
+                                else
+                                {
+                                    PlayerBuffs.Add(attached, intent.BuffStacks, intent.Turns);
+                                }
+
+                                log.Add($"{enemy.Form.DisplayName} 附带 {attached.DisplayName} x{intent.BuffStacks}");
+                            }
+                        }
+
                         // 「造成未格挡的伤害后」类特性（疯狂 / 嗜血）
                         if (unblocked)
                         {
