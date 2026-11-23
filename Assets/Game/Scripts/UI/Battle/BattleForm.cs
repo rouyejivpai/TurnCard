@@ -46,6 +46,12 @@ namespace Window.BattleForm
         private TextMeshProUGUI m_HpText;
         private RectTransform m_BuffArea;
 
+        // 护甲徽标：直接复用「防御意图」的图标
+        private GameObject m_ArmorRoot;
+        private Image m_ArmorIcon;
+        private TextMeshProUGUI m_ArmorText;
+        private static IntentIconSet s_IconSet;
+
         private CardGridScreen m_RewardScreen;
         private bool m_RewardPicked;
         private bool m_VictoryHandled;
@@ -108,6 +114,85 @@ namespace Window.BattleForm
                 ? null
                 : hud.Find("goHpBar/txtHp").GetComponent<TextMeshProUGUI>();
             m_BuffArea = hud.Find("goBuffArea") as RectTransform;
+
+            Transform armor = hud.Find("goArmor");
+            if (armor == null)
+            {
+                // 预制体里还没摆徽标时，运行时补一个（和 EnemyCard 的角标同样的做法）
+                armor = CreateRuntimeArmorBadge(hud);
+            }
+
+            if (armor != null)
+            {
+                m_ArmorRoot = armor.gameObject;
+                var icon = armor.Find("imgArmorIcon");
+                m_ArmorIcon = icon == null ? null : icon.GetComponent<Image>();
+                var value = armor.Find("txtArmor") != null
+                    ? armor.Find("txtArmor").GetComponent<TextMeshProUGUI>()
+                    : null;
+                m_ArmorText = value;
+            }
+
+            if (s_IconSet == null)
+            {
+                s_IconSet = Resources.Load<IntentIconSet>("Config/IntentIconSet");
+            }
+
+            if (m_ArmorIcon != null && s_IconSet != null)
+            {
+                // 护甲就用「防御意图」那张图标
+                m_ArmorIcon.sprite = s_IconSet.Get(EnemyIntentType.Defend);
+                m_ArmorIcon.preserveAspect = true;
+            }
+
+            if (m_ArmorRoot != null)
+            {
+                m_ArmorRoot.SetActive(false);
+            }
+        }
+
+        /// <summary>运行时补一个护甲徽标：血条左侧，图标 + 数字。</summary>
+        private Transform CreateRuntimeArmorBadge(Transform hud)
+        {
+            var go = new GameObject("goArmor", typeof(RectTransform));
+            var rect = (RectTransform)go.transform;
+            rect.SetParent(hud, false);
+            rect.anchorMin = new Vector2(0.5f, 1f);
+            rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(1f, 1f);
+            rect.anchoredPosition = new Vector2(-158f, 0f);
+            rect.sizeDelta = new Vector2(96f, 44f);
+
+            var iconGo = new GameObject("imgArmorIcon", typeof(RectTransform), typeof(Image));
+            var iconRect = (RectTransform)iconGo.transform;
+            iconRect.SetParent(rect, false);
+            iconRect.anchorMin = new Vector2(0f, 0.5f);
+            iconRect.anchorMax = new Vector2(0f, 0.5f);
+            iconRect.pivot = new Vector2(0f, 0.5f);
+            iconRect.anchoredPosition = new Vector2(0f, 0f);
+            // 意图图标是 10×10 的美术，按 ×4 显示才不糊
+            iconRect.sizeDelta = new Vector2(40f, 40f);
+            var iconImage = iconGo.GetComponent<Image>();
+            iconImage.raycastTarget = false;
+            iconImage.preserveAspect = true;
+
+            var textGo = new GameObject("txtArmor", typeof(RectTransform), typeof(TextMeshProUGUI));
+            var textRect = (RectTransform)textGo.transform;
+            textRect.SetParent(rect, false);
+            textRect.anchorMin = new Vector2(0f, 0.5f);
+            textRect.anchorMax = new Vector2(0f, 0.5f);
+            textRect.pivot = new Vector2(0f, 0.5f);
+            textRect.anchoredPosition = new Vector2(44f, 0f);
+            textRect.sizeDelta = new Vector2(50f, 44f);
+            var text = textGo.GetComponent<TextMeshProUGUI>();
+            text.text = "0";
+            text.fontSize = 30f;
+            text.alignment = TextAlignmentOptions.Left;
+            text.color = new Color(0.72f, 0.86f, 1f);
+            text.raycastTarget = false;
+            UiFactory.EnsureFont(text.transform);
+
+            return rect;
         }
 
         /// <summary>
@@ -506,12 +591,9 @@ namespace Window.BattleForm
                 m_LastHitEnemy = enemy;
                 PlayHitFeedback(amount);
 
-                // 伤害落地才扣血，所以血条必须在这一刻刷新（之前只在出手前刷过一次）
-                EnemyCardView hitView = ViewFor(enemy);
-                if (hitView != null)
-                {
-                    hitView.RefreshVisual();
-                }
+                // 伤害一落地就把**所有**血条刷一遍：
+                // 单刷新被打的那张，在连击/瞬发/翻面继承等情况下会和实际血量差一拍。
+                RefreshAllHpBars();
             };
             state.PlayerHpChanged += _ => RefreshHud();
             state.PlayerArmorChanged += _ => RefreshHud();
@@ -1534,6 +1616,27 @@ namespace Window.BattleForm
             }
         }
 
+        /// <summary>
+        /// 把所有血条立刻刷到最新：玩家血条 + 每个敌人卡（含意图、护甲角标）。
+        /// 伤害每次落地都调用，保证视觉和数值同步。
+        /// </summary>
+        private void RefreshAllHpBars()
+        {
+            RefreshHud();
+
+            for (int i = m_EnemyCardViews.Count - 1; i >= 0; i--)
+            {
+                EnemyCardView view = m_EnemyCardViews[i];
+                if (view == null)
+                {
+                    m_EnemyCardViews.RemoveAt(i);
+                    continue;
+                }
+
+                view.RefreshVisual();
+            }
+        }
+
         private void RefreshHud()
         {
             if (m_State == null)
@@ -1557,8 +1660,19 @@ namespace Window.BattleForm
                 m_HpText.text = hp + "/" + maxHp;
             }
 
-            txtStatus.text =
-                $"护甲 {m_State.PlayerArmor}    能量 {m_State.Energy}/{BattleState.MaxEnergy}";
+            // 护甲徽标：有护甲才显示（图标是「防御意图」那张）
+            int armorValue = m_State.PlayerArmor;
+            if (m_ArmorRoot != null)
+            {
+                m_ArmorRoot.SetActive(armorValue > 0);
+            }
+
+            if (m_ArmorText != null)
+            {
+                m_ArmorText.text = armorValue.ToString();
+            }
+
+            txtStatus.text = $"能量 {m_State.Energy}/{BattleState.MaxEnergy}";
             txtDrawCount.text = m_State.DrawPile.Count.ToString();
             txtDiscardCount.text = m_State.DiscardPile.Count.ToString();
             RefreshInteractivity();
