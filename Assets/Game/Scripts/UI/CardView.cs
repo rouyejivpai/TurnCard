@@ -522,6 +522,12 @@ namespace TurnCard.Game.UI
             {
                 ApplySide(Card.Side, false, 0f, null, null);
             }
+
+            // 翻面/重刷后把「免费」的费用覆盖重新贴回当前面
+            if (m_CostOverride.HasValue)
+            {
+                SetCostOverride(m_CostOverride);
+            }
         }
 
         /// <summary>把卡摆到指定的一面；animate 为 true 时用 DOTween 真正翻过去。</summary>
@@ -1065,20 +1071,16 @@ namespace TurnCard.Game.UI
         {
             m_CostOverride = cost;
 
-            if (cost.HasValue)
+            FaceWidgets face = m_ShownSide == CardFaceSide.Back ? m_BackFace : m_FrontFace;
+            if (face == null || face.CostText == null || Card == null)
             {
-                FaceWidgets face = m_ShownSide == CardFaceSide.Back ? m_BackFace : m_FrontFace;
-                if (face != null && face.CostText != null)
-                {
-                    face.CostText.text = cost.Value.ToString();
-                    face.CostText.color = new Color(1f, 0.86f, 0.35f);
-                }
-
                 return;
             }
 
-            // 清除覆盖：直接按数据重刷，正反面费用各自恢复
-            RefreshVisual();
+            // 直接写这一面的费用文字：不能靠 RefreshVisual，因为「同一面」时它不会重刷
+            int shown = cost ?? Card.Face.Cost;
+            face.CostText.text = shown >= 0 ? shown.ToString() : string.Empty;
+            face.CostText.color = cost.HasValue ? new Color(1f, 0.86f, 0.35f) : Color.white;
         }
 
         private string ShownRawText => m_ShownSide == CardFaceSide.Back ? m_BackRaw : m_FrontRaw;

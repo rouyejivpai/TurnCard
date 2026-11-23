@@ -10,16 +10,17 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2b95ecc669196734498f45e6b7d56ede, type: 3}
-  m_Name: 27
+  m_Name: Greed
   m_EditorClassIdentifier: 
   m_Id: 27
   m_Name: 
   m_DisplayName: "\u8D2A\u5A6A"
-  m_Description: "\u6BCF\u56DE\u5408\u4F60\u6253\u51FA\u7684\u7B2C\u4E00\u5F20\u724C\u4E0D\u6D88\u8017\u8D39\u7528"
+  m_Description: "\u4F60\u6BCF\u56DE\u5408\u6253\u51FA\u7684\u524D N \u5F20\u724C\u8D39\u7528\u4E3A
+    0\uFF08N=\u5C42\u6570\uFF09"
   m_Icon: buff_vulnerable
-  m_StackRule: 1
+  m_StackRule: 0
   m_Consume: 2
-  m_MaxStacks: 1
+  m_MaxStacks: 5
   m_Modifier: 
   m_Trigger: 0
   m_TriggerAction: 0

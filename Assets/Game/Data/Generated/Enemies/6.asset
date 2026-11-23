@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Id: 6
   m_Pool: 2
-  m_FlipHpMode: 1
+  m_FlipHpMode: 0
   m_FlipHpRatio: 1
   m_IntentMode: 0
   m_FrontBuffs: 27

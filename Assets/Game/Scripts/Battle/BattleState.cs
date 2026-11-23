@@ -16,6 +16,12 @@ namespace TurnCard.Game.Battle
 
         /// <summary>本回合结束时不进弃牌堆（「保留」效果临时打上的标记）。</summary>
         public bool RetainedThisTurn { get; set; }
+
+        /// <summary>
+        /// 「免费打出过」标记：贪婪让你 0 费打出这张牌时打上，
+        /// 之后再打出它（以及翻面结算时）由「代价」读取。
+        /// </summary>
+        public bool FreePlayed { get; set; }
         public CardFaceSide Side { get; private set; } = CardFaceSide.Front;
         public CardFace Face => Definition.GetFace(Side);
         public bool IsFront => Side == CardFaceSide.Front;
@@ -954,9 +960,8 @@ namespace TurnCard.Game.Battle
             m_DiscardPile.Clear();
             m_Enemies.Clear();
 
-            // 代价按「单场战斗」记：新一场清空，本场因贪婪免费打出的牌才记账
-            m_FreePlayedThisBattle.Clear();
-            m_FreeCardUsedThisTurn = false;
+            // 新一场：贪婪计数器归零（卡牌标记跟着 CardInstance 一起重建，天然清空）
+            m_PlaysThisTurn = 0;
 
             foreach (CardDefinition card in cards)
             {
@@ -1024,7 +1029,7 @@ namespace TurnCard.Game.Battle
             InstantCountThisTurn = 0;
             PendingChoice = ChoiceKind.None;
             SelectedForChoice = null;
-            m_FreeCardUsedThisTurn = false;
+            m_PlaysThisTurn = 0;
             TurnNumber++;
             TurnStarted?.Invoke(TurnNumber);
             Energy = MaxEnergy;
@@ -1068,6 +1073,7 @@ namespace TurnCard.Game.Battle
             }
 
             ResolveAbsorbBacklash();
+            RefreshGreedBuff();
             DrawUpTo(HandSize);
         }
 
@@ -1077,12 +1083,10 @@ namespace TurnCard.Game.Battle
         private const int BuffPrice = 28;
         private const int BuffAbsorbBacklash = 29;
         private const int BuffStrengthDown = 30;
+        private const int BuffFreeHand = 31;
 
-        /// <summary>本回合的「贪婪」免费额度是否已用掉。</summary>
-        private bool m_FreeCardUsedThisTurn;
-
-        /// <summary>本场战斗里「因贪婪而免费」打出过的卡牌 id（代价据此触发）。</summary>
-        private readonly HashSet<int> m_FreePlayedThisBattle = new HashSet<int>();
+        /// <summary>本回合已经打出过几张牌（贪婪的计数器，每回合清零）。</summary>
+        private int m_PlaysThisTurn;
 
         /// <summary>场上是否还有活着的敌人带着某个 buff。</summary>
         public bool AnyAliveEnemyHasBuff(int buffId)
@@ -1098,21 +1102,85 @@ namespace TurnCard.Game.Battle
             return false;
         }
 
+        /// <summary>场上活着的敌人身上「贪婪」的总层数 = 每回合的免费牌张数。</summary>
+        public int GreedStacks
+        {
+            get
+            {
+                int total = 0;
+                foreach (EnemyInstance enemy in m_Enemies)
+                {
+                    if (enemy == null || enemy.IsDead)
+                    {
+                        continue;
+                    }
+
+                    foreach (BuffInstance buff in enemy.Buffs.Buffs)
+                    {
+                        if (buff.Definition != null && buff.Definition.Id == BuffGreed)
+                        {
+                            total += buff.Stacks;
+                        }
+                    }
+                }
+
+                return total;
+            }
+        }
+
+        /// <summary>玩家手上是否还有「费用归零」buff（UI 据此把手牌显示成 0）。</summary>
+        public bool FreeCardAvailable => PlayerBuffs.Has(BuffFreeHand);
+
         /// <summary>
-        /// 实际要付的费用：场上还有「贪婪」且本回合还没免费过 → 第一张牌 0 费。
+        /// 实际要付的费用：卡面费用 + 玩家身上所有 cost 修饰（下限 0）。
+        /// 「贪婪」给玩家挂的 31 号 buff 就是 cost:-99，所以这里自然变成 0。
         /// </summary>
         public int EffectiveCost(CardFace face)
         {
-            if (!m_FreeCardUsedThisTurn && AnyAliveEnemyHasBuff(BuffGreed))
-            {
-                return 0;
-            }
-
-            return face.Cost;
+            float raw = face.Cost + PlayerBuffs.Flat("cost");
+            int cost = (int)System.Math.Round(raw);
+            return cost < 0 ? 0 : cost;
         }
 
-        /// <summary>本回合的免费额度是否还在（手牌显示 0 费用时用）。</summary>
-        public bool FreeCardAvailable => !m_FreeCardUsedThisTurn && AnyAliveEnemyHasBuff(BuffGreed);
+        /// <summary>
+        /// 每回合开始时按「贪婪」层数给玩家补上费用归零 buff。
+        /// </summary>
+        private void RefreshGreedBuff()
+        {
+            int allowance = GreedStacks;
+            if (allowance <= 0)
+            {
+                PlayerBuffs.Remove(BuffFreeHand);
+                return;
+            }
+
+            if (!PlayerBuffs.Has(BuffFreeHand))
+            {
+                BuffDefinition freeHand = FindBuff(BuffFreeHand);
+                if (freeHand != null)
+                {
+                    PlayerBuffs.Add(freeHand, 1, -1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 出牌后推进贪婪的计数器：本回合打出的张数达到层数就把费用归零 buff 摘掉。
+        /// </summary>
+        private void TickGreedCounter()
+        {
+            int allowance = GreedStacks;
+            if (allowance <= 0)
+            {
+                PlayerBuffs.Remove(BuffFreeHand);
+                return;
+            }
+
+            if (m_PlaysThisTurn >= allowance)
+            {
+                PlayerBuffs.Remove(BuffFreeHand);
+            }
+        }
 
         /// <summary>「代价」：梅菲斯特回 3 点血，玩家吃 3 点伤害（先扣护甲）。</summary>
         private void ApplyPriceOnce()
@@ -1587,24 +1655,29 @@ namespace TurnCard.Game.Battle
 
             CardFace face = card.Face;
 
-            // 「贪婪」：本回合第一张牌免费；记下这张牌，供「代价」判定
-            int cost = EffectiveCost(face);
-            bool isFree = cost == 0 && face.Cost > 0;
-            bool playedFreeBefore = m_FreePlayedThisBattle.Contains(card.Definition.Id);
+            // 1) 实际要付多少：贪婪给玩家挂的「费用归零」buff 会把 cost 修饰成 0
+            int paid = EffectiveCost(face);
 
-            Energy -= cost;
+            // 2) 这张牌之前是否被「免费打出」标记过（代价据此结算）
+            bool markedFree = card.FreePlayed;
 
-            if (isFree)
+            Energy -= paid;
+
+            // 3) 检查这次实际消耗的费用：为 0 就给这张牌打标记（翻面/再打出时结算）
+            if (paid == 0 && face.Cost > 0)
             {
-                m_FreeCardUsedThisTurn = true;
-                m_FreePlayedThisBattle.Add(card.Definition.Id);
+                card.FreePlayed = true;
             }
 
-            // 「代价」：本场因贪婪免费打出过的牌，再次打出时敌人回血并对玩家造成伤害
-            if (playedFreeBefore && AnyAliveEnemyHasBuff(BuffPrice))
+            // 4) 「代价」：标记过的牌再次打出 → 梅菲斯特回血并伤害玩家
+            if (markedFree && AnyAliveEnemyHasBuff(BuffPrice))
             {
                 ApplyPriceOnce();
             }
+
+            // 5) 贪婪计数器：本回合打出的张数够了就把费用归零 buff 摘掉
+            m_PlaysThisTurn++;
+            TickGreedCounter();
 
             var context = new CardEffectContext
             {
