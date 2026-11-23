@@ -2273,6 +2273,7 @@ GameObject:
   - component: {fileID: 7409371280605126275}
   - component: {fileID: 1682302756748322768}
   - component: {fileID: 5797506661627095580}
+  - component: {fileID: 5353175170393216208}
   m_Layer: 0
   m_Name: curtain
   m_TagString: Untagged
@@ -2327,7 +2328,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 1001118021, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
+  m_Sprite: {fileID: 400130289, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -2350,22 +2351,30 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Image: {fileID: 1682302756748322768}
-  m_Frames:
-  - {fileID: 1001118021, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
-  - {fileID: -908980771, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
-  - {fileID: -1189268209, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
-  - {fileID: 156602294, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
-  - {fileID: -1734528083, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
-  - {fileID: -1395278412, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
-  - {fileID: 1346385873, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
-  - {fileID: 2138171294, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
-  - {fileID: -1888780988, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
-  - {fileID: 400130289, guid: 1172fdd7a0001194bb7a6a04b14d6a15, type: 3}
-  m_Fps: 12
-  m_HoldLastFrame: 1
-  m_Loop: 0
-  m_UseUnscaledTime: 1
+  m_Animator: {fileID: 5353175170393216208}
+  m_StateName: CurtainOpen
   m_SendToBackWhenDone: 1
+--- !u!95 &5353175170393216208
+Animator:
+  serializedVersion: 5
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7556772624968222315}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: e732d199f67fbfd4ca908082d5fe5a7f, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 2
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &7616008234429716523
 GameObject:
   m_ObjectHideFlags: 0
