@@ -756,6 +756,49 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>
+        /// 收集这张牌这一面的「显示用 token」（如 {demage} 的实时值、协同攻击的总伤害）。
+        /// 结果已经过玩家 buff 修正（给了 target 还会算目标易伤）。
+        /// </summary>
+        public void CollectPreviewTokens(Data.CardFace face, EnemyInstance target,
+            System.Collections.Generic.IDictionary<string, int> tokens)
+        {
+            if (tokens == null)
+            {
+                return;
+            }
+
+            CardEffects.CollectPreviewTokens(face, this, target, tokens);
+
+            // 伤害类 token 统一过一遍 buff，保证和实际结算一致
+            if (tokens.ContainsKey("total_damage"))
+            {
+                int value = ApplyBuffModifiers(tokens["total_damage"], "damage_dealt", PlayerBuffs);
+                if (target != null && !target.IsDead)
+                {
+                    value = ApplyBuffModifiers(value, "damage_taken", target.Buffs);
+                }
+
+                tokens["total_damage"] = value;
+            }
+
+            if (tokens.ContainsKey("demage"))
+            {
+                int value = ApplyBuffModifiers(tokens["demage"], "damage_dealt", PlayerBuffs);
+                if (target != null && !target.IsDead)
+                {
+                    value = ApplyBuffModifiers(value, "damage_taken", target.Buffs);
+                }
+
+                tokens["demage"] = value;
+            }
+
+            if (tokens.ContainsKey("total_armor"))
+            {
+                tokens["total_armor"] = ApplyBuffModifiers(tokens["total_armor"], "armor_dealt", PlayerBuffs);
+            }
+        }
+
+        /// <summary>
         /// 按某个 stat 的修饰器修正数值：先叠加 + / -，再乘以 * 系数。
         /// <paramref name="consume"/> 为真时，参与结算的按次数消耗 buff 会掉一层。
         /// </summary>

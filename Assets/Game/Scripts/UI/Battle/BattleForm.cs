@@ -554,6 +554,10 @@ namespace Window.BattleForm
             m_State = new BattleState();
             HookState(m_State);
 
+            // 悬停预览 / 牌组列表也要用同一套数值预览
+            CardPreviewSource.State = m_State;
+            CardPreviewSource.Target = null;
+
             // 玩家 buff 图标条：挂在血条下方的 buff 区里，订阅容器事件自动刷新
             Transform buffRoot = m_BuffArea != null ? m_BuffArea : (txtStatus != null ? txtStatus.transform : null);
             if (buffRoot != null)
@@ -665,6 +669,8 @@ namespace Window.BattleForm
             }
 
             m_State = null;
+            CardPreviewSource.State = null;
+            CardPreviewSource.Target = null;
             m_Busy = false;
             m_HandDirty = false;
             m_ResultShown = false;
@@ -708,7 +714,13 @@ namespace Window.BattleForm
                 CardFace face = view.Card.Face;
                 BattleState.ValuePreview damage = m_State.PreviewPlayerDamage(face, m_HoverTarget);
                 BattleState.ValuePreview armor = m_State.PreviewPlayerArmor(face);
-                view.SetValuePreview(damage.Value, armor.Value, damage.Modified || armor.Modified);
+
+                // 效果参数类数值（每瞬发 +4、协同攻击总量…）
+                var tokens = new Dictionary<string, int>();
+                m_State.CollectPreviewTokens(face, m_HoverTarget, tokens);
+
+                view.SetValuePreview(damage.Value, armor.Value,
+                    damage.Modified || armor.Modified, tokens.Count > 0 ? tokens : null);
             }
 
             foreach (EnemyCardView view in m_EnemyCardViews)
@@ -1171,6 +1183,7 @@ namespace Window.BattleForm
             if (!ReferenceEquals(hoveredEnemy, m_HoverTarget))
             {
                 m_HoverTarget = hoveredEnemy;
+                CardPreviewSource.Target = hoveredEnemy;
                 MarkPreviewDirty();
             }
 
@@ -1206,6 +1219,7 @@ namespace Window.BattleForm
             if (m_HoverTarget != null)
             {
                 m_HoverTarget = null;
+                CardPreviewSource.Target = null;
                 MarkPreviewDirty();
             }
 

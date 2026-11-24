@@ -38,6 +38,9 @@ namespace TurnCard.Game
             public int? Damage;
             public int? Armor;
             public bool MarkModified;
+
+            /// <summary>效果提供的额外 token 数值（如 {total_damage}、{demage}）。</summary>
+            public System.Collections.Generic.IReadOnlyDictionary<string, int> Tokens;
         }
 
         /// <summary>把带标记的原始文本转成 TMP 富文本。</summary>
@@ -324,6 +327,18 @@ namespace TurnCard.Game
 
                 case "armor":
                     return Preview(face.Armor, options.Armor, options.MarkModified);
+            }
+
+            if (options.Tokens != null && options.Tokens.TryGetValue(token, out int tokenValue))
+            {
+                int baseValue = tokenValue;
+                if (face.Params != null && face.Params.TryGetValue(token, out string raw)
+                    && int.TryParse(raw, out int parsed))
+                {
+                    baseValue = parsed;
+                }
+
+                return Preview(baseValue, tokenValue, options.MarkModified);
             }
 
             if (face.Params != null && face.Params.TryGetValue(token, out string value))

@@ -106,6 +106,8 @@ namespace TurnCard.Game.UI
         private int? m_PreviewDamage;
         private int? m_PreviewArmor;
         private bool m_PreviewMark;
+        private System.Collections.Generic.IReadOnlyDictionary<string, int> m_PreviewTokens;
+        private string m_PreviewTokenSignature;
 
         private static Material s_GlowMaterial;
 
@@ -488,16 +490,20 @@ namespace TurnCard.Game.UI
                 Damage = m_PreviewDamage,
                 Armor = m_PreviewArmor,
                 MarkModified = m_PreviewMark,
+                Tokens = m_PreviewTokens,
             };
         }
 
         /// <summary>
-        /// 设置数值预览（经 buff 结算后的真实伤害/护甲）。
+        /// 设置数值预览（经 buff 结算后的真实伤害/护甲，以及效果提供的额外 token）。
         /// 传 null 表示该数值没有预览，用卡面原值。
         /// </summary>
-        public void SetValuePreview(int? damage, int? armor, bool markModified)
+        public void SetValuePreview(int? damage, int? armor, bool markModified,
+            System.Collections.Generic.IReadOnlyDictionary<string, int> tokens = null)
         {
-            if (m_PreviewDamage == damage && m_PreviewArmor == armor && m_PreviewMark == markModified)
+            string signature = TokenSignature(tokens);
+            if (m_PreviewDamage == damage && m_PreviewArmor == armor
+                && m_PreviewMark == markModified && m_PreviewTokenSignature == signature)
             {
                 return;
             }
@@ -505,7 +511,25 @@ namespace TurnCard.Game.UI
             m_PreviewDamage = damage;
             m_PreviewArmor = armor;
             m_PreviewMark = markModified;
+            m_PreviewTokens = tokens;
+            m_PreviewTokenSignature = signature;
             RefreshDescription();
+        }
+
+        private static string TokenSignature(System.Collections.Generic.IReadOnlyDictionary<string, int> tokens)
+        {
+            if (tokens == null || tokens.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var builder = new System.Text.StringBuilder();
+            foreach (System.Collections.Generic.KeyValuePair<string, int> pair in tokens)
+            {
+                builder.Append(pair.Key).Append('=').Append(pair.Value).Append(';');
+            }
+
+            return builder.ToString();
         }
 
         /// <summary>只重刷当前显示那一面的描述文本（预览变化时用，不重排整张卡）。</summary>

@@ -96,6 +96,9 @@ namespace TurnCard.Game.UI
                 var instance = new CardInstance(cards[i]);
                 CardView view = CardView.Create(goContent, instance, scale);
 
+                // 战斗里打开牌组列表时也显示真实数值（非战斗时自动保持原值）
+                CardPreviewSource.Apply(view, instance.Face);
+
                 // 卡牌锚点在内容区中心（CardView 默认 0.5/0.5），所以从顶部往下算时要减去半高
                 float centerY = contentHeight * 0.5f;
                 view.SetHome(new Vector2(

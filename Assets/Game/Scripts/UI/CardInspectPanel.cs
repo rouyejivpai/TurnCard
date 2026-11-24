@@ -81,6 +81,9 @@ namespace TurnCard.Game.UI
             CardFace face = preview.Face;
             m_Face.ShowFace(face, CardView.BackgroundFor(face.Type));
 
+            // 战斗里要显示受 buff 影响的真实数值
+            CardPreviewSource.Apply(m_Face, face);
+
             m_Title.text = preview.Side == CardFaceSide.Back ? "翻面后 · 背面" : "翻面后 · 正面";
 
             m_Root.gameObject.SetActive(true);

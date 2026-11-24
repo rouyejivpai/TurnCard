@@ -156,6 +156,77 @@ namespace TurnCard.Game.Battle
             }
         }
 
+        /// <summary>
+        /// 效果能给界面提供「显示用数值」（例如「每瞬发 +4」的实时值、协同攻击的总伤害）。
+        /// 只做计算，不改战斗状态。
+        /// </summary>
+        public interface ICardEffectPreview
+        {
+            void CollectPreview(CardEffectContext context, string[] args,
+                IDictionary<string, int> tokens);
+        }
+
+        /// <summary>
+        /// 收集这一面所有效果能提供的预览数值。
+        /// key 会和卡面描述里的 {token} 对应。
+        /// </summary>
+        public static void CollectPreviewTokens(CardFace face, BattleState state,
+            EnemyInstance target, IDictionary<string, int> tokens)
+        {
+            if (state == null || tokens == null)
+            {
+                return;
+            }
+
+            string spec = face.Effects;
+            if (string.IsNullOrWhiteSpace(spec))
+            {
+                return;
+            }
+
+            var context = new CardEffectContext
+            {
+                State = state,
+                Card = null,
+                Target = target,
+                Face = face,
+            };
+
+            foreach (string token in spec.Split(';'))
+            {
+                string entry = token.Trim();
+                if (entry.Length == 0)
+                {
+                    continue;
+                }
+
+                string key = entry;
+                string[] args = Array.Empty<string>();
+
+                int colon = entry.IndexOf(':');
+                if (colon >= 0)
+                {
+                    key = entry.Substring(0, colon).Trim();
+                    args = entry.Substring(colon + 1)
+                        .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                    for (int i = 0; i < args.Length; i++)
+                    {
+                        args[i] = args[i].Trim();
+                    }
+                }
+
+                if (!Builtins.TryGetValue(key, out ICardEffect effect))
+                {
+                    continue;
+                }
+
+                if (effect is ICardEffectPreview preview)
+                {
+                    preview.CollectPreview(context, args, tokens);
+                }
+            }
+        }
+
         /// <summary>已注册的通用效果名（供编辑器校验使用）。</summary>
         public static IEnumerable<string> KnownEffectKeys()
         {
@@ -477,7 +548,7 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>造成「手牌里的攻击牌数 × 参数」点伤害（统计包含自己）。</summary>
-        private sealed class DamagePerAttackCardsEffect : ICardEffect
+        private sealed class DamagePerAttackCardsEffect : ICardEffect, ICardEffectPreview
         {
             public void Apply(CardEffectContext context, string[] args)
             {
@@ -486,10 +557,19 @@ namespace TurnCard.Game.Battle
                 int total = per * Math.Max(1, count);
                 Builtins["damage"].Apply(context, new[] { total.ToString() });
             }
+
+            public void CollectPreview(CardEffectContext context, string[] args,
+                IDictionary<string, int> tokens)
+            {
+                int per = Arg(args, 0, 1);
+                int count = Math.Max(1, context.State.CountHandOfType(CardType.Attack));
+                tokens["demage"] = per;
+                tokens["total_damage"] = per * count;
+            }
         }
 
         /// <summary>获得「手牌里的技能牌数 × 参数」点护甲（统计包含自己）。</summary>
-        private sealed class ArmorPerSkillCardsEffect : ICardEffect
+        private sealed class ArmorPerSkillCardsEffect : ICardEffect, ICardEffectPreview
         {
             public void Apply(CardEffectContext context, string[] args)
             {
@@ -497,6 +577,14 @@ namespace TurnCard.Game.Battle
                 int count = context.State.CountHandOfType(CardType.Skill);
                 int total = per * Math.Max(1, count);
                 Builtins["armor"].Apply(context, new[] { total.ToString() });
+            }
+
+            public void CollectPreview(CardEffectContext context, string[] args,
+                IDictionary<string, int> tokens)
+            {
+                int per = Arg(args, 0, 1);
+                int count = Math.Max(1, context.State.CountHandOfType(CardType.Skill));
+                tokens["total_armor"] = per * count;
             }
         }
 
@@ -544,7 +632,7 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>造成「基础值 + 本回合瞬发次数 × 每层加成」点伤害。</summary>
-        private sealed class DamagePlusInstantsEffect : ICardEffect
+        private sealed class DamagePlusInstantsEffect : ICardEffect, ICardEffectPreview
         {
             public void Apply(CardEffectContext context, string[] args)
             {
@@ -552,6 +640,15 @@ namespace TurnCard.Game.Battle
                 int perInstant = args.Length > 1 ? Arg(args, 1, 0) : 0;
                 int total = baseValue + perInstant * context.State.InstantCountThisTurn;
                 Builtins["damage"].Apply(context, new[] { total.ToString() });
+            }
+
+            public void CollectPreview(CardEffectContext context, string[] args,
+                IDictionary<string, int> tokens)
+            {
+                int baseValue = Arg(args, 0, 1);
+                int perInstant = args.Length > 1 ? Arg(args, 1, 0) : 0;
+                // 描述里的 {demage} 就是「现在打出去会是多少」
+                tokens["demage"] = baseValue + perInstant * context.State.InstantCountThisTurn;
             }
         }
 
