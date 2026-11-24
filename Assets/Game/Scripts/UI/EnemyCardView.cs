@@ -57,6 +57,9 @@ namespace TurnCard.Game.UI
         [Header("buff 区（血条下方）")]
         [SerializeField] private RectTransform m_BuffArea;
 
+        [Tooltip("背面立绘图层：预制体里预旋转 180°，卡片转到背面时正好正对镜头（不镜像）")]
+        [SerializeField] private Image m_ArtBack;
+
         [Header("护甲角标")]
         [SerializeField] private GameObject m_ArmorRoot;
         [SerializeField] private TextMeshProUGUI m_ArmorText;
@@ -92,7 +95,9 @@ namespace TurnCard.Game.UI
         /// <summary>正在播死亡动画（战斗层据此跳过后续刷新）。</summary>
         public bool IsDying { get; private set; }
 
-        internal Image ArtImage => m_Art;
+        /// <summary>当前正显示的那一层立绘（死亡溶解特效按它取材质）。</summary>
+        internal Image ArtImage =>
+            m_ShownSide == CardFaceSide.Back && m_ArtBack != null ? m_ArtBack : m_Art;
         internal RectTransform BodyRoot => m_Body;
 
         /// <summary>
@@ -208,11 +213,22 @@ namespace TurnCard.Game.UI
         private void RefreshArt(CardFaceSide side)
         {
             EnemyForm form = Enemy.Definition.GetForm(side);
+            bool back = side == CardFaceSide.Back;
 
+            // 正/背各有自己的图层：背面图层在预制体里已经预旋转 180°，
+            // 所以卡片本体转到 180° 时它正好是 360°，立绘不会被镜像。
             if (m_Art != null)
             {
+                m_Art.gameObject.SetActive(!back);
                 m_Art.sprite = form.Art;
                 m_Art.enabled = form.Art != null;
+            }
+
+            if (m_ArtBack != null)
+            {
+                m_ArtBack.gameObject.SetActive(back);
+                m_ArtBack.sprite = form.Art;
+                m_ArtBack.enabled = form.Art != null;
             }
 
             // 没配立绘时用占位色块 + 形态名，绝不静默留白（标准 §7）
@@ -221,6 +237,10 @@ namespace TurnCard.Game.UI
                 bool show = form.Art == null;
                 m_Placeholder.gameObject.SetActive(show);
                 m_Placeholder.text = show ? form.DisplayName : string.Empty;
+
+                // 占位文字在 goBody 里，背面时同样会被 180° 带镜像，反着转回来
+                m_Placeholder.rectTransform.localEulerAngles =
+                    new Vector3(0f, back ? 180f : 0f, 0f);
             }
         }
 
