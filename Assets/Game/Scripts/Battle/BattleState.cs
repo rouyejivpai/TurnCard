@@ -620,6 +620,77 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>
+        /// 执行一条 buff 的「触发动作 + 触发效果」。不关心这个 buff 是不是常驻在容器里，
+        /// 所以开幕效果（一次性，不挂 buff）也复用它。
+        /// </summary>
+        private void ExecuteBuffTrigger(Data.BuffDefinition definition, int stacks,
+            EnemyInstance enemyOwner, CardInstance self, EnemyInstance target)
+        {
+            if (definition == null)
+            {
+                return;
+            }
+
+            switch (definition.TriggerAction)
+            {
+                case Data.BuffTriggerAction.FlipSelf:
+                    if (enemyOwner != null)
+                    {
+                        FlipEnemy(enemyOwner);
+                    }
+                    else if (self != null)
+                    {
+                        RequestFlip(self, FlipSource.Effect);
+                    }
+
+                    break;
+
+                case Data.BuffTriggerAction.Stun:
+                    if (enemyOwner != null)
+                    {
+                        enemyOwner.Stunned = true;
+                    }
+
+                    break;
+
+                case Data.BuffTriggerAction.StunAndFlip:
+                    if (enemyOwner != null)
+                    {
+                        enemyOwner.Stunned = true;
+                        FlipEnemy(enemyOwner);
+                    }
+
+                    break;
+            }
+
+            string spec = definition.TriggerEffect;
+            if (string.IsNullOrWhiteSpace(spec))
+            {
+                return;
+            }
+
+            var context = new CardEffectContext
+            {
+                State = this,
+                Card = null,
+                Target = target,
+                SelfEnemy = enemyOwner,
+                Face = new CardFace(definition.DisplayName, 0, CardType.Skill, 0, 0,
+                    definition.Description, spec, null, null),
+            };
+
+            m_DeferDamage = true;
+            try
+            {
+                CardEffects.ExecuteAll(context);
+            }
+            finally
+            {
+                m_DeferDamage = false;
+            }
+        }
+
+        /// <summary>
         /// 当前正在执行效果的卡：出牌 / 翻面瞬发 / 相邻牌效果都会设置。
         /// 伤害入队时记录它，表现层才知道特效该从哪张牌出发。
         /// </summary>
@@ -1103,43 +1174,10 @@ namespace TurnCard.Game.Battle
 
                 owner.ResetCounter(buff);
 
-                switch (buff.Definition.TriggerAction)
-                {
-                    case Data.BuffTriggerAction.FlipSelf:
-                        if (enemyOwner != null)
-                        {
-                            FlipEnemy(enemyOwner);
-                        }
-                        else if (self != null)
-                        {
-                            RequestFlip(self, FlipSource.Effect);
-                        }
-
-                        break;
-
-                    case Data.BuffTriggerAction.Stun:
-                        if (enemyOwner != null)
-                        {
-                            enemyOwner.Stunned = true;
-                        }
-
-                        break;
-
-                    case Data.BuffTriggerAction.StunAndFlip:
-                        if (enemyOwner != null)
-                        {
-                            enemyOwner.Stunned = true;
-                            FlipEnemy(enemyOwner);
-                        }
-
-                        break;
-                }
-
-                string spec = buff.Definition.TriggerEffect;
-
-                // 「自愈」：回血量 = 层数，执行后清零（狼人的 2 层自愈 = 回 2 点）。
+                // 「自愈」要按层数回血并清零，单独处理
                 if (enemyOwner != null &&
-                    string.Equals(spec, "heal_by_stacks", StringComparison.OrdinalIgnoreCase))
+                    string.Equals(buff.Definition.TriggerEffect, "heal_by_stacks",
+                        StringComparison.OrdinalIgnoreCase))
                 {
                     int healAmount = buff.Stacks;
                     if (healAmount > 0)
@@ -1151,28 +1189,7 @@ namespace TurnCard.Game.Battle
                     continue;
                 }
 
-                if (!string.IsNullOrWhiteSpace(spec))
-                {
-                    var context = new CardEffectContext
-                    {
-                        State = this,
-                        Card = null,
-                        Target = target,
-                        SelfEnemy = enemyOwner,
-                        Face = new CardFace(buff.Definition.DisplayName, 0, CardType.Skill, 0, 0,
-                            buff.Definition.Description, spec, null, null),
-                    };
-
-                    m_DeferDamage = true;
-                    try
-                    {
-                        CardEffects.ExecuteAll(context);
-                    }
-                    finally
-                    {
-                        m_DeferDamage = false;
-                    }
-                }
+                ExecuteBuffTrigger(buff.Definition, buff.Stacks, enemyOwner, self, target);
 
                 if (buff.Definition.Consume == Data.BuffConsume.Count)
                 {
@@ -1981,6 +1998,16 @@ namespace TurnCard.Game.Battle
 
                 int stacks = parts.Length > 1 && int.TryParse(parts[1].Trim(), out int s) ? s : 1;
                 int turns = parts.Length > 2 && int.TryParse(parts[2].Trim(), out int tr) ? tr : -1;
+
+                Data.BuffDefinition definition = FindBuff(buffId);
+                if (definition != null && definition.Trigger == Data.BuffTrigger.BattleStart)
+                {
+                    // 开幕效果：一次性执行，不留在 buff 容器里
+                    // （常驻的话会被双生共享，也会在 buff 栏里占一个图标）
+                    ExecuteBuffTrigger(definition, stacks, enemy, null, PickRandomAliveEnemy());
+                    continue;
+                }
+
                 ApplyBuff(enemy.Buffs, buffId, stacks, turns);
             }
         }

@@ -23,6 +23,12 @@ namespace TurnCard.Game.Battle
         /// <summary>剩余回合数（Turn 消耗用）；-1 表示无限。</summary>
         public int Remaining { get; set; }
 
+        /// <summary>
+        /// 这一层是刚挂上的：第一次衰减要跳过，否则「回合开始掉层」会把本回合刚施加的
+        /// 虚弱/易伤立刻抹掉（开幕效果、出牌施加的 debuff 都会踩到）。
+        /// </summary>
+        public bool Fresh { get; set; }
+
         /// <summary>触发计数（受击次数这类条件用它累计）。</summary>
         public int Counter { get; set; }
 
@@ -59,7 +65,7 @@ namespace TurnCard.Game.Battle
                 // 新建时也要受最大层数限制
                 int limit = definition.MaxStacks;
                 int initial = limit > 0 ? Mathf.Min(Mathf.Max(1, stacks), limit) : Mathf.Max(1, stacks);
-                m_Buffs.Add(new BuffInstance(definition, initial, turns));
+                m_Buffs.Add(new BuffInstance(definition, initial, turns) { Fresh = true });
                 Raise();
                 return;
             }
@@ -88,6 +94,7 @@ namespace TurnCard.Game.Battle
                 existing.Remaining = turns;
             }
 
+            existing.Fresh = true;
             Raise();
         }
 
@@ -269,6 +276,13 @@ namespace TurnCard.Game.Battle
 
                 if (buff.Definition.DecayTrigger != trigger)
                 {
+                    continue;
+                }
+
+                // 刚挂上的那层先跳过一次衰减（用了豁免就清掉标记，下次正常掉）
+                if (buff.Fresh)
+                {
+                    buff.Fresh = false;
                     continue;
                 }
 

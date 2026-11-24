@@ -29,3 +29,4 @@ MonoBehaviour:
   m_TriggerEffect: self_heal:2;next_hits:1
   m_DecayTrigger: 0
   m_DecayStacks: 0
+  m_Hidden: 0

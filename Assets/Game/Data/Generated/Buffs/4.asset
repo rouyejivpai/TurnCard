@@ -28,3 +28,4 @@ MonoBehaviour:
   m_TriggerEffect: damage:2,random
   m_DecayTrigger: 0
   m_DecayStacks: 0
+  m_Hidden: 0

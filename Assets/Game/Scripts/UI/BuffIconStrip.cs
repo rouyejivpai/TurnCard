@@ -96,6 +96,12 @@ namespace TurnCard.Game.UI
                     continue;
                 }
 
+                // 纯结算用的 buff（开幕效果）不占图标位
+                if (buff.Definition.Hidden)
+                {
+                    continue;
+                }
+
                 CreateIcon(buff, index);
                 index++;
             }

@@ -149,6 +149,9 @@ namespace TurnCard.Game.Data
         [Tooltip("每次衰减掉几层，0 按 1 处理")]
         [SerializeField] private int m_DecayStacks = 1;
 
+        [Tooltip("不在 buff 栏显示（开幕效果这类只在结算时用一次的 buff）")]
+        [SerializeField] private bool m_Hidden;
+
         private List<BuffModifier> m_Parsed;
 
         public int Id => m_Id;
@@ -189,6 +192,9 @@ namespace TurnCard.Game.Data
 
         /// <summary>每次衰减掉几层（至少 1）。</summary>
         public int DecayStacks => m_DecayStacks > 0 ? m_DecayStacks : 1;
+
+        /// <summary>是否在 buff 栏隐藏（纯结算用的 buff，比如开幕效果）。</summary>
+        public bool Hidden => m_Hidden;
 
         /// <summary>解析后的被动修饰器列表（惰性解析并缓存）。</summary>
         public IReadOnlyList<BuffModifier> Modifiers

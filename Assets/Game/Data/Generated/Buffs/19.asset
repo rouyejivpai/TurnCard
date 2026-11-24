@@ -29,3 +29,4 @@ MonoBehaviour:
   m_TriggerEffect: buff_self:1,1,4
   m_DecayTrigger: 0
   m_DecayStacks: 0
+  m_Hidden: 1

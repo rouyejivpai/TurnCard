@@ -104,6 +104,26 @@ buff 的"掉层"不写在回合流程里，而是**由 buff 自己监听触发�
 
 > 层数即持续时间：`buff:3,2,2`（虚弱 2 层）＝ 持续 2 回合。
 
+**刚挂上的那一层先豁免一次**：`BuffInstance.Fresh` 在新建/叠加时置 true，
+`DecayByTrigger` 遇到它只清标记、不掉层。否则「回合开始掉层」会把本回合刚施加的
+虚弱/易伤（尤其是开幕效果）立刻抹掉。
+
+### 4.0.1 开幕效果（原「初始 buff」）
+
+`Enemies.xlsx` 的 `frontBuffs / backBuffs` 里，`trigger = battleStart` 的 buff 现在按
+**一次性开幕效果**执行，不再作为常驻 buff 挂到敌人身上：
+
+| | 之前 | 现在 |
+| --- | --- | --- |
+| 存储 | 常驻 BuffInstance | 不存，执行完即弃 |
+| 双生共享 | 会跟着翻面被共享 ❌ | 不共享 ✅ |
+| buff 栏显示 | 占一个图标 | 不显示（另加 `hidden` 列兜底） |
+| 翻转时 | 随容器迁移 | 新形态的开幕效果**重新执行**一次 |
+
+实现：`BattleState.ApplyFormBuffs` 解析到 `battleStart` 的 buff 就调 `ExecuteBuffTrigger()`
+执行它的「触发动作 + 触发效果」，其余（受击翻面、羁绊、疯狂…）仍作为常驻 buff 挂上。
+
+
 
 ### 4.1 贪婪 / 代价（浮士德 ↔ 梅菲斯特）
 
