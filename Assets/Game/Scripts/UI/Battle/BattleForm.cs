@@ -63,8 +63,8 @@ namespace Window.BattleForm
         /// <summary>当前手牌是否正显示成 0 费（贪婪），用于避免每帧重刷。</summary>
         private bool m_CostFreeShown;
 
-        /// <summary>开幕幕布的关幕停留协程。</summary>
-        private Coroutine m_CurtainRoutine;
+        /// <summary>开幕/关幕协程。</summary>
+        private Coroutine m_BattleIntro;
 
         /// <summary>选择模式：等玩家选一张手牌并点确认。</summary>
         /// <summary>正在播放的翻面动画数量（同牌串行、跨牌并行）。</summary>
@@ -473,23 +473,12 @@ namespace Window.BattleForm
             return poolList[UnityEngine.Random.Range(0, poolList.Count)];
         }
 
+        /// <summary>
+        /// 开一场战斗的完整时序：
+        /// 清场 → 关幕（倒放）→ 停在关幕帧 → 初始化怪物 → 战斗初始化 → 开幕。
+        /// </summary>
         private void StartBattle()
         {
-            m_VictoryHandled = false;
-
-            // 同一界面重开时要清掉上一场残留的交互状态：
-            // 胜利流程会把「结束回合」按钮关掉，不重置的话第二场开始就是禁用的。
-            m_Busy = false;
-            m_HandDirty = false;
-            m_ResultShown = false;
-            m_RewardPicked = false;
-            m_CostFreeShown = false;
-
-            if (btnEndTurn != null)
-            {
-                btnEndTurn.interactable = true;
-            }
-
             m_Content = Resources.Load<BattleContent>("BattleContent");
             if (m_Content == null || m_Content.Cards.Length == 0)
             {
@@ -497,9 +486,48 @@ namespace Window.BattleForm
                 return;
             }
 
-            // 关幕：战斗准备期间幕布是拉上的，等一切摆好再拉开
-            CurtainView.CloseAll();
+            // 1) 清场：上一场的手牌/敌人卡/结算文字/buff 条/舞台全部清掉
+            ResetBattleState();
 
+            if (m_BattleIntro != null)
+            {
+                StopCoroutine(m_BattleIntro);
+            }
+
+            m_BattleIntro = StartCoroutine(BattleIntroRoutine());
+        }
+
+        private System.Collections.IEnumerator BattleIntroRoutine()
+        {
+            // 1) 战斗开始前：播放关幕动画（倒放），并停在关幕帧。
+            //    本来就是关着的（第一场）就保持关幕，不播动画，免得闪一下。
+            bool closing = CurtainView.CloseAnimatedAll();
+            if (closing)
+            {
+                float close = CurtainView.CloseDuration;
+                if (close > 0f)
+                {
+                    yield return new WaitForSecondsRealtime(close);
+                }
+            }
+
+            // 2) 初始化怪物 + 战斗初始化
+            BuildBattle();
+
+            // 3) 保持在关幕帧，让「关 → 开」看得出来
+            float hold = FlowSettings.Current.CurtainHold;
+            if (hold > 0f)
+            {
+                yield return new WaitForSecondsRealtime(hold);
+            }
+
+            // 4) 开幕
+            CurtainView.PlayAll();
+            m_BattleIntro = null;
+        }
+
+        private void BuildBattle()
+        {
             UnityEngine.Debug.Log("[战斗] 1 创建 BattleState");
             m_State = new BattleState();
             HookState(m_State);
@@ -508,16 +536,6 @@ namespace Window.BattleForm
             Transform buffRoot = m_BuffArea != null ? m_BuffArea : (txtStatus != null ? txtStatus.transform : null);
             if (buffRoot != null)
             {
-                // 同一界面重开时，先清掉上一场留下的图标条，否则会越叠越多
-                for (int i = buffRoot.childCount - 1; i >= 0; i--)
-                {
-                    Transform child = buffRoot.GetChild(i);
-                    if (child.name == "BuffStrip")
-                    {
-                        Destroy(child.gameObject);
-                    }
-                }
-
                 BuffIconStrip.Attach((RectTransform)buffRoot, m_State.PlayerBuffs,
                     new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero);
             }
@@ -554,33 +572,69 @@ namespace Window.BattleForm
 
             RefreshHud();
             UnityEngine.Debug.Log("[战斗] 9 刷新完成");
-
-            // 敌人、手牌、HUD 都摆好了 —— 这一刻才算「战斗开始」，拉开幕布。
-            // 先关着停留一小段（FlowSettings.CurtainHold），让「关幕 → 开幕」看得出来。
-            BeginCurtainOpening();
         }
 
-        /// <summary>关幕停留一小段后拉开幕布。</summary>
-        private void BeginCurtainOpening()
+        /// <summary>战斗状态退出时的清场：手牌、敌人卡、buff 条、结算文字、舞台全部复位。</summary>
+        private void ResetBattleState()
         {
-            if (m_CurtainRoutine != null)
+            ClearHand();
+
+            if (m_EnemyArea != null)
             {
-                StopCoroutine(m_CurtainRoutine);
+                for (int c = m_EnemyArea.childCount - 1; c >= 0; c--)
+                {
+                    Transform child = m_EnemyArea.GetChild(c);
+                    if (child.GetComponent<EnemyCardView>() != null)
+                    {
+                        Destroy(child.gameObject);
+                    }
+                }
             }
 
-            m_CurtainRoutine = StartCoroutine(OpenCurtainRoutine());
-        }
+            m_EnemyCardViews.Clear();
+            m_LastHitEnemy = null;
 
-        private System.Collections.IEnumerator OpenCurtainRoutine()
-        {
-            float hold = FlowSettings.Current.CurtainHold;
-            if (hold > 0f)
+            if (m_BuffArea != null)
             {
-                yield return new WaitForSecondsRealtime(hold);
+                for (int i = m_BuffArea.childCount - 1; i >= 0; i--)
+                {
+                    Transform child = m_BuffArea.GetChild(i);
+                    if (child.name == "BuffStrip")
+                    {
+                        Destroy(child.gameObject);
+                    }
+                }
             }
 
-            CurtainView.PlayAll();
-            m_CurtainRoutine = null;
+            if (txtResult != null)
+            {
+                txtResult.text = string.Empty;
+            }
+
+            if (txtHint != null)
+            {
+                txtHint.text = string.Empty;
+            }
+
+            if (m_Stage != null)
+            {
+                m_Stage.ClearRoutes();
+                m_Stage.HideChest();
+                m_Stage.ShowBattle();
+            }
+
+            if (btnEndTurn != null)
+            {
+                btnEndTurn.interactable = true;
+            }
+
+            m_State = null;
+            m_Busy = false;
+            m_HandDirty = false;
+            m_ResultShown = false;
+            m_RewardPicked = false;
+            m_VictoryHandled = false;
+            m_CostFreeShown = false;
         }
 
         /// <summary>
@@ -625,9 +679,6 @@ namespace Window.BattleForm
 
             state.BattleEnded += victory =>
             {
-                // 战斗结束：用开幕动画的倒放当作「关幕」
-                CurtainView.PlayReverseAll();
-
                 if (victory)
                 {
                     // 胜利不再弹结果面板，交给舞台区走「宝箱 → 选卡 → 路线」
@@ -1401,13 +1452,9 @@ namespace Window.BattleForm
             });
         }
 
-        /// <summary>同一界面重开一场：清掉手牌与敌人卡，重建 BattleState。</summary>
+        /// <summary>同一界面重开一场：清场与重建都交给 StartBattle 的时序。</summary>
         private void RestartBattle()
         {
-            ClearHand();
-            m_ResultShown = false;
-            m_RewardPicked = false;
-            m_VictoryHandled = false;
             StartBattle();
         }
 
