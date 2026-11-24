@@ -73,10 +73,11 @@ namespace TurnCard.Game.Battle
                 { "buff_self", new BuffSelfEffect() },
                 { "lose_armor", new LoseArmorEffect() },
                 { "damage_plus_instants", new DamagePlusInstantsEffect() },
-                { "use_adjacent_back", new UseAdjacentEffect(false) },
-                { "use_adjacent_front", new UseAdjacentEffect(true) },
+                { "use_adjacent_back", new UseAdjacentEffect(false, true) },
+                { "use_adjacent_front", new UseAdjacentEffect(true, false) },
                 { "retain_self", new RetainSelfEffect() },
                 { "flip_self", new FlipSelfEffect() },
+                { "flip_self_front", new FlipSelfToFrontEffect() },
                 { "choose_flip", new ChooseFlipEffect() },
                 { "self_damage", new SelfDamageEffect() },
                 { "self_heal", new SelfHealEffect() },
@@ -555,16 +556,19 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>
-        /// 使用左右相邻手牌指定面的效果，然后让它们翻面。
-        /// <c>useFront = true</c> 用正面，否则用背面。
+        /// 使用左右相邻手牌指定面的效果。
+        /// <c>useFront = true</c> 用正面，否则用背面；
+        /// <c>discardAfter = true</c> 用完直接丢弃（不翻面）。
         /// </summary>
         private sealed class UseAdjacentEffect : ICardEffect
         {
             private readonly bool m_UseFront;
+            private readonly bool m_DiscardAfter;
 
-            public UseAdjacentEffect(bool useFront)
+            public UseAdjacentEffect(bool useFront, bool discardAfter = false)
             {
                 m_UseFront = useFront;
+                m_DiscardAfter = discardAfter;
             }
 
             public void Apply(CardEffectContext context, string[] args)
@@ -576,18 +580,16 @@ namespace TurnCard.Game.Battle
                     return;
                 }
 
-                UseFaceAt(context, hand, index - 1);
-                UseFaceAt(context, hand, index + 1);
+                // 先记住左右是谁：执行效果可能把邻牌挪走/丢弃，索引会变
+                CardInstance left = index - 1 >= 0 && index - 1 < hand.Count ? hand[index - 1] : null;
+                CardInstance right = index + 1 >= 0 && index + 1 < hand.Count ? hand[index + 1] : null;
+
+                UseFaceAt(context, left);
+                UseFaceAt(context, right);
             }
 
-            private void UseFaceAt(CardEffectContext context, IReadOnlyList<CardInstance> hand, int index)
+            private void UseFaceAt(CardEffectContext context, CardInstance neighbour)
             {
-                if (index < 0 || index >= hand.Count)
-                {
-                    return;
-                }
-
-                CardInstance neighbour = hand[index];
                 if (neighbour == null || ReferenceEquals(neighbour, context.Card))
                 {
                     return;
@@ -607,8 +609,30 @@ namespace TurnCard.Game.Battle
 
                 CardEffects.ExecuteAll(nested);
 
-                // 用完让它翻面（描述里明确写了「会使它们翻面」）
+                if (m_DiscardAfter)
+                {
+                    // 暗藏杀意：用完直接把邻牌丢进弃牌堆（不翻面）
+                    context.State.DiscardCard(neighbour);
+                    return;
+                }
+
+                // 图穷匕现：用完让它翻面
                 context.State.RequestFlip(neighbour, BattleState.FlipSource.Effect);
+            }
+        }
+
+        /// <summary>
+        /// 翻到正面（已经是正面就不动）。
+        /// 电光火石用这个：避免「双重瞬发」时来回翻面形成死循环。
+        /// </summary>
+        private sealed class FlipSelfToFrontEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                if (context.Card != null && context.Card.Side == CardFaceSide.Back)
+                {
+                    context.State.RequestFlip(context.Card, BattleState.FlipSource.Keyword);
+                }
             }
         }
 

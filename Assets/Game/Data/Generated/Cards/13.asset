@@ -20,7 +20,7 @@ MonoBehaviour:
   m_FrontType: 1
   m_FrontDamage: 0
   m_FrontArmor: 0
-  m_FrontDescription: "\u4F7F\u7528\u76F8\u90BB\u5361\u724C\u7684\u80CC\u9762\uFF08\u4F1A\u4F7F\u5B83\u4EEC\u7FFB\u9762\uFF01\uFF09"
+  m_FrontDescription: "\u4F7F\u7528\u76F8\u90BB\u5361\u724C\u7684\u80CC\u9762\uFF0C\u7136\u540E**\u4E22\u5F03**\u5B83\u4EEC"
   m_FrontEffects: use_adjacent_back
   m_FrontParams: 
   m_FrontKeywords: 

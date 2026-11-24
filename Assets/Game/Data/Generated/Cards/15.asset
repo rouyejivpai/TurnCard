@@ -29,7 +29,7 @@ MonoBehaviour:
   m_BackType: 1
   m_BackDamage: 0
   m_BackArmor: 0
-  m_BackDescription: "**\u77AC\u53D1**\u7FFB\u9762"
-  m_BackEffects: flip_self
+  m_BackDescription: "**\u77AC\u53D1**\uFF1A\u7FFB\u5230\u6B63\u9762"
+  m_BackEffects: flip_self_front
   m_BackParams: 
   m_BackKeywords: "\u77AC\u53D1"
