@@ -2,45 +2,45 @@
     "entries": [
         {
             "table": "Cards",
-            "hash": "2143D46E7FE6FA4E58E809F85AD433CF2A957760E7ADE32604C0A7EF76AB6B77",
-            "rows": 16,
-            "generatedAt": "2026-11-24 22:40:48"
+            "hash": "2897FCE4B412E83F0C51DC5326C54BAF2AAF5295FE2834CFA058D766A739D836",
+            "rows": 17,
+            "generatedAt": "2026-11-25 00:10:32"
         },
         {
             "table": "Enemies",
-            "hash": "02810AB0C0A4C87A50E0883ADD5B5B8AEBE03C68B25E714E750FA1AE75FC81D2",
+            "hash": "56019616872021711CE0019ED58E68B54278258387617B3408604D592AC6AE69",
             "rows": 24,
-            "generatedAt": "2026-11-24 22:40:48"
+            "generatedAt": "2026-11-25 00:10:32"
         },
         {
             "table": "Keywords",
             "hash": "9C3FDA7A3C87502E0FCF4D8A826ABD15973D4EC882F555FFFE54C3EDDFAA26B3",
             "rows": 3,
-            "generatedAt": "2026-11-24 22:40:48"
+            "generatedAt": "2026-11-25 00:10:32"
         },
         {
             "table": "StarterDeck",
             "hash": "9FD37DECD498D8D878D5DE81FE638415376D37AB91B084AA9F578DE897831668",
             "rows": 16,
-            "generatedAt": "2026-11-24 22:40:48"
+            "generatedAt": "2026-11-25 00:10:32"
         },
         {
             "table": "EnemyIntents",
             "hash": "5CC9FB7EB29E1D65D55C3D11AFBE58493E8C44059F2E6436143A1BFA0DD51F29",
             "rows": 47,
-            "generatedAt": "2026-11-24 22:40:48"
+            "generatedAt": "2026-11-25 00:10:32"
         },
         {
             "table": "Encounters",
             "hash": "8113A08BD99544E34A4560825ED0DE4D7BF0F4D4EB681F8B4047693E96935AE8",
             "rows": 12,
-            "generatedAt": "2026-11-24 22:40:48"
+            "generatedAt": "2026-11-25 00:10:32"
         },
         {
             "table": "Buffs",
             "hash": "AC83784BED01826FAA7AD73AE80C0C90DA1F4BE79524D3CC23534A6E90C85164",
             "rows": 31,
-            "generatedAt": "2026-11-24 22:40:48"
+            "generatedAt": "2026-11-25 00:10:32"
         }
     ]
 }

@@ -148,6 +148,20 @@ namespace TurnCard.Game.Battle
             Raise();
         }
 
+        /// <summary>按引用移除一条 buff（能力牌失效时用）。</summary>
+        public void Remove(BuffInstance buff)
+        {
+            if (buff == null)
+            {
+                return;
+            }
+
+            if (m_Buffs.Remove(buff))
+            {
+                Raise();
+            }
+        }
+
         /// <summary>移除所有「形态能力」（翻面时用），普通 buff 保留。</summary>
         public void RemoveFormBound()
         {

@@ -487,6 +487,7 @@ namespace TurnCard.Game.Battle
                 m_DiscardPile.Add(card);
                 CardDiscarded?.Invoke(card);
                 RaiseChanged();
+                RefreshPowerCards();
                 return;
             }
         }
@@ -700,6 +701,84 @@ namespace TurnCard.Game.Battle
             }
         }
 
+        /// <summary>能力牌（正面朝上、在手牌里）当前提供的 buff，按牌记录，失效时整条移除。</summary>
+        private readonly Dictionary<CardInstance, List<BuffInstance>> m_PowerBuffs =
+            new Dictionary<CardInstance, List<BuffInstance>>();
+
+        /// <summary>执行能力牌效果时，把新加的 buff 收集到这里。</summary>
+        private List<BuffInstance> m_PowerRecording;
+
+        /// <summary>
+        /// 重算「手牌里正面朝上的能力牌」：
+        /// 生效的牌执行一次它的效果并记住产生的 buff；不再生效的牌把那些 buff 摘掉。
+        /// 能力牌没有能力区——它只要正面朝上躺在手牌里就一直生效。
+        /// </summary>
+        public void RefreshPowerCards()
+        {
+            var active = new List<CardInstance>();
+            foreach (CardInstance card in m_Hand)
+            {
+                if (card != null && card.Side == CardFaceSide.Front &&
+                    card.Face.Type == CardType.Power)
+                {
+                    active.Add(card);
+                }
+            }
+
+            // 失效：牌被翻到背面 / 打出 / 弃掉
+            if (m_PowerBuffs.Count > 0)
+            {
+                var stale = new List<CardInstance>();
+                foreach (KeyValuePair<CardInstance, List<BuffInstance>> pair in m_PowerBuffs)
+                {
+                    if (!active.Contains(pair.Key))
+                    {
+                        stale.Add(pair.Key);
+                    }
+                }
+
+                foreach (CardInstance card in stale)
+                {
+                    foreach (BuffInstance buff in m_PowerBuffs[card])
+                    {
+                        PlayerBuffs.Remove(buff);
+                    }
+
+                    m_PowerBuffs.Remove(card);
+                }
+            }
+
+            // 新生效：执行这一面的效果
+            foreach (CardInstance card in active)
+            {
+                if (m_PowerBuffs.ContainsKey(card))
+                {
+                    continue;
+                }
+
+                var recorded = new List<BuffInstance>();
+                m_PowerRecording = recorded;
+                try
+                {
+                    var context = new CardEffectContext
+                    {
+                        State = this,
+                        Card = card,
+                        Target = PickRandomAliveEnemy(),
+                        Face = card.Face,
+                    };
+
+                    CardEffects.ExecuteAll(context);
+                }
+                finally
+                {
+                    m_PowerRecording = null;
+                }
+
+                m_PowerBuffs[card] = recorded;
+            }
+        }
+
         /// <summary>
         /// 形态能力作用域深度 > 0 时，期间新加的 buff 一律算「形态能力」
         /// （开幕壁垒、嗜血给的自愈…都归属于那一面，翻面要一起消失）。
@@ -754,6 +833,8 @@ namespace TurnCard.Game.Battle
             m_LastDamages.Clear();
 
             PlayerBuffs.Clear();
+            m_PowerBuffs.Clear();
+            m_PowerRecording = null;
 
             // 结算上下文与开关全部归位
             m_DeferDamage = false;
@@ -968,10 +1049,20 @@ namespace TurnCard.Game.Battle
 
             if (formBound || m_FormBoundDepth > 0)
             {
-                BuffInstance added = target.Find(buffId);
-                if (added != null)
+                BuffInstance bound = target.Find(buffId);
+                if (bound != null)
                 {
-                    added.FormBound = true;
+                    bound.FormBound = true;
+                }
+            }
+
+            // 能力牌施加的 buff 要记来源，牌离开「正面朝上」时整条移除
+            if (m_PowerRecording != null)
+            {
+                BuffInstance recorded = target.Find(buffId);
+                if (recorded != null && !m_PowerRecording.Contains(recorded))
+                {
+                    m_PowerRecording.Add(recorded);
                 }
             }
         }
@@ -1435,6 +1526,7 @@ namespace TurnCard.Game.Battle
             ResolveAbsorbBacklash();
             RefreshGreedBuff();
             DrawUpTo(HandSize);
+            RefreshPowerCards();
         }
 
         /// <summary>护甲/生命类 buff id（表里约定，改表时要同步）。</summary>
@@ -2167,6 +2259,9 @@ namespace TurnCard.Game.Battle
                 m_DeferDamage = false;
             }
 
+            // 打出的牌离开手牌：它提供的能力（如果是能力牌）随之失效
+            RefreshPowerCards();
+
             if (!IsResolving)
             {
                 CheckBattleEnd();
@@ -2203,6 +2298,9 @@ namespace TurnCard.Game.Battle
             {
                 return;
             }
+
+            // 翻面可能让能力牌生效 / 失效
+            RefreshPowerCards();
 
             if (!card.Face.HasKeyword(KeywordMechanics.Instant))
             {
