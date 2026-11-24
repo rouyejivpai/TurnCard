@@ -18,7 +18,7 @@ MonoBehaviour:
   m_Description: "\u8DF3\u8FC7\u4E0B\u4E00\u6B21\u884C\u52A8"
   m_Icon: buff_stun
   m_StackRule: 1
-  m_Consume: 0
+  m_Consume: 2
   m_MaxStacks: 1
   m_Modifier: 
   m_Trigger: 0
@@ -26,3 +26,5 @@ MonoBehaviour:
   m_TriggerCount: 0
   m_RuleBlock: 
   m_TriggerEffect: 
+  m_DecayTrigger: 1
+  m_DecayStacks: 1

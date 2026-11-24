@@ -84,6 +84,27 @@
 
 另：双生的血量必须两面相同；参考表里「农夫 25 / 狼人 36」视为待改（或不算双生）。
 
+### 4.0 层数衰减（数据驱动）
+
+buff 的"掉层"不写在回合流程里，而是**由 buff 自己监听触发时机**：
+
+| 表列 | 含义 |
+| --- | --- |
+| `decayTrigger` | 在哪个时机掉层（`none` / `turnStart` / `turnEnd` / …，取 `BuffTrigger` 枚举） |
+| `decayStacks` | 每次掉几层（默认 1） |
+
+实现：`BattleState.RunTriggers(container, trigger, …)` 跑完该时机的触发效果后，
+统一调用 `container.DecayByTrigger(trigger)`，把 `decayTrigger == trigger` 的 buff 减层、减到 0 移除。
+
+所以：
+
+- 虚弱 / 易伤 / 晕眩：`decayTrigger = turnStart`、`decayStacks = 1` → 每回合开始掉 1 层；
+- 力量 / 壁垒这类永久 buff：`decayTrigger = none` → 永不掉层；
+- 以后要"回合结束掉层"或"受击后掉层"，**只改表**，不用碰回合流程代码。
+
+> 层数即持续时间：`buff:3,2,2`（虚弱 2 层）＝ 持续 2 回合。
+
+
 ### 4.1 贪婪 / 代价（浮士德 ↔ 梅菲斯特）
 
 | 项 | 结论 |

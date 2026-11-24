@@ -18,7 +18,7 @@ MonoBehaviour:
   m_Description: "\u9020\u6210\u7684\u4F24\u5BB3\u964D\u4F4E 25%"
   m_Icon: buff_weak
   m_StackRule: 0
-  m_Consume: 0
+  m_Consume: 2
   m_MaxStacks: 99
   m_Modifier: damage_dealt:*0.75
   m_Trigger: 0
@@ -26,3 +26,5 @@ MonoBehaviour:
   m_TriggerCount: 0
   m_RuleBlock: 
   m_TriggerEffect: 
+  m_DecayTrigger: 1
+  m_DecayStacks: 1

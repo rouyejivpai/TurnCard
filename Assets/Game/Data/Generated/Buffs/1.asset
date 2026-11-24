@@ -18,7 +18,7 @@ MonoBehaviour:
   m_Description: "\u53D7\u5230\u7684\u4F24\u5BB3 +3"
   m_Icon: buff_vulnerable
   m_StackRule: 0
-  m_Consume: 0
+  m_Consume: 2
   m_MaxStacks: 99
   m_Modifier: damage_taken:+3
   m_Trigger: 0
@@ -26,3 +26,5 @@ MonoBehaviour:
   m_TriggerCount: 0
   m_RuleBlock: 
   m_TriggerEffect: 
+  m_DecayTrigger: 1
+  m_DecayStacks: 1

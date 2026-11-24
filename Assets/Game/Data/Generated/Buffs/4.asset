@@ -26,3 +26,5 @@ MonoBehaviour:
   m_TriggerCount: 0
   m_RuleBlock: 
   m_TriggerEffect: damage:2,random
+  m_DecayTrigger: 0
+  m_DecayStacks: 0

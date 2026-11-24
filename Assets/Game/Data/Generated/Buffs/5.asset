@@ -26,3 +26,5 @@ MonoBehaviour:
   m_TriggerCount: 0
   m_RuleBlock: armor_clear
   m_TriggerEffect: 
+  m_DecayTrigger: 0
+  m_DecayStacks: 0

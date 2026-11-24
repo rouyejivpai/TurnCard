@@ -26,3 +26,5 @@ MonoBehaviour:
   m_TriggerCount: 0
   m_RuleBlock: 
   m_TriggerEffect: buff_self:2,1,-1
+  m_DecayTrigger: 0
+  m_DecayStacks: 0

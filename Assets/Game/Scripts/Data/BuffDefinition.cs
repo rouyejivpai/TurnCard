@@ -143,6 +143,12 @@ namespace TurnCard.Game.Data
         [Tooltip("触发时执行的效果串，复用卡牌效果的写法，如 damage:3,random")]
         [SerializeField] private string m_TriggerEffect = string.Empty;
 
+        [Tooltip("在哪个时机自动衰减（掉层）。TurnStart = 回合开始时掉一层")]
+        [SerializeField] private BuffTrigger m_DecayTrigger = BuffTrigger.None;
+
+        [Tooltip("每次衰减掉几层，0 按 1 处理")]
+        [SerializeField] private int m_DecayStacks = 1;
+
         private List<BuffModifier> m_Parsed;
 
         public int Id => m_Id;
@@ -177,6 +183,12 @@ namespace TurnCard.Game.Data
             return false;
         }
         public string TriggerEffect => m_TriggerEffect;
+
+        /// <summary>在哪个时机自动掉层（数据配置，None 表示不衰减）。</summary>
+        public BuffTrigger DecayTrigger => m_DecayTrigger;
+
+        /// <summary>每次衰减掉几层（至少 1）。</summary>
+        public int DecayStacks => m_DecayStacks > 0 ? m_DecayStacks : 1;
 
         /// <summary>解析后的被动修饰器列表（惰性解析并缓存）。</summary>
         public IReadOnlyList<BuffModifier> Modifiers

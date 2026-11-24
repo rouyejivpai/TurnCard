@@ -61,7 +61,7 @@ namespace TurnCard.EditorTools
 
             // 4) 回合衰减：turn 型 buff 掉剩余回合
             int before = state.PlayerBuffs.Find(3)?.Remaining ?? 0;
-            state.PlayerBuffs.TickTurn();
+            state.PlayerBuffs.DecayByTrigger(TurnCard.Game.Data.BuffTrigger.TurnStart);
             bool gone = state.PlayerBuffs.Find(3) == null;
             Check("虚弱回合结束消失", gone, "之前剩余=" + before);
 

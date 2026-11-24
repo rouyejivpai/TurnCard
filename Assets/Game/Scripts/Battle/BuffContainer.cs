@@ -246,42 +246,39 @@ namespace TurnCard.Game.Battle
             }
         }
 
-        /// <summary>回合结束：按回合消耗的 buff 减一层剩余回合，过期即移除。</summary>
-        public void TickTurn()
+        /// <summary>
+        /// 按触发时机衰减：数据里配了 <c>decayTrigger</c> 的 buff 在该时机掉层，掉光即移除。
+        /// 这是通用行为（虚弱/易伤按回合掉层、以后要「回合结束掉层」也只需改表），
+        /// 所以不写在回合流程里，而是由触发时机统一驱动。
+        /// </summary>
+        public void DecayByTrigger(Data.BuffTrigger trigger)
         {
+            if (trigger == Data.BuffTrigger.None)
+            {
+                return;
+            }
+
             bool dirty = false;
             for (int i = m_Buffs.Count - 1; i >= 0; i--)
             {
                 BuffInstance buff = m_Buffs[i];
-                if (buff.Definition == null)
-                {
-                    m_Buffs.RemoveAt(i);
-                    dirty = true;
-                    continue;
-                }
-
-                if (buff.Definition.Consume != BuffConsume.Turn)
+                if (buff == null || buff.Definition == null)
                 {
                     continue;
                 }
 
-                // 层数就是剩余回合：每回合开始掉一层，掉光即移除（虚弱/易伤这类）
-                if (buff.Stacks > 0)
+                if (buff.Definition.DecayTrigger != trigger)
                 {
-                    buff.Stacks--;
+                    continue;
                 }
 
-                if (buff.Remaining > 0)
-                {
-                    buff.Remaining--;
-                }
-
-                if (buff.Stacks <= 0 || (buff.Definition.Consume == BuffConsume.Turn && buff.Remaining == 0))
-                {
-                    m_Buffs.RemoveAt(i);
-                }
-
+                buff.Stacks -= buff.Definition.DecayStacks;
                 dirty = true;
+
+                if (buff.Stacks <= 0)
+                {
+                    m_Buffs.RemoveAt(i);
+                }
             }
 
             if (dirty)
