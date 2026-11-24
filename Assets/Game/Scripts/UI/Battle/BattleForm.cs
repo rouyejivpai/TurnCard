@@ -934,9 +934,9 @@ namespace Window.BattleForm
 
                 if (victory)
                 {
-                    // 胜利不再弹结果面板，交给舞台区走「宝箱 → 选卡 → 路线」
-                    // （BeginVictoryFlow 内部自己做了去重）
-                    BeginVictoryFlow();
+                    // 胜利不再弹结果面板，交给舞台区走「宝箱 → 选卡 → 路线」。
+                    // 先等斩杀动画播完再开宝箱，否则敌人还在碎裂时宝箱就弹出来了。
+                    StartCoroutine(BeginVictoryFlowDelayed(EnemyDeathFx.TotalDuration));
                     return;
                 }
 
@@ -972,6 +972,30 @@ namespace Window.BattleForm
             // 手牌数据已清空 → 帧末把手牌视图也拆掉，
             // 否则残留在界面上的牌还带着战斗中的 buff 数值
             m_HandDirty = true;
+        }
+
+        /// <summary>
+        /// 等斩杀动画播完再进入胜利流程（宝箱）。
+        /// 等待时长直接取 <see cref=EnemyDeathFx.TotalDuration/>，改动画时长这里会自动跟上。
+        /// </summary>
+        /// <summary>还在播的斩杀动画数量（胜利流程要等它们全部播完）。</summary>
+        private int m_DeathFxPlaying;
+
+        /// <summary>
+        /// 等斩杀动画播完再进入胜利流程（宝箱）。
+        /// 不是「等一个固定时长」，而是真的等动画回调结束，
+        /// 所以两者时间天然一致；最长兜底一个动画时长，避免回调丢失卡死流程。
+        /// </summary>
+        private IEnumerator BeginVictoryFlowDelayed(float maxWait)
+        {
+            float timeout = Time.realtimeSinceStartup + Mathf.Max(0.1f, maxWait) + 0.5f;
+
+            while (m_DeathFxPlaying > 0 && Time.realtimeSinceStartup < timeout)
+            {
+                yield return null;
+            }
+
+            BeginVictoryFlow();
         }
 
         private IEnumerator ShowResultDelayed(bool victory)
@@ -1679,7 +1703,8 @@ namespace Window.BattleForm
 
             if (battleEnded)
             {
-                BeginVictoryFlow();
+                // 同样要等斩杀动画播完（BattleEnded 事件那条路也会触发，BeginVictoryFlow 内部去重）
+                StartCoroutine(BeginVictoryFlowDelayed(EnemyDeathFx.TotalDuration));
             }
         }
 
@@ -2442,8 +2467,12 @@ namespace Window.BattleForm
             // 先摘掉，避免动画期间被选中/被刷新
             m_EnemyCardViews.Remove(view);
 
+            m_DeathFxPlaying++;
+
             EnemyDeathFx.Play(view, () =>
             {
+                m_DeathFxPlaying = Mathf.Max(0, m_DeathFxPlaying - 1);
+
                 if (view != null)
                 {
                     Destroy(view.gameObject);

@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5ec2cb4bed0ed024592fc32f009794f3, type: 3}
   m_Name: EnemyDeathSettings
   m_EditorClassIdentifier: 
-  m_CutDuration: 0.1
-  m_SplitDuration: 0.35
-  m_DissolveDuration: 0.25
-  m_FadeDelay: 0.06
+  m_CutDuration: 0.22
+  m_SplitDuration: 0.66
+  m_DissolveDuration: 0.4
+  m_FadeDelay: 0.12
   m_SplitDistance: 36
   m_SplitAngle: 6
   m_CutAngle: 115
