@@ -51,6 +51,12 @@ namespace TurnCard.Game.UI
         [SerializeField] private Image m_HpFill;
         [SerializeField] private TextMeshProUGUI m_HpText;
 
+        [Header("名字（血条上方）")]
+        [SerializeField] private TextMeshProUGUI m_NameText;
+
+        [Header("buff 区（血条下方）")]
+        [SerializeField] private RectTransform m_BuffArea;
+
         [Header("护甲角标")]
         [SerializeField] private GameObject m_ArmorRoot;
         [SerializeField] private TextMeshProUGUI m_ArmorText;
@@ -150,11 +156,15 @@ namespace TurnCard.Game.UI
             m_BaseScale = transform.localScale.x;
             m_BodyBaseScale = m_Body != null ? m_Body.localScale.x : 1f;
 
-            // buff 图标条挂在卡框内侧左下角；它自己订阅容器事件自动刷新
+            // buff 图标条挂在「血条下方的 buff 区」；没有配这块就退回卡框左下角
             if (m_BuffStrip == null && Enemy.Buffs != null)
             {
-                m_BuffStrip = BuffIconStrip.Attach(Rect, Enemy.Buffs, Vector2.zero, Vector2.zero,
-                    new Vector2(14f, 10f));
+                RectTransform buffParent = m_BuffArea != null ? m_BuffArea : Rect;
+                Vector2 anchor = m_BuffArea != null ? Vector2.zero : Vector2.zero;
+                Vector2 pivot = m_BuffArea != null ? new Vector2(0f, 0.5f) : Vector2.zero;
+                Vector2 offset = m_BuffArea != null ? Vector2.zero : new Vector2(14f, 10f);
+
+                m_BuffStrip = BuffIconStrip.Attach(buffParent, Enemy.Buffs, anchor, pivot, offset);
             }
 
             RefreshVisual();
@@ -172,9 +182,23 @@ namespace TurnCard.Game.UI
 
             m_ShownSide = Enemy.Side;
             RefreshArt(m_ShownSide);
+            RefreshName();
             RefreshIntent();
             RefreshHp();
             RefreshArmor();
+        }
+
+        /// <summary>血条上方的名字：显示当前形态名（翻面会跟着换）。</summary>
+        private void RefreshName()
+        {
+            if (m_NameText == null)
+            {
+                return;
+            }
+
+            string name = Enemy.Form.DisplayName;
+            m_NameText.text = name ?? string.Empty;
+            m_NameText.gameObject.SetActive(!string.IsNullOrEmpty(name));
         }
 
         /// <summary>
