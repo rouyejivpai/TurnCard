@@ -21,6 +21,12 @@ namespace TurnCard.Game.UI
         [Range(1, 5)]
         [SerializeField] private int m_RouteOptionCount = 3;
 
+        [Header("开幕")]
+        [Tooltip("幕布拉上后停留多久再拉开（秒）——战斗准备阶段关幕的时间")]
+        [SerializeField] private float m_CurtainHold = 0.35f;
+
+        public float CurtainHold => Mathf.Max(0f, m_CurtainHold);
+
         public float ChestOpenDelay => Mathf.Max(0f, m_ChestOpenDelay);
         public float ChestAppear => Mathf.Max(0f, m_ChestAppear);
         public int RouteOptionCount => Mathf.Clamp(m_RouteOptionCount, 1, 5);

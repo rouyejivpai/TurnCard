@@ -47,6 +47,32 @@ namespace TurnCard.Game.UI
                 // 全屏遮挡不能吃点击
                 m_Image.raycastTarget = false;
             }
+
+            // 一出现就是「关着」的状态，等战斗开始再拉开
+            CloseImmediate();
+        }
+
+        /// <summary>立刻摆成关幕（第 0 帧、盖在最上层、暂停）。</summary>
+        public void CloseImmediate()
+        {
+            m_Playing = false;
+            m_Reverse = false;
+
+            if (m_Image != null)
+            {
+                m_Image.enabled = true;
+            }
+
+            transform.SetAsLastSibling();
+
+            if (m_Animator == null)
+            {
+                return;
+            }
+
+            m_Animator.speed = 0f;
+            m_Animator.Play(m_StateName, 0, 0f);
+            m_Animator.Update(0f);
         }
 
         private void OnEnable()
@@ -161,6 +187,18 @@ namespace TurnCard.Game.UI
                 if (s_Instances[i] != null)
                 {
                     s_Instances[i].Play();
+                }
+            }
+        }
+
+        /// <summary>进场时先把所有幕布关上（等战斗真正开始时再拉开）。</summary>
+        public static void CloseAll()
+        {
+            for (int i = 0; i < s_Instances.Count; i++)
+            {
+                if (s_Instances[i] != null)
+                {
+                    s_Instances[i].CloseImmediate();
                 }
             }
         }

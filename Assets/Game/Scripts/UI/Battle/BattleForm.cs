@@ -63,6 +63,9 @@ namespace Window.BattleForm
         /// <summary>当前手牌是否正显示成 0 费（贪婪），用于避免每帧重刷。</summary>
         private bool m_CostFreeShown;
 
+        /// <summary>开幕幕布的关幕停留协程。</summary>
+        private Coroutine m_CurtainRoutine;
+
         /// <summary>选择模式：等玩家选一张手牌并点确认。</summary>
         /// <summary>正在播放的翻面动画数量（同牌串行、跨牌并行）。</summary>
         private int m_FlipAnimating;
@@ -494,8 +497,8 @@ namespace Window.BattleForm
                 return;
             }
 
-            // 开幕幕布：每次开战从头播一遍（同一界面重开也会重播）
-            CurtainView.PlayAll();
+            // 关幕：战斗准备期间幕布是拉上的，等一切摆好再拉开
+            CurtainView.CloseAll();
 
             UnityEngine.Debug.Log("[战斗] 1 创建 BattleState");
             m_State = new BattleState();
@@ -551,6 +554,33 @@ namespace Window.BattleForm
 
             RefreshHud();
             UnityEngine.Debug.Log("[战斗] 9 刷新完成");
+
+            // 敌人、手牌、HUD 都摆好了 —— 这一刻才算「战斗开始」，拉开幕布。
+            // 先关着停留一小段（FlowSettings.CurtainHold），让「关幕 → 开幕」看得出来。
+            BeginCurtainOpening();
+        }
+
+        /// <summary>关幕停留一小段后拉开幕布。</summary>
+        private void BeginCurtainOpening()
+        {
+            if (m_CurtainRoutine != null)
+            {
+                StopCoroutine(m_CurtainRoutine);
+            }
+
+            m_CurtainRoutine = StartCoroutine(OpenCurtainRoutine());
+        }
+
+        private System.Collections.IEnumerator OpenCurtainRoutine()
+        {
+            float hold = FlowSettings.Current.CurtainHold;
+            if (hold > 0f)
+            {
+                yield return new WaitForSecondsRealtime(hold);
+            }
+
+            CurtainView.PlayAll();
+            m_CurtainRoutine = null;
         }
 
         /// <summary>
