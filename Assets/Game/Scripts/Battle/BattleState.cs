@@ -897,6 +897,60 @@ namespace TurnCard.Game.Battle
             InstantTriggered = null;
         }
 
+        /// <summary>
+        /// 战斗结束（胜/负）时的自我清理：把「只在战斗中成立」的东西清掉。
+        /// 放在状态层而不是界面层，保证无论哪条路径结束战斗，
+        /// 奖励 / 路线界面都拿不到力量、虚弱这些残留数值。
+        /// 不摘事件（界面还要收 BattleEnded 继续走流程），彻底回收交给 Clear()。
+        /// </summary>
+        /// <summary>结束战斗的唯一入口：置胜负 → 清理战斗态 → 通知界面。</summary>
+        private void FinishBattle(bool victory)
+        {
+            if (IsBattleOver)
+            {
+                return;
+            }
+
+            if (victory)
+            {
+                IsVictory = true;
+            }
+            else
+            {
+                IsDefeat = true;
+            }
+
+            ResetOnBattleEnd();
+            BattleEnded?.Invoke(victory);
+        }
+
+        private void ResetOnBattleEnd()
+        {
+            PlayerBuffs.Clear();
+            PlayerArmor = 0;
+            Energy = 0;
+
+            m_Pending.Clear();
+            m_PendingInstants.Clear();
+            m_PendingFlips.Clear();
+            m_PowerBuffs.Clear();
+            m_PowerRecording = null;
+
+            m_Hand.Clear();
+            m_DrawPile.Clear();
+            m_DiscardPile.Clear();
+
+            m_DeferDamage = false;
+            m_InstantPhase = false;
+            m_InstantDepth = 0;
+            m_ExecutingCard = null;
+            m_PlayTarget = null;
+            PendingChoice = ChoiceKind.None;
+            SelectedForChoice = null;
+
+            RaiseChanged();
+        }
+
         /// <summary>战斗结束时丢掉没执行的瞬发。</summary>
         public void ClearPendingInstants()
         {
@@ -1657,8 +1711,7 @@ namespace TurnCard.Game.Battle
 
                 if (PlayerHp <= 0)
                 {
-                    IsDefeat = true;
-                    BattleEnded?.Invoke(false);
+                    FinishBattle(false);
                 }
 
                 return;
@@ -1815,8 +1868,7 @@ namespace TurnCard.Game.Battle
 
             if (PlayerHp <= 0)
             {
-                IsDefeat = true;
-                BattleEnded?.Invoke(false);
+                FinishBattle(false);
             }
 
             return toHp;
@@ -1881,8 +1933,7 @@ namespace TurnCard.Game.Battle
 
                                 if (PlayerHp <= 0)
                                 {
-                                    IsDefeat = true;
-                                    BattleEnded?.Invoke(false);
+                                    FinishBattle(false);
                                     return log;
                                 }
                             }
@@ -2080,8 +2131,7 @@ namespace TurnCard.Game.Battle
 
             if (AllEnemiesDead())
             {
-                IsVictory = true;
-                BattleEnded?.Invoke(true);
+                FinishBattle(true);
             }
 
             return log;
@@ -2719,10 +2769,12 @@ namespace TurnCard.Game.Battle
             if (AllEnemiesDead())
             {
                 IsVictory = true;
+                ResetOnBattleEnd();
                 BattleEnded?.Invoke(true);
             }
             else if (IsDefeat)
             {
+                ResetOnBattleEnd();
                 BattleEnded?.Invoke(false);
             }
         }
@@ -2765,8 +2817,7 @@ namespace TurnCard.Game.Battle
             PlayerHp = Math.Max(0, PlayerHp - amount);
             if (PlayerHp <= 0)
             {
-                IsDefeat = true;
-                BattleEnded?.Invoke(false);
+                FinishBattle(false);
             }
         }
 

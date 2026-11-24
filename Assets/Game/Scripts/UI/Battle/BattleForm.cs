@@ -929,6 +929,9 @@ namespace Window.BattleForm
 
             state.BattleEnded += victory =>
             {
+                // 战斗已经结束：立刻把战斗态清干净，别让它影响奖励界面的数值
+                ResetBattleRuntimeAfterEnd();
+
                 if (victory)
                 {
                     // 胜利不再弹结果面板，交给舞台区走「宝箱 → 选卡 → 路线」
@@ -943,6 +946,32 @@ namespace Window.BattleForm
                     StartCoroutine(ShowResultDelayed(false));
                 }
             };
+        }
+
+        /// <summary>
+        /// 战斗结束（胜或负）时清掉「战斗中」才成立的东西：
+        /// 玩家 buff / 护甲 / 待结算队列 / 数值预览源。
+        /// 奖励界面就在这场战斗里打开，不清的话卡面数字会带上力量、虚弱这些战斗 buff。
+        /// </summary>
+        private void ResetBattleRuntimeAfterEnd()
+        {
+            CardPreviewSource.State = null;
+            CardPreviewSource.Target = null;
+            m_HoverTarget = null;
+
+            if (m_State != null)
+            {
+                m_State.PlayerBuffs.Clear();
+                m_State.LosePlayerArmor(int.MaxValue);
+                m_State.ClearPendingHits();
+                m_State.ClearPendingInstants();
+            }
+
+            m_RenderDirty = true;
+
+            // 手牌数据已清空 → 帧末把手牌视图也拆掉，
+            // 否则残留在界面上的牌还带着战斗中的 buff 数值
+            m_HandDirty = true;
         }
 
         private IEnumerator ShowResultDelayed(bool victory)

@@ -23,7 +23,7 @@ namespace TurnCard.Game.UI
         /// </summary>
         public static CardText.FormatOptions BuildOptions(CardFace face)
         {
-            if (State == null)
+            if (State == null || State.IsBattleOver)
             {
                 return default;
             }
@@ -46,7 +46,8 @@ namespace TurnCard.Game.UI
         /// <summary>把预览套到一张卡上；没有战斗上下文时什么也不做。</summary>
         public static void Apply(CardView view, CardFace face)
         {
-            if (view == null || State == null)
+            // 战斗结束后不再给任何卡面提供战斗中的数值
+            if (view == null || State == null || State.IsBattleOver)
             {
                 return;
             }
