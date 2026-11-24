@@ -4,43 +4,43 @@
             "table": "Cards",
             "hash": "F34D77740C00CC09F6891C607E24E580B3D2246C263C9AF1DE564DD0899D6DB4",
             "rows": 16,
-            "generatedAt": "2026-11-24 19:45:42"
+            "generatedAt": "2026-11-24 20:15:41"
         },
         {
             "table": "Enemies",
-            "hash": "79D0DD8EA442C92445FC4BF70E451F12AC6EA541B5990881CA4D805330B07B10",
+            "hash": "BCD23FFF49D5658F16D10E2DF1288DEA451DAA6323ABBD616C29E107A147B228",
             "rows": 24,
-            "generatedAt": "2026-11-24 19:45:42"
+            "generatedAt": "2026-11-24 20:15:41"
         },
         {
             "table": "Keywords",
             "hash": "9C3FDA7A3C87502E0FCF4D8A826ABD15973D4EC882F555FFFE54C3EDDFAA26B3",
             "rows": 3,
-            "generatedAt": "2026-11-24 19:45:42"
+            "generatedAt": "2026-11-24 20:15:41"
         },
         {
             "table": "StarterDeck",
             "hash": "9FD37DECD498D8D878D5DE81FE638415376D37AB91B084AA9F578DE897831668",
             "rows": 16,
-            "generatedAt": "2026-11-24 19:45:42"
+            "generatedAt": "2026-11-24 20:15:41"
         },
         {
             "table": "EnemyIntents",
             "hash": "5CC9FB7EB29E1D65D55C3D11AFBE58493E8C44059F2E6436143A1BFA0DD51F29",
             "rows": 47,
-            "generatedAt": "2026-11-24 19:45:42"
+            "generatedAt": "2026-11-24 20:15:41"
         },
         {
             "table": "Encounters",
             "hash": "8113A08BD99544E34A4560825ED0DE4D7BF0F4D4EB681F8B4047693E96935AE8",
             "rows": 12,
-            "generatedAt": "2026-11-24 19:45:42"
+            "generatedAt": "2026-11-24 20:15:41"
         },
         {
             "table": "Buffs",
             "hash": "DDEB6CAB3C43BFC35FAC66F488751BB413547127968FF3B1CA976D273F3FDA73",
             "rows": 31,
-            "generatedAt": "2026-11-24 19:45:42"
+            "generatedAt": "2026-11-24 20:15:41"
         }
     ]
 }

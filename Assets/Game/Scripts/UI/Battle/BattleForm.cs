@@ -73,8 +73,11 @@ namespace Window.BattleForm
         /// <summary>开幕/关幕协程。</summary>
         private Coroutine m_BattleIntro;
 
-        /// <summary>数值预览需要重刷（同一帧多次事件只刷一次）。</summary>
-        private bool m_PreviewDirty;
+        /// <summary>UI 需要重刷（同一帧多次事件只刷一次，帧末统一 FlushRender）。</summary>
+        private bool m_RenderDirty;
+
+        /// <summary>战斗界面的 ViewModel：把 BattleState 的数值换算成显示快照。</summary>
+        private readonly BattleViewModel m_Vm = new BattleViewModel();
 
         /// <summary>拖牌时指着的目标：手牌上的伤害预览按这个敌人的易伤重算。</summary>
         private EnemyInstance m_HoverTarget;
@@ -681,63 +684,128 @@ namespace Window.BattleForm
 
         private void Update()
         {
-            if (!m_PreviewDirty || m_State == null)
+            if (!m_RenderDirty || m_State == null)
             {
                 return;
             }
 
-            m_PreviewDirty = false;
-            RefreshAllPreviews();
+            FlushRender();
         }
 
         /// <summary>
-        /// 把所有「受 buff 影响的数值」刷成真实值：
-        /// 手牌上的 {damage}/{armor}，以及敌人意图的伤害数字。
-        /// 拖牌指着某个目标时，手牌伤害按该目标的易伤重算。
+        /// 统一渲染入口：从 ViewModel 取快照，写进各个控件。
+        /// 所有刷新都走这里（脏位 + 帧末合并），不再由业务代码零散调用。
         /// </summary>
-        public void RefreshAllPreviews()
+        private void FlushRender()
         {
+            m_RenderDirty = false;
+
             if (m_State == null)
             {
                 return;
             }
 
-            for (int i = m_HandViews.Count - 1; i >= 0; i--)
-            {
-                CardView view = m_HandViews[i];
-                if (view == null)
-                {
-                    m_HandViews.RemoveAt(i);
-                    continue;
-                }
+            m_Vm.Update(m_State, m_HoverTarget);
 
-                CardFace face = view.Card.Face;
-                BattleState.ValuePreview damage = m_State.PreviewPlayerDamage(face, m_HoverTarget);
-                BattleState.ValuePreview armor = m_State.PreviewPlayerArmor(face);
+            ApplyPlayerHud();
+            ApplyEnemyViews();
+            ApplyHandViews();
+        }
 
-                // 效果参数类数值（每瞬发 +4、协同攻击总量…）
-                var tokens = new Dictionary<string, int>();
-                m_State.CollectPreviewTokens(face, m_HoverTarget, tokens);
+        /// <summary>兼容旧调用：立即刷一次。</summary>
+        public void RefreshAllPreviews()
+        {
+            FlushRender();
+        }
 
-                view.SetValuePreview(damage.Value, armor.Value,
-                    damage.Modified || armor.Modified, tokens.Count > 0 ? tokens : null);
-            }
-
-            foreach (EnemyCardView view in m_EnemyCardViews)
-            {
-                if (view == null || view.Enemy == null)
-                {
-                    continue;
-                }
-
-                BattleState.ValuePreview attack = m_State.PreviewEnemyAttack(view.Enemy);
-                view.SetIntentPreview(attack.Value, attack.Modified);
-            }
+        private void MarkRenderDirty()
+        {
+            m_RenderDirty = true;
         }
 
         private void MarkPreviewDirty()
         {
-            m_PreviewDirty = true;
+            m_RenderDirty = true;
+        }
+
+        private void ApplyPlayerHud()
+        {
+            if (m_HpClip != null)
+            {
+                Vector2 anchorMax = m_HpClip.anchorMax;
+                anchorMax.x = m_Vm.PlayerHpRatio;
+                m_HpClip.anchorMax = anchorMax;
+            }
+
+            if (m_HpText != null)
+            {
+                m_HpText.text = m_Vm.PlayerHp + "/" + m_Vm.PlayerHpMax;
+            }
+
+            if (m_ArmorRoot != null)
+            {
+                m_ArmorRoot.SetActive(m_Vm.PlayerArmor > 0);
+            }
+
+            if (m_ArmorText != null)
+            {
+                m_ArmorText.text = m_Vm.PlayerArmor.ToString();
+            }
+
+            if (txtStatus != null)
+            {
+                txtStatus.text = $"能量 {m_Vm.Energy}/{m_Vm.MaxEnergy}";
+            }
+
+            if (txtDrawCount != null)
+            {
+                txtDrawCount.text = m_State.DrawPile.Count.ToString();
+            }
+
+            if (txtDiscardCount != null)
+            {
+                txtDiscardCount.text = m_State.DiscardPile.Count.ToString();
+            }
+        }
+
+        private void ApplyEnemyViews()
+        {
+            for (int i = m_EnemyCardViews.Count - 1; i >= 0; i--)
+            {
+                EnemyCardView view = m_EnemyCardViews[i];
+                if (view == null)
+                {
+                    m_EnemyCardViews.RemoveAt(i);
+                    continue;
+                }
+
+                view.RefreshVisual();
+            }
+
+            foreach (BattleViewModel.EnemyVm vm in m_Vm.Enemies)
+            {
+                EnemyCardView view = ViewFor(vm.Enemy);
+                if (view != null)
+                {
+                    view.SetIntentPreview(vm.IntentValue, vm.IntentModified);
+                }
+            }
+        }
+
+        private void ApplyHandViews()
+        {
+            foreach (BattleViewModel.HandVm vm in m_Vm.Hand)
+            {
+                CardView view = FindView(vm.Card);
+                if (view != null)
+                {
+                    view.SetValuePreview(vm.Damage, vm.Armor, vm.Modified, vm.Tokens);
+                }
+            }
+
+            RefreshHandCosts();
+            RefreshInteractivity();
+            RefreshPlayableStates();
         }
 
         /// <summary>
@@ -746,6 +814,9 @@ namespace Window.BattleForm
         /// </summary>
         private void HookState(BattleState state)
         {
+            // 模型层的统一变化事件：任何数值/意图/手牌变化都会把 UI 标脏，帧末统一刷新
+            state.Changed += MarkRenderDirty;
+
             // 任何 buff 变化都可能改变显示数值 → 标记数值预览需要重刷
             state.PlayerBuffs.Changed += _ => MarkPreviewDirty();
 
@@ -1982,7 +2053,7 @@ namespace Window.BattleForm
         /// </summary>
         private void RefreshAllHpBars()
         {
-            RefreshHud();
+            MarkRenderDirty();
 
             for (int i = m_EnemyCardViews.Count - 1; i >= 0; i--)
             {
@@ -1997,48 +2068,13 @@ namespace Window.BattleForm
             }
         }
 
+        /// <summary>
+        /// 只标脏：真正的写入在 <see cref=FlushRender/>（从 ViewModel 取快照）。
+        /// 保留这个名字是为了让旧调用点语义不变。
+        /// </summary>
         private void RefreshHud()
         {
-            if (m_State == null)
-            {
-                return;
-            }
-
-            // 血量用和敌人卡一样的血条：裁剪窗口按比例伸缩
-            int maxHp = BattleState.PlayerMaxHp;
-            int hp = m_State.PlayerHp;
-            float ratio = maxHp <= 0 ? 0f : Mathf.Clamp01(hp / (float)maxHp);
-            if (m_HpClip != null)
-            {
-                Vector2 anchorMax = m_HpClip.anchorMax;
-                anchorMax.x = ratio;
-                m_HpClip.anchorMax = anchorMax;
-            }
-
-            if (m_HpText != null)
-            {
-                m_HpText.text = hp + "/" + maxHp;
-            }
-
-            // 护甲徽标：有护甲才显示（图标是「防御意图」那张）
-            int armorValue = m_State.PlayerArmor;
-            if (m_ArmorRoot != null)
-            {
-                m_ArmorRoot.SetActive(armorValue > 0);
-            }
-
-            if (m_ArmorText != null)
-            {
-                m_ArmorText.text = armorValue.ToString();
-            }
-
-            txtStatus.text = $"能量 {m_State.Energy}/{BattleState.MaxEnergy}";
-            txtDrawCount.text = m_State.DrawPile.Count.ToString();
-            txtDiscardCount.text = m_State.DiscardPile.Count.ToString();
-            RefreshHandCosts();
-            RefreshInteractivity();
-
-            RefreshPlayableStates();
+            MarkRenderDirty();
         }
 
         /// <summary>

@@ -17,8 +17,8 @@ MonoBehaviour:
   m_FlipHpMode: 0
   m_FlipHpRatio: 1
   m_IntentMode: 0
-  m_FrontBuffs: 14;15;26
-  m_BackBuffs: 
+  m_FrontBuffs: 14;15
+  m_BackBuffs: 26
   m_FrontArmor: 0
   m_BackArmor: 0
   m_FrontName: "\u519C\u592B"
@@ -26,10 +26,10 @@ MonoBehaviour:
   m_FrontAttack: 0
   m_FrontDescription: "\u6EE1\u6708\uFF1A\u4E24\u56DE\u5408\u6216\u53D7\u5230\u4E24\u6B21\u4F24\u5BB3\u540E\u7FFB\u9762"
   m_FrontArt: {fileID: 0}
-  m_Twin: 1
+  m_Twin: 0
   m_PairId: 0
-  m_Note: "\u53CC\u751F\uFF1A\u4E24\u9762\u7EDF\u4E00 25 \u8840\uFF1B\u6EE1\u6708(2\u56DE\u5408/2\u6B21\u4F24\u5BB3\u7FFB\u9762)\uFF1B\u53D7\u51FB\u540E
-    2 \u5C42\u81EA\u6108"
+  m_Note: "\u975E\u53CC\u751F\uFF1A\u519C\u592B(14;15 \u6EE1\u6708) / \u72FC\u4EBA(26
+    \u55DC\u8840\xB7\u518D\u751F\uFF0C\u53D7\u4F24\u540E\u83B7\u5F972\u5C42\u81EA\u6108)"
   m_Disabled: 0
   m_BackName: "\u72FC\u4EBA"
   m_BackHp: 25

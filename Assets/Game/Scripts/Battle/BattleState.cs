@@ -53,11 +53,56 @@ namespace TurnCard.Game.Battle
         public EnemyDefinition Definition { get; }
         public CardFaceSide Side { get; private set; }
         public EnemyForm Form => Definition.GetForm(Side);
-        public int Hp { get; private set; }
         public bool IsDead { get; private set; }
 
+        private int m_Hp;
+        private int m_Armor;
+
+        /// <summary>生命变化（受伤 / 回血 / 翻面重置都会触发）。UI 订阅这个做响应式刷新。</summary>
+        public event System.Action<EnemyInstance> HpChanged;
+
+        /// <summary>护甲变化。</summary>
+        public event System.Action<EnemyInstance> ArmorChanged;
+
+        /// <summary>意图队列变化（选定/推进/重洗）。</summary>
+        public event System.Action<EnemyInstance> IntentChanged;
+
+        private void RaiseIntentChanged()
+        {
+            IntentChanged?.Invoke(this);
+        }
+
+        /// <summary>生命。任何写入都会触发 <see cref="HpChanged"/>。</summary>
+        public int Hp
+        {
+            get => m_Hp;
+            private set
+            {
+                if (m_Hp == value)
+                {
+                    return;
+                }
+
+                m_Hp = value;
+                HpChanged?.Invoke(this);
+            }
+        }
+
         /// <summary>护甲，每回合开始清零（壁垒 buff 可以拦住这次清零）。</summary>
-        public int Armor { get; set; }
+        public int Armor
+        {
+            get => m_Armor;
+            set
+            {
+                if (m_Armor == value)
+                {
+                    return;
+                }
+
+                m_Armor = value;
+                ArmorChanged?.Invoke(this);
+            }
+        }
 
         /// <summary>羁绊配对 id（0 = 无配对），同 id 的敌人互为羁绊对象。</summary>
         public int PairId => Definition.PairId;
@@ -180,6 +225,7 @@ namespace TurnCard.Game.Battle
                             Definition.IntentMode == Data.EnemyIntentMode.Sequence;
             if (sequence)
             {
+                RaiseIntentChanged();
                 return;
             }
 
@@ -191,6 +237,8 @@ namespace TurnCard.Game.Battle
                 m_Intents[i] = m_Intents[j];
                 m_Intents[j] = swap;
             }
+
+            RaiseIntentChanged();
         }
 
         /// <summary>取走队首招式（执行完之后调用）。</summary>
@@ -199,6 +247,7 @@ namespace TurnCard.Game.Battle
             if (m_Intents.Count > 0)
             {
                 m_Intents.RemoveAt(0);
+                RaiseIntentChanged();
             }
         }
 
@@ -401,6 +450,7 @@ namespace TurnCard.Game.Battle
                 m_Hand.RemoveAt(i);
                 m_DiscardPile.Add(card);
                 CardDiscarded?.Invoke(card);
+                RaiseChanged();
                 return;
             }
         }
@@ -554,6 +604,17 @@ namespace TurnCard.Game.Battle
         public void DebugSetEnergy(int value)
         {
             Energy = System.Math.Max(0, value);
+        }
+
+        /// <summary>
+        /// 任何会影响界面的数值变化都会触发这个事件（玩家/敌人生命、护甲、能量、buff、意图、手牌）。
+        /// UI 侧收到后只置脏位、帧末合并刷新，所以这里可以放心地"多抛"。
+        /// </summary>
+        public event System.Action Changed;
+
+        private void RaiseChanged()
+        {
+            Changed?.Invoke();
         }
 
         private int m_PlayerHp;
@@ -1002,6 +1063,7 @@ namespace TurnCard.Game.Battle
                 if (m_PlayerHp == value) return;
                 m_PlayerHp = value;
                 PlayerHpChanged?.Invoke(value);
+                RaiseChanged();
             }
         }
 
@@ -1014,6 +1076,7 @@ namespace TurnCard.Game.Battle
                 if (m_PlayerArmor == value) return;
                 m_PlayerArmor = value;
                 PlayerArmorChanged?.Invoke(value);
+                RaiseChanged();
             }
         }
 
@@ -1025,6 +1088,7 @@ namespace TurnCard.Game.Battle
                 if (m_Energy == value) return;
                 m_Energy = value;
                 EnergyChanged?.Invoke(value);
+                RaiseChanged();
             }
         }
         public bool IsPlayerTurn { get; private set; }
@@ -1093,7 +1157,15 @@ namespace TurnCard.Game.Battle
                 ApplyFormBuffs(instance);            // 怪物特性 = 初始 buff
                 instance.RefillIntents(IntentsFor(instance));
                 m_Enemies.Add(instance);
+
+                // 敌人身上的任何数值变化都上抛给 UI（响应式刷新的数据源）
+                instance.HpChanged += _ => RaiseChanged();
+                instance.ArmorChanged += _ => RaiseChanged();
+                instance.IntentChanged += _ => RaiseChanged();
+                instance.Buffs.Changed += _ => RaiseChanged();
             }
+
+            PlayerBuffs.Changed += _ => RaiseChanged();
 
             // 开幕特性：初始 buff 挂完之后跑一次（给玩家虚弱、给自己力量/荆棘等）
             foreach (EnemyInstance enemy in m_Enemies)
@@ -2368,6 +2440,8 @@ namespace TurnCard.Game.Battle
                 m_Hand.Add(card);
                 CardDrawn?.Invoke(card);
             }
+
+            RaiseChanged();
         }
 
         private void ReshuffleDiscardIntoDraw()
