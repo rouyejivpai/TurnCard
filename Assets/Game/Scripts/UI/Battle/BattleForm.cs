@@ -1831,6 +1831,9 @@ namespace Window.BattleForm
 
             int perHit = m_State.EnemyAttackPerHit(enemyView.Enemy);
             int hits = m_State.ConsumeEnemyHitCount(enemyView.Enemy);
+            UnityEngine.Debug.Log("[敌人攻击] " + enemyView.Enemy.Form.DisplayName
+                + " 意图=" + (enemyView.Enemy.CurrentIntent == null ? "-" : enemyView.Enemy.CurrentIntent.Id.ToString())
+                + " 每段=" + perHit + " 段数=" + hits);
             Vector3 popupAt = txtStatus.rectTransform.position + new Vector3(0f, 10f, 0f);
 
             for (int hit = 0; hit < hits; hit++)

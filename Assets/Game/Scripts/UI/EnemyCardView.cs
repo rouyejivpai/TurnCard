@@ -294,15 +294,33 @@ namespace TurnCard.Game.UI
             }
 
             // 数值预览：攻击意图显示经 buff 结算后的真实伤害（被修正时标红）。
-            // 多段攻击要保留 "值×段数" 的格式。
-            if (m_IntentPreviewValue.HasValue && intent.Intent == EnemyIntentType.Attack)
+            // 这里必须**实时**取当前意图的预览值：缓存的旧值会让换意图时短暂显示错数字。
+            if (intent.Intent == EnemyIntentType.Attack)
             {
-                m_IntentValue.text = intent.Hits > 1
-                    ? $"{m_IntentPreviewValue.Value}\u00d7{intent.Hits}"
-                    : m_IntentPreviewValue.Value.ToString();
-                if (m_IntentMarked)
+                BattleState liveState = CardPreviewSource.State;
+                if (liveState != null && Enemy != null)
                 {
-                    m_IntentValue.color = new Color(1f, 0.37f, 0.37f);
+                    BattleState.ValuePreview live = liveState.PreviewEnemyAttack(Enemy);
+                    m_IntentValue.text = intent.Hits > 1
+                        ? $"{live.Value}\u00d7{intent.Hits}"
+                        : live.Value.ToString();
+                    if (live.Modified)
+                    {
+                        m_IntentValue.color = new Color(1f, 0.37f, 0.37f);
+                    }
+
+                    m_IntentPreviewValue = live.Value;
+                    m_IntentMarked = live.Modified;
+                }
+                else if (m_IntentPreviewValue.HasValue)
+                {
+                    m_IntentValue.text = intent.Hits > 1
+                        ? $"{m_IntentPreviewValue.Value}\u00d7{intent.Hits}"
+                        : m_IntentPreviewValue.Value.ToString();
+                    if (m_IntentMarked)
+                    {
+                        m_IntentValue.color = new Color(1f, 0.37f, 0.37f);
+                    }
                 }
             }
 
