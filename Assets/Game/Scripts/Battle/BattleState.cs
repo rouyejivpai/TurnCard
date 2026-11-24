@@ -339,9 +339,13 @@ namespace TurnCard.Game.Battle
     /// </summary>
     public sealed class BattleState
     {
-        public const int MaxEnergy = 3;
-        public const int HandSize = 5;
-        public const int PlayerMaxHp = 80;
+        /// <summary>规则参数都在 Resources/Config/BattleRules.asset 里配（见 <see cref="BattleRules"/>）。</summary>
+        public static int MaxEnergy => BattleRules.Current.EnergyPerTurn;
+
+        /// <summary>额定手牌数：每回合补到这么多张。</summary>
+        public static int HandSize => BattleRules.Current.HandSize;
+
+        public static int PlayerMaxHp => BattleRules.Current.PlayerMaxHp;
 
         /// <summary>翻面请求的来源，仅用于调试与表现层区分。</summary>
         public enum FlipSource
@@ -2744,6 +2748,8 @@ namespace TurnCard.Game.Battle
 
         private void DrawUpTo(int targetHandSize)
         {
+            targetHandSize = Math.Min(targetHandSize, BattleRules.Current.MaxHandSize);
+
             while (m_Hand.Count < targetHandSize)
             {
                 if (m_DrawPile.Count == 0)

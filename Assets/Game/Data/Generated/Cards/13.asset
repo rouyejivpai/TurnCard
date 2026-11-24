@@ -25,11 +25,11 @@ MonoBehaviour:
   m_FrontParams: 
   m_FrontKeywords: 
   m_BackName: "\u56FE\u7A77\u5315\u73B0"
-  m_BackCost: 2
+  m_BackCost: 1
   m_BackType: 1
   m_BackDamage: 0
   m_BackArmor: 0
-  m_BackDescription: "\u4F7F\u7528\u76F8\u90BB\u5361\u724C\u7684\u6B63\u9762"
-  m_BackEffects: use_adjacent_front
+  m_BackDescription: "**\u7FFB\u9762**\u76F8\u90BB\u7684\u5361\u724C"
+  m_BackEffects: flip_adjacent
   m_BackParams: 
   m_BackKeywords: 
