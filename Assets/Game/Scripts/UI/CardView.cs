@@ -560,7 +560,12 @@ namespace TurnCard.Game.UI
                 return;
             }
 
-            face.DescriptionText.text = CardText.Format(ShownRawText, Card.Face, PreviewOptions());
+            // 用「正在显示的那一面」来解析，避免显示面与当前面不一致时数字串味
+            CardFace shownFace = Card != null ? Card.Definition.GetFace(m_ShownSide) : Card.Face;
+            CardText.FormatOptions shownOptions = m_ShownSide == Card.Side
+                ? PreviewOptions()
+                : CardPreviewSource.BuildOptions(shownFace);
+            face.DescriptionText.text = CardText.Format(ShownRawText, shownFace, shownOptions);
         }
 
         private void FillFace(FaceWidgets face, string displayName, string description,
