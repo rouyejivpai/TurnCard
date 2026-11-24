@@ -293,10 +293,13 @@ namespace TurnCard.Game.UI
                     break;
             }
 
-            // 数值预览：攻击意图显示经 buff 结算后的真实伤害（被修正时标红）
+            // 数值预览：攻击意图显示经 buff 结算后的真实伤害（被修正时标红）。
+            // 多段攻击要保留 "值×段数" 的格式。
             if (m_IntentPreviewValue.HasValue && intent.Intent == EnemyIntentType.Attack)
             {
-                m_IntentValue.text = m_IntentPreviewValue.Value.ToString();
+                m_IntentValue.text = intent.Hits > 1
+                    ? $"{m_IntentPreviewValue.Value}\u00d7{intent.Hits}"
+                    : m_IntentPreviewValue.Value.ToString();
                 if (m_IntentMarked)
                 {
                     m_IntentValue.color = new Color(1f, 0.37f, 0.37f);

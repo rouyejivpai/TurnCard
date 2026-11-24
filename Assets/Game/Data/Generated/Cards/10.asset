@@ -20,8 +20,8 @@ MonoBehaviour:
   m_FrontType: 0
   m_FrontDamage: 4
   m_FrontArmor: 0
-  m_FrontDescription: "\u9020\u6210 {total_damage} \u70B9\u4F24\u5BB3\uFF08\u6BCF\u5F20\u653B\u51FB\u724C
-    {demage} \u70B9\uFF09"
+  m_FrontDescription: "\u9020\u6210 {demage} \u70B9\u4F24\u5BB3\uFF08\u5171 {total_damage}
+    \u70B9\uFF09"
   m_FrontEffects: damage_per_attack:4
   m_FrontParams: demage=4
   m_FrontKeywords: 
@@ -30,7 +30,8 @@ MonoBehaviour:
   m_BackType: 1
   m_BackDamage: 0
   m_BackArmor: 3
-  m_BackDescription: "\u83B7\u5F97 {total_armor} \u70B9\u683C\u6321"
+  m_BackDescription: "\u83B7\u5F97 {armor} \u70B9\u683C\u6321\uFF08\u5171 {total_armor}
+    \u70B9\uFF09"
   m_BackEffects: armor_per_skill:3
   m_BackParams: armor=3
   m_BackKeywords: 
