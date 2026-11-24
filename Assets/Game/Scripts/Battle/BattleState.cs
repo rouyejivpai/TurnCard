@@ -722,8 +722,8 @@ namespace TurnCard.Game.Battle
             var active = new List<CardInstance>();
             foreach (CardInstance card in m_Hand)
             {
-                if (card != null && card.Side == CardFaceSide.Front &&
-                    card.Face.Type == CardType.Power)
+                // 当前面是能力牌就生效（能力面可能长在背面，比如「战斗怒火」）
+                if (card != null && card.Face.Type == CardType.Power)
                 {
                     active.Add(card);
                 }
@@ -1120,7 +1120,10 @@ namespace TurnCard.Game.Battle
         public ValuePreview PreviewPlayerDamage(Data.CardFace face, EnemyInstance target)
         {
             int baseValue = face.Damage;
-            int value = ApplyBuffModifiers(baseValue, "damage_dealt", PlayerBuffs);
+
+            // 力量（attack 修饰器）先加到基础伤害上，和 DamageEnemy 的算法保持一致
+            int value = baseValue + (int)PlayerBuffs.Flat("attack");
+            value = ApplyBuffModifiers(value, "damage_dealt", PlayerBuffs);
 
             if (target != null && !target.IsDead)
             {
@@ -1725,6 +1728,12 @@ namespace TurnCard.Game.Battle
                 m_Hand.RemoveAt(i);
                 m_DiscardPile.Add(card);
                 CardDiscarded?.Invoke(card);
+            }
+
+            // 一次性「保留」标记只对这一回合有效（关键词「保留」每回合都生效）
+            foreach (CardInstance kept in m_Hand)
+            {
+                kept.RetainedThisTurn = false;
             }
 
             // 玩家回合结束：只跑玩家自己的「回合结束」触发
@@ -2539,7 +2548,8 @@ namespace TurnCard.Game.Battle
                 return false;
             }
 
-            // 先过 buff：出牌方的伤害加成，以及挨打方的减伤/易伤
+            // 力量（attack）先加到基础伤害上，再算伤害加成与易伤 —— 与预览算法一致
+            amount += (int)PlayerBuffs.Flat("attack");
             amount = ApplyBuffModifiers(amount, "damage_dealt", PlayerBuffs);
             amount = ApplyBuffModifiers(amount, "damage_taken", enemy.Buffs, true);
             if (amount <= 0)

@@ -32,4 +32,4 @@ MonoBehaviour:
   m_BackDescription: "**\u4FDD\u7559**2\u70B9\u529B\u91CF"
   m_BackEffects: buff:2,2,-1,player;retain_self
   m_BackParams: 
-  m_BackKeywords: 
+  m_BackKeywords: "\u4FDD\u7559"
