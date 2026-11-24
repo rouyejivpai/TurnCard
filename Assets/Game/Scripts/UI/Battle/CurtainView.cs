@@ -20,6 +20,9 @@ namespace TurnCard.Game.UI
         [Tooltip("AnimatorController 里的状态名")]
         [SerializeField] private string m_StateName = "CurtainOpen";
 
+        [Tooltip("关幕用的状态名（同一个动画的反向 clip）")]
+        [SerializeField] private string m_CloseStateName = "CurtainClose";
+
         [Tooltip("播完把幕布压到最底层（不再盖住手牌/按钮）")]
         [SerializeField] private bool m_SendToBackWhenDone = true;
 
@@ -93,13 +96,13 @@ namespace TurnCard.Game.UI
             }
 
             AnimatorStateInfo info = m_Animator.GetCurrentAnimatorStateInfo(0);
-            if (info.IsName(m_StateName) == false)
+            string stateName = m_Reverse ? m_CloseStateName : m_StateName;
+            if (!info.IsName(stateName))
             {
                 return;
             }
 
-            bool done = m_Reverse ? info.normalizedTime <= 0f : info.normalizedTime >= 1f;
-            if (done && !m_Animator.IsInTransition(0))
+            if (info.normalizedTime >= 1f && !m_Animator.IsInTransition(0))
             {
                 Finish();
             }
@@ -146,7 +149,7 @@ namespace TurnCard.Game.UI
             m_Playing = true;
         }
 
-        /// <summary>倒放（闭幕）。</summary>
+        /// <summary>关幕：播同一个动画的反向 clip（Animator 不支持负 speed，所以单独做了一条反向动画）。</summary>
         public void PlayReverse()
         {
             m_Playing = false;
@@ -159,13 +162,13 @@ namespace TurnCard.Game.UI
 
             transform.SetAsLastSibling();
 
-            if (m_Animator == null || string.IsNullOrEmpty(m_StateName))
+            if (m_Animator == null || string.IsNullOrEmpty(m_CloseStateName))
             {
                 return;
             }
 
-            m_Animator.speed = -1f;
-            m_Animator.Play(m_StateName, 0, 1f);
+            m_Animator.speed = 1f;
+            m_Animator.Play(m_CloseStateName, 0, 0f);
             m_Animator.Update(0f);
             m_Playing = true;
         }
@@ -199,6 +202,18 @@ namespace TurnCard.Game.UI
                 if (s_Instances[i] != null)
                 {
                     s_Instances[i].CloseImmediate();
+                }
+            }
+        }
+
+        /// <summary>用开幕动画的倒放来「关幕」：所有幕布一起倒着播回第 0 帧。</summary>
+        public static void PlayReverseAll()
+        {
+            for (int i = 0; i < s_Instances.Count; i++)
+            {
+                if (s_Instances[i] != null)
+                {
+                    s_Instances[i].PlayReverse();
                 }
             }
         }

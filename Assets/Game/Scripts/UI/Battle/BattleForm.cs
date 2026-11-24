@@ -625,6 +625,9 @@ namespace Window.BattleForm
 
             state.BattleEnded += victory =>
             {
+                // 战斗结束：用开幕动画的倒放当作「关幕」
+                CurtainView.PlayReverseAll();
+
                 if (victory)
                 {
                     // 胜利不再弹结果面板，交给舞台区走「宝箱 → 选卡 → 路线」
