@@ -15,12 +15,12 @@ MonoBehaviour:
   m_Id: 10
   m_Name: 
   m_DisplayName: "\u5438\u6536"
-  m_Description: "\u672C\u56DE\u5408\u5438\u6536\u53D7\u5230\u7684\u6240\u6709\u4F24\u5BB3"
+  m_Description: "\u672C\u56DE\u5408\u53D7\u5230\u7684\u4F24\u5BB3\u53D8\u4E3A 0\uFF0C\u5E76\u6309\u539F\u4F24\u5BB3\u79EF\u7D2F\u300C\u5438\u6536\u53CD\u566C\u300D\u5C42\u6570"
   m_Icon: buff_absorb
   m_StackRule: 1
   m_Consume: 0
   m_MaxStacks: 1
-  m_Modifier: damage_taken:*0
+  m_Modifier: 
   m_Trigger: 0
   m_TriggerAction: 0
   m_TriggerCount: 0

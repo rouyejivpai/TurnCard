@@ -2482,6 +2482,15 @@ namespace Window.BattleForm
 
             enemyRect.DOKill();
             enemyRect.DOShakePosition(0.28f, 14f, 12, 90f, false, true);
+
+            // 0 伤害 = 被「吸收」吃掉了：弹「吸收」而不是「-0」
+            if (damage <= 0)
+            {
+                PopDamage(enemyRect.position + new Vector3(0f, 40f, 0f), "吸收",
+                    new Color(0.62f, 0.86f, 1f));
+                return;
+            }
+
             PopDamage(enemyRect.position + new Vector3(0f, 40f, 0f), "-" + damage,
                 new Color(1f, 0.55f, 0.45f));
         }

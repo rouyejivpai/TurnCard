@@ -1676,10 +1676,18 @@ namespace TurnCard.Game.Battle
                     continue;
                 }
 
-                int absorbed = enemy.AbsorbedThisTurn;
+                // 层数就是本回合吸收的总伤害（每次受击时累加）
+                BuffInstance backlash = enemy.Buffs.Find(BuffAbsorbBacklash);
+                int absorbed = backlash != null ? backlash.Stacks : enemy.AbsorbedThisTurn;
+
+                if (backlash != null)
+                {
+                    enemy.Buffs.Remove(backlash);
+                }
+
                 enemy.AbsorbedThisTurn = 0;
 
-                if (absorbed <= 0 || !enemy.Buffs.Has(BuffAbsorbBacklash) || strengthDown == null)
+                if (absorbed <= 0 || strengthDown == null)
                 {
                     continue;
                 }
@@ -2504,10 +2512,30 @@ namespace TurnCard.Game.Battle
                 return false;
             }
 
-            // 「吸收」：这一下完全吃掉，并记进本回合的吸收量（贤者的吸收反噬要用）
+            // 「吸收」：重写这次受击 —— 实际只吃 0 点伤害，
+            // 但「原伤害」要记成层数（吸收反噬据此换算下回合的力量流失），
+            // 并且**仍然产生一次命中**，否则表现层看不到弹道和撞击反馈。
             if (enemy.Buffs.Has(BuffAbsorb))
             {
-                enemy.AbsorbedThisTurn += amount;
+                int absorbed = amount;
+                enemy.AbsorbedThisTurn += absorbed;
+
+                BuffDefinition backlash = FindBuff(BuffAbsorbBacklash);
+                if (backlash != null)
+                {
+                    enemy.Buffs.Add(backlash, absorbed, -1);
+                }
+
+                if (m_DeferDamage)
+                {
+                    m_Pending.Add(new PendingHit(enemy, 0,
+                        m_InstantPhase ? HitOrigin.Instant : HitOrigin.Play, m_ExecutingCard));
+                }
+                else
+                {
+                    DamageApplied?.Invoke(enemy, 0);
+                }
+
                 return false;
             }
 

@@ -18,7 +18,7 @@ MonoBehaviour:
   m_FlipHpRatio: 1
   m_IntentMode: 0
   m_FrontBuffs: 
-  m_BackBuffs: 10;29
+  m_BackBuffs: 10
   m_FrontArmor: 0
   m_BackArmor: 0
   m_FrontName: "\u6301\u5251\u8D24\u8005"
