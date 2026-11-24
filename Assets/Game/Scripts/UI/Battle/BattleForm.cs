@@ -73,6 +73,12 @@ namespace Window.BattleForm
         /// <summary>开幕/关幕协程。</summary>
         private Coroutine m_BattleIntro;
 
+        /// <summary>数值预览需要重刷（同一帧多次事件只刷一次）。</summary>
+        private bool m_PreviewDirty;
+
+        /// <summary>拖牌时指着的目标：手牌上的伤害预览按这个敌人的易伤重算。</summary>
+        private EnemyInstance m_HoverTarget;
+
         /// <summary>选择模式：等玩家选一张手牌并点确认。</summary>
         /// <summary>正在播放的翻面动画数量（同牌串行、跨牌并行）。</summary>
         private int m_FlipAnimating;
@@ -575,6 +581,15 @@ namespace Window.BattleForm
             m_State.Setup(deck, lineup);
             UnityEngine.Debug.Log("[战斗] 4 Setup 完成");
 
+            // 敌人的 buff 变化同样会影响意图数值的显示
+            foreach (EnemyInstance enemy in m_State.Enemies)
+            {
+                if (enemy != null)
+                {
+                    enemy.Buffs.Changed += _ => MarkPreviewDirty();
+                }
+            }
+
             BuildEnemyArea();
             UnityEngine.Debug.Log("[战斗] 5 敌人区完成");
 
@@ -590,6 +605,9 @@ namespace Window.BattleForm
 
             RefreshHud();
             UnityEngine.Debug.Log("[战斗] 9 刷新完成");
+
+            // 手牌与敌人卡刚建好，先把数值预览刷一遍
+            RefreshAllPreviews();
         }
 
         /// <summary>战斗状态退出时的清场：手牌、敌人卡、buff 条、结算文字、舞台全部复位。</summary>
@@ -655,12 +673,70 @@ namespace Window.BattleForm
             m_CostFreeShown = false;
         }
 
+        private void Update()
+        {
+            if (!m_PreviewDirty || m_State == null)
+            {
+                return;
+            }
+
+            m_PreviewDirty = false;
+            RefreshAllPreviews();
+        }
+
+        /// <summary>
+        /// 把所有「受 buff 影响的数值」刷成真实值：
+        /// 手牌上的 {damage}/{armor}，以及敌人意图的伤害数字。
+        /// 拖牌指着某个目标时，手牌伤害按该目标的易伤重算。
+        /// </summary>
+        public void RefreshAllPreviews()
+        {
+            if (m_State == null)
+            {
+                return;
+            }
+
+            for (int i = m_HandViews.Count - 1; i >= 0; i--)
+            {
+                CardView view = m_HandViews[i];
+                if (view == null)
+                {
+                    m_HandViews.RemoveAt(i);
+                    continue;
+                }
+
+                CardFace face = view.Card.Face;
+                BattleState.ValuePreview damage = m_State.PreviewPlayerDamage(face, m_HoverTarget);
+                BattleState.ValuePreview armor = m_State.PreviewPlayerArmor(face);
+                view.SetValuePreview(damage.Value, armor.Value, damage.Modified || armor.Modified);
+            }
+
+            foreach (EnemyCardView view in m_EnemyCardViews)
+            {
+                if (view == null || view.Enemy == null)
+                {
+                    continue;
+                }
+
+                BattleState.ValuePreview attack = m_State.PreviewEnemyAttack(view.Enemy);
+                view.SetIntentPreview(attack.Value, attack.Modified);
+            }
+        }
+
+        private void MarkPreviewDirty()
+        {
+            m_PreviewDirty = true;
+        }
+
         /// <summary>
         /// 订阅战斗状态事件。UI 只通过事件被动刷新，
         /// 不主动去「猜」状态什么时候变了。
         /// </summary>
         private void HookState(BattleState state)
         {
+            // 任何 buff 变化都可能改变显示数值 → 标记数值预览需要重刷
+            state.PlayerBuffs.Changed += _ => MarkPreviewDirty();
+
             state.DamageApplied += (enemy, amount) =>
             {
                 m_LastHitEnemy = enemy;
@@ -669,10 +745,11 @@ namespace Window.BattleForm
                 // 伤害一落地就把**所有**血条刷一遍：
                 // 单刷新被打的那张，在连击/瞬发/翻面继承等情况下会和实际血量差一拍。
                 RefreshAllHpBars();
+                MarkPreviewDirty();
             };
-            state.PlayerHpChanged += _ => RefreshHud();
-            state.PlayerArmorChanged += _ => RefreshHud();
-            state.EnergyChanged += _ => RefreshHud();
+            state.PlayerHpChanged += _ => { RefreshHud(); MarkPreviewDirty(); };
+            state.PlayerArmorChanged += _ => { RefreshHud(); MarkPreviewDirty(); };
+            state.EnergyChanged += _ => { RefreshHud(); MarkPreviewDirty(); };
 
             // 抽牌只标脏，帧末统一重建一次。
             // 逐张重建会让手牌视图反复销毁/创建（抽 5 张要重建 5 次），
@@ -682,7 +759,12 @@ namespace Window.BattleForm
             // 弃牌：不再整手重建，而是把被弃的那张飞向弃牌堆再销毁，
             // 否则视图会在动画开始前就被重建掉，看起来像「瞬间消失」。
             state.CardDiscarded += PlayDiscardAnimation;
-            state.TurnStarted += _ => BuildHand();
+            state.CardDiscarded += _ => MarkPreviewDirty();
+            state.TurnStarted += _ =>
+            {
+                BuildHand();
+                MarkPreviewDirty();
+            };
 
             state.EnemyFlipped += enemy =>
             {
@@ -1084,6 +1166,14 @@ namespace Window.BattleForm
                 }
             }
 
+            // 指着某个敌人时，手牌伤害按这个目标的易伤重算
+            EnemyInstance hoveredEnemy = hovered != null && !hovered.Enemy.IsDead ? hovered.Enemy : null;
+            if (!ReferenceEquals(hoveredEnemy, m_HoverTarget))
+            {
+                m_HoverTarget = hoveredEnemy;
+                MarkPreviewDirty();
+            }
+
             if (m_Busy)
             {
                 HideArrow();
@@ -1111,6 +1201,13 @@ namespace Window.BattleForm
             }
 
             HideArrow();
+
+            // 松手后不再对着某个目标，手牌恢复成只算玩家自身 buff 的数值
+            if (m_HoverTarget != null)
+            {
+                m_HoverTarget = null;
+                MarkPreviewDirty();
+            }
 
             EnemyCardView hovered = ViewUnder(eventData.position);
             if (hovered != null && !hovered.Enemy.IsDead && !m_Busy)

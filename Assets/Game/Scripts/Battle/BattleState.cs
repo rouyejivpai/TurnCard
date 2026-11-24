@@ -687,6 +687,75 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>
+        /// 数值预览：把「这张牌现在打出去会是多少」算出来给界面显示。
+        /// 和结算走同一套 <see cref="ApplyBuffModifiers"/>，所以显示值和实际值不会打架。
+        /// </summary>
+        public readonly struct ValuePreview
+        {
+            public ValuePreview(int value, int baseValue)
+            {
+                Value = value;
+                BaseValue = baseValue;
+            }
+
+            public int Value { get; }
+            public int BaseValue { get; }
+
+            /// <summary>和卡面原值不同（界面据此标红）。</summary>
+            public bool Modified => Value != BaseValue;
+        }
+
+        /// <summary>这张牌打出去的实际伤害；给了 target 就把目标的易伤也算进去。</summary>
+        public ValuePreview PreviewPlayerDamage(Data.CardFace face, EnemyInstance target)
+        {
+            int baseValue = face.Damage;
+            int value = ApplyBuffModifiers(baseValue, "damage_dealt", PlayerBuffs);
+
+            if (target != null && !target.IsDead)
+            {
+                // 目标侧的减伤/易伤（预览不能消耗层数）
+                value = ApplyBuffModifiers(value, "damage_taken", target.Buffs);
+            }
+
+            return new ValuePreview(value, baseValue);
+        }
+
+        /// <summary>这张牌打出去的护甲（目前没有护甲类 buff，预留同样的接口）。</summary>
+        public ValuePreview PreviewPlayerArmor(Data.CardFace face)
+        {
+            int baseValue = face.Armor;
+            int value = ApplyBuffModifiers(baseValue, "armor_dealt", PlayerBuffs);
+            return new ValuePreview(value, baseValue);
+        }
+
+        /// <summary>敌人这一招打在玩家身上的实际伤害（含敌人攻击加成与玩家易伤/减伤）。</summary>
+        public ValuePreview PreviewEnemyAttack(EnemyInstance enemy)
+        {
+            if (enemy == null || enemy.CurrentIntent == null)
+            {
+                return new ValuePreview(0, 0);
+            }
+
+            int baseValue = enemy.CurrentIntent.Value;
+            int value = ApplyBuffModifiers(baseValue + enemy.AttackBonus,
+                "damage_dealt", enemy.Buffs);
+            value = ApplyBuffModifiers(value, "damage_taken", PlayerBuffs);
+            return new ValuePreview(value, baseValue);
+        }
+
+        /// <summary>敌人这一招会获得多少护甲。</summary>
+        public ValuePreview PreviewEnemyArmor(EnemyInstance enemy)
+        {
+            if (enemy == null || enemy.CurrentIntent == null)
+            {
+                return new ValuePreview(0, 0);
+            }
+
+            int baseValue = enemy.CurrentIntent.Value;
+            return new ValuePreview(baseValue, baseValue);
+        }
+
+        /// <summary>
         /// 按某个 stat 的修饰器修正数值：先叠加 + / -，再乘以 * 系数。
         /// <paramref name="consume"/> 为真时，参与结算的按次数消耗 buff 会掉一层。
         /// </summary>

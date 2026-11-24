@@ -43,6 +43,9 @@ namespace TurnCard.Game.UI
         [SerializeField] private Image m_ExtraIntentIcon;
         [SerializeField] private TextMeshProUGUI m_ExtraIntentValue;
 
+        /// <summary>意图数值的预览覆盖（null = 用招式原值）。</summary>
+        private int? m_IntentPreviewValue;
+
         [Header("血量横幅")]
         [SerializeField] private RectTransform m_HpClip;
         [SerializeField] private Image m_HpFill;
@@ -290,7 +293,33 @@ namespace TurnCard.Game.UI
                     break;
             }
 
+            // 数值预览：攻击意图显示经 buff 结算后的真实伤害（被修正时标红）
+            if (m_IntentPreviewValue.HasValue && intent.Intent == EnemyIntentType.Attack)
+            {
+                m_IntentValue.text = m_IntentPreviewValue.Value.ToString();
+                if (m_IntentMarked)
+                {
+                    m_IntentValue.color = new Color(1f, 0.37f, 0.37f);
+                }
+            }
+
             RefreshExtraIntent(intent);
+        }
+
+        private bool m_IntentMarked;
+
+
+        /// <summary>数值预览：意图数值按 buff 结算后的真实值显示（被修正时标红）。</summary>
+        public void SetIntentPreview(int value, bool marked)
+        {
+            if (m_IntentPreviewValue == value && m_IntentMarked == marked)
+            {
+                return;
+            }
+
+            m_IntentPreviewValue = value;
+            m_IntentMarked = marked;
+            RefreshIntent();
         }
 
         /// <summary>

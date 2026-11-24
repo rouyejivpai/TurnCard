@@ -25,8 +25,29 @@ namespace TurnCard.Game
         public const string TagBoldOpen = "<b>";
         public const string TagBoldClose = "</b>";
 
+        /// <summary>被 buff 修正过的数值用这个颜色标出来。</summary>
+        public const string ModifiedColor = "#FF5F5F";
+
+        /// <summary>
+        /// 数值预览：把 {damage}/{armor} 换成经过 buff 结算后的真实值。
+        /// <see cref="MarkModified"/> 为真时，和卡面原值不同的数字会被染成
+        /// <see cref="ModifiedColor"/>。
+        /// </summary>
+        public struct FormatOptions
+        {
+            public int? Damage;
+            public int? Armor;
+            public bool MarkModified;
+        }
+
         /// <summary>把带标记的原始文本转成 TMP 富文本。</summary>
         public static string Format(string raw, CardFace face)
+        {
+            return Format(raw, face, default(FormatOptions));
+        }
+
+        /// <summary>带数值预览的格式化。</summary>
+        public static string Format(string raw, CardFace face, FormatOptions options)
         {
             if (string.IsNullOrEmpty(raw))
             {
@@ -47,7 +68,7 @@ namespace TurnCard.Game
                     {
                         string bold = raw.Substring(i + BoldPrefix.Length,
                             end - i - BoldPrefix.Length);
-                        builder.Append("<b>").Append(ResolveAll(bold, face)).Append("</b>");
+                        builder.Append("<b>").Append(ResolveAll(bold, face, options)).Append("</b>");
                         i = end + BoldPrefix.Length;
                         continue;
                     }
@@ -62,7 +83,7 @@ namespace TurnCard.Game
                     {
                         string bold = raw.Substring(i + LegacyBoldPrefix.Length,
                             end - i - LegacyBoldPrefix.Length);
-                        builder.Append("<b>").Append(ResolveAll(bold, face)).Append("</b>");
+                        builder.Append("<b>").Append(ResolveAll(bold, face, options)).Append("</b>");
                         i = end + LegacyBoldSuffix.Length;
                         continue;
                     }
@@ -77,7 +98,7 @@ namespace TurnCard.Game
                     {
                         string bold = raw.Substring(i + TagBoldOpen.Length,
                             end - i - TagBoldOpen.Length);
-                        builder.Append("<b>").Append(ResolveAll(bold, face)).Append("</b>");
+                        builder.Append("<b>").Append(ResolveAll(bold, face, options)).Append("</b>");
                         i = end + TagBoldClose.Length;
                         continue;
                     }
@@ -90,7 +111,7 @@ namespace TurnCard.Game
                     if (end > i)
                     {
                         string flavor = raw.Substring(i + 1, end - i - 1);
-                        builder.Append("<i>").Append(ResolveAll(flavor, face)).Append("</i>");
+                        builder.Append("<i>").Append(ResolveAll(flavor, face, options)).Append("</i>");
                         i = end + 1;
                         continue;
                     }
@@ -108,7 +129,7 @@ namespace TurnCard.Game
                     if (end > i)
                     {
                         string token = raw.Substring(i + 1, end - i - 1).Trim();
-                        builder.Append(Resolve(token, face));
+                        builder.Append(Resolve(token, face, options));
                         i = end + 1;
                         continue;
                     }
@@ -258,7 +279,7 @@ namespace TurnCard.Game
         }
 
         /// <summary>把一段文字里的占位符全部替换掉。</summary>
-        private static string ResolveAll(string text, CardFace face)
+        private static string ResolveAll(string text, CardFace face, FormatOptions options)
         {
             if (text.IndexOf('{') < 0)
             {
@@ -274,7 +295,7 @@ namespace TurnCard.Game
                     int end = text.IndexOf('}', i + 1);
                     if (end > i)
                     {
-                        builder.Append(Resolve(text.Substring(i + 1, end - i - 1).Trim(), face));
+                        builder.Append(Resolve(text.Substring(i + 1, end - i - 1).Trim(), face, options));
                         i = end + 1;
                         continue;
                     }
@@ -287,7 +308,7 @@ namespace TurnCard.Game
             return builder.ToString();
         }
 
-        private static string Resolve(string token, CardFace face)
+        private static string Resolve(string token, CardFace face, FormatOptions options)
         {
             switch (token)
             {
@@ -295,10 +316,14 @@ namespace TurnCard.Game
                     return face.DisplayName;
                 case "cost":
                     return face.Cost.ToString();
+
                 case "damage":
-                    return face.Damage.ToString();
+                case "dmg":
+                case "demage":     // 表格里历史遗留的拼写，含义与 damage 相同
+                    return Preview(face.Damage, options.Damage, options.MarkModified);
+
                 case "armor":
-                    return face.Armor.ToString();
+                    return Preview(face.Armor, options.Armor, options.MarkModified);
             }
 
             if (face.Params != null && face.Params.TryGetValue(token, out string value))
@@ -308,6 +333,23 @@ namespace TurnCard.Game
 
             // 解析不到就原样保留，方便在界面上发现问题
             return "{" + token + "}";
+        }
+
+        /// <summary>预览值：和原值不同时染色，避免玩家以为数字是固定的。</summary>
+        private static string Preview(int baseValue, int? preview, bool markModified)
+        {
+            if (!preview.HasValue)
+            {
+                return baseValue.ToString();
+            }
+
+            string text = preview.Value.ToString();
+            if (markModified && preview.Value != baseValue)
+            {
+                return "<color=" + ModifiedColor + ">" + text + "</color>";
+            }
+
+            return text;
         }
 
         private static bool StartsWith(string text, int index, string value)

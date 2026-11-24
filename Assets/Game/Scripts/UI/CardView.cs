@@ -102,6 +102,11 @@ namespace TurnCard.Game.UI
         /// <summary>显示用的费用覆盖（贪婪免费额度）；null = 用卡面原始费用。</summary>
         private int? m_CostOverride;
 
+        // 数值预览：{damage}/{armor} 显示成经过 buff 结算后的真实值
+        private int? m_PreviewDamage;
+        private int? m_PreviewArmor;
+        private bool m_PreviewMark;
+
         private static Material s_GlowMaterial;
 
         /// <summary>描边材质资产（Resources 下，保证 shader 不被打包剔除）。</summary>
@@ -475,7 +480,52 @@ namespace TurnCard.Game.UI
             FillFace(m_BackFace, backName, backDesc, backCost, backType, backBg, backData);
         }
 
-        private static void FillFace(FaceWidgets face, string displayName, string description,
+        /// <summary>当前预览选项（没设置时就是卡面原值）。</summary>
+        private CardText.FormatOptions PreviewOptions()
+        {
+            return new CardText.FormatOptions
+            {
+                Damage = m_PreviewDamage,
+                Armor = m_PreviewArmor,
+                MarkModified = m_PreviewMark,
+            };
+        }
+
+        /// <summary>
+        /// 设置数值预览（经 buff 结算后的真实伤害/护甲）。
+        /// 传 null 表示该数值没有预览，用卡面原值。
+        /// </summary>
+        public void SetValuePreview(int? damage, int? armor, bool markModified)
+        {
+            if (m_PreviewDamage == damage && m_PreviewArmor == armor && m_PreviewMark == markModified)
+            {
+                return;
+            }
+
+            m_PreviewDamage = damage;
+            m_PreviewArmor = armor;
+            m_PreviewMark = markModified;
+            RefreshDescription();
+        }
+
+        /// <summary>只重刷当前显示那一面的描述文本（预览变化时用，不重排整张卡）。</summary>
+        private void RefreshDescription()
+        {
+            if (Card == null)
+            {
+                return;
+            }
+
+            FaceWidgets face = m_ShownSide == CardFaceSide.Back ? m_BackFace : m_FrontFace;
+            if (face == null || face.DescriptionText == null)
+            {
+                return;
+            }
+
+            face.DescriptionText.text = CardText.Format(ShownRawText, Card.Face, PreviewOptions());
+        }
+
+        private void FillFace(FaceWidgets face, string displayName, string description,
             int cost, CardType? type, Color background, CardFace? data)
         {
             if (face == null)
@@ -485,7 +535,7 @@ namespace TurnCard.Game.UI
 
             // 有卡面数据时走标记解析：[[关键词]] → 粗体、*文字* → 斜体、{damage} → 实时数值
             string formatted = data.HasValue
-                ? CardText.Format(description, data.Value)
+                ? CardText.Format(description, data.Value, PreviewOptions())
                 : description ?? string.Empty;
 
             if (face.NameText != null) face.NameText.text = displayName ?? string.Empty;
