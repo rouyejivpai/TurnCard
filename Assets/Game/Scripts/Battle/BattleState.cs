@@ -780,6 +780,32 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>
+        /// 相邻牌效果（use_adjacent_*）的嵌套深度。
+        /// 两张「暗藏杀意」相邻时会互相使用对方的背面/正面，形成无限递归，
+        /// 所以同一条结算链里只允许最外层那一张生效。
+        /// </summary>
+        private int m_AdjacentUseDepth;
+
+        /// <summary>当前是否允许执行「使用相邻牌」的效果（嵌套层不生效）。</summary>
+        public bool CanUseAdjacent => m_AdjacentUseDepth == 0;
+
+        public void BeginAdjacentUse()
+        {
+            m_AdjacentUseDepth++;
+        }
+
+        public void EndAdjacentUse()
+        {
+            m_AdjacentUseDepth = Math.Max(0, m_AdjacentUseDepth - 1);
+        }
+
+        /// <summary>这张牌现在还在手牌里吗（防止效果执行期间被弃掉/挪走）。</summary>
+        public bool IsInHand(CardInstance card)
+        {
+            return card != null && m_Hand.Contains(card);
+        }
+
+        /// <summary>
         /// 形态能力作用域深度 > 0 时，期间新加的 buff 一律算「形态能力」
         /// （开幕壁垒、嗜血给的自愈…都归属于那一面，翻面要一起消失）。
         /// </summary>

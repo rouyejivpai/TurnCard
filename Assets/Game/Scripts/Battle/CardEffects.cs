@@ -670,6 +670,13 @@ namespace TurnCard.Game.Battle
 
             public void Apply(CardEffectContext context, string[] args)
             {
+                // 被别的牌「使用」时不再连锁使用相邻牌：
+                // 否则两张暗藏杀意相邻会互相使用对方，无限递归直接栈溢出。
+                if (!context.State.CanUseAdjacent)
+                {
+                    return;
+                }
+
                 IReadOnlyList<CardInstance> hand = context.State.Hand;
                 int index = IndexOf(hand, context.Card);
                 if (index < 0)
@@ -681,13 +688,27 @@ namespace TurnCard.Game.Battle
                 CardInstance left = index - 1 >= 0 && index - 1 < hand.Count ? hand[index - 1] : null;
                 CardInstance right = index + 1 >= 0 && index + 1 < hand.Count ? hand[index + 1] : null;
 
-                UseFaceAt(context, left);
-                UseFaceAt(context, right);
+                context.State.BeginAdjacentUse();
+                try
+                {
+                    UseFaceAt(context, left);
+                    UseFaceAt(context, right);
+                }
+                finally
+                {
+                    context.State.EndAdjacentUse();
+                }
             }
 
             private void UseFaceAt(CardEffectContext context, CardInstance neighbour)
             {
                 if (neighbour == null || ReferenceEquals(neighbour, context.Card))
+                {
+                    return;
+                }
+
+                // 已经被前面的效果弃掉 / 挪走就不再结算
+                if (!context.State.IsInHand(neighbour))
                 {
                     return;
                 }
