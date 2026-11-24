@@ -128,8 +128,10 @@ namespace TurnCard.Game.UI
                 m_Animator.speed = 1f;
             }
 
-            // 幕布拉开后露出的边角不该盖住手牌和按钮
-            if (m_SendToBackWhenDone)
+            // 只有「开幕播完」才退到最底层（剩下的边角不该挡手牌/按钮）。
+            // 关幕播完必须留在最上层：它就是战斗开始时那层遮挡，退下去会被背景盖住，
+            // 看起来就像幕布消失了一下。
+            if (m_SendToBackWhenDone && !wasClosing)
             {
                 transform.SetAsFirstSibling();
             }
