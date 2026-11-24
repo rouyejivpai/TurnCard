@@ -624,11 +624,17 @@ namespace TurnCard.Game.Battle
         /// 所以开幕效果（一次性，不挂 buff）也复用它。
         /// </summary>
         private void ExecuteBuffTrigger(Data.BuffDefinition definition, int stacks,
-            EnemyInstance enemyOwner, CardInstance self, EnemyInstance target)
+            EnemyInstance enemyOwner, CardInstance self, EnemyInstance target,
+            bool formBound = false)
         {
             if (definition == null)
             {
                 return;
+            }
+
+            if (formBound)
+            {
+                m_FormBoundDepth++;
             }
 
             switch (definition.TriggerAction)
@@ -687,8 +693,18 @@ namespace TurnCard.Game.Battle
             finally
             {
                 m_DeferDamage = false;
+                if (formBound)
+                {
+                    m_FormBoundDepth--;
+                }
             }
         }
+
+        /// <summary>
+        /// 形态能力作用域深度 > 0 时，期间新加的 buff 一律算「形态能力」
+        /// （开幕壁垒、嗜血给的自愈…都归属于那一面，翻面要一起消失）。
+        /// </summary>
+        private int m_FormBoundDepth;
 
         /// <summary>
         /// 当前正在执行效果的卡：出牌 / 翻面瞬发 / 相邻牌效果都会设置。
@@ -936,7 +952,11 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>给玩家或敌人施加 buff（卡牌效果、意图、脚本都走这里）。</summary>
-        public void ApplyBuff(BuffContainer target, int buffId, int stacks, int turns)
+        /// <param name="formBound">
+        /// 是否是「形态能力」：只在当前这一面朝上时存在，翻面时会被换成新面的能力。
+        /// </param>
+        public void ApplyBuff(BuffContainer target, int buffId, int stacks, int turns,
+            bool formBound = false)
         {
             BuffDefinition def = FindBuff(buffId);
             if (def == null || target == null)
@@ -945,6 +965,15 @@ namespace TurnCard.Game.Battle
             }
 
             target.Add(def, Math.Max(1, stacks), turns);
+
+            if (formBound || m_FormBoundDepth > 0)
+            {
+                BuffInstance added = target.Find(buffId);
+                if (added != null)
+                {
+                    added.FormBound = true;
+                }
+            }
         }
 
         /// <summary>
@@ -1189,7 +1218,7 @@ namespace TurnCard.Game.Battle
                     continue;
                 }
 
-                ExecuteBuffTrigger(buff.Definition, buff.Stacks, enemyOwner, self, target);
+                ExecuteBuffTrigger(buff.Definition, buff.Stacks, enemyOwner, self, target, buff.FormBound);
 
                 if (buff.Definition.Consume == Data.BuffConsume.Count)
                 {
@@ -1938,14 +1967,13 @@ namespace TurnCard.Game.Battle
                 return;
             }
 
-            if (!enemy.Definition.Twin)
-            {
-                enemy.Buffs.Clear();
-                ApplyFormBuffs(enemy);
+            // 形态能力只属于当前面：换面时把旧面的能力摘掉、挂上新面的能力，
+            // 战斗中获得的普通 buff（虚弱/易伤/力量…）保留不动。
+            enemy.Buffs.RemoveFormBound();
+            ApplyFormBuffs(enemy);
 
-                // 反面自己的「开幕」特性：换面即生效（例如呼啸山庄的开幕力量+荆棘）
-                RunTriggers(enemy.Buffs, Data.BuffTrigger.BattleStart, null, enemy);
-            }
+            // 新形态自己的「开幕」特性：换面即生效（例如呼啸山庄的开幕力量+荆棘）
+            RunTriggers(enemy.Buffs, Data.BuffTrigger.BattleStart, null, enemy);
 
             enemy.RefillIntents(IntentsFor(enemy));
             EnemyFlipped?.Invoke(enemy);
@@ -2004,11 +2032,11 @@ namespace TurnCard.Game.Battle
                 {
                     // 开幕效果：一次性执行，不留在 buff 容器里
                     // （常驻的话会被双生共享，也会在 buff 栏里占一个图标）
-                    ExecuteBuffTrigger(definition, stacks, enemy, null, PickRandomAliveEnemy());
+                    ExecuteBuffTrigger(definition, stacks, enemy, null, PickRandomAliveEnemy(), true);
                     continue;
                 }
 
-                ApplyBuff(enemy.Buffs, buffId, stacks, turns);
+                ApplyBuff(enemy.Buffs, buffId, stacks, turns, true);
             }
         }
 

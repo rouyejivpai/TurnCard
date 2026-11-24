@@ -24,6 +24,12 @@ namespace TurnCard.Game.Battle
         public int Remaining { get; set; }
 
         /// <summary>
+        /// 形态能力：来自敌人的 frontBuffs/backBuffs，只在对应那一面朝上时存在。
+        /// 翻面时会被清掉并换成新面的能力，而战斗中获得的普通 buff（虚弱/易伤/力量…）会保留。
+        /// </summary>
+        public bool FormBound { get; set; }
+
+        /// <summary>
         /// 这一层是刚挂上的：第一次衰减要跳过，否则「回合开始掉层」会把本回合刚施加的
         /// 虚弱/易伤立刻抹掉（开幕效果、出牌施加的 debuff 都会踩到）。
         /// </summary>
@@ -140,6 +146,25 @@ namespace TurnCard.Game.Battle
 
             m_Buffs.Clear();
             Raise();
+        }
+
+        /// <summary>移除所有「形态能力」（翻面时用），普通 buff 保留。</summary>
+        public void RemoveFormBound()
+        {
+            bool dirty = false;
+            for (int i = m_Buffs.Count - 1; i >= 0; i--)
+            {
+                if (m_Buffs[i] != null && m_Buffs[i].FormBound)
+                {
+                    m_Buffs.RemoveAt(i);
+                    dirty = true;
+                }
+            }
+
+            if (dirty)
+            {
+                Raise();
+            }
         }
 
         /// <summary>收集某个触发时机的 buff。</summary>
