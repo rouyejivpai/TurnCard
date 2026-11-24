@@ -69,6 +69,7 @@ namespace TurnCard.Game.UI
 
         private readonly Queue<QueuedFlip> m_FlipQueue = new Queue<QueuedFlip>();
         private Tween m_FlipTween;
+        private Tween m_AttackTween;
         private BuffIconStrip m_BuffStrip;
         private float m_BaseScale = 1f;
         private float m_BodyBaseScale = 1f;
@@ -475,6 +476,45 @@ namespace TurnCard.Game.UI
         public void SetHighlight(bool highlighted)
         {
             transform.localScale = Vector3.one * (m_BaseScale * (highlighted ? 1.04f : 1f));
+        }
+
+        /// <summary>
+        /// 敌人攻击动作：先轻微上抬蓄力，再向下轻撞，然后回位。
+        /// 撞击那一下回调 <paramref name="onImpact"/>，调用方在那里结算这一段伤害。
+        /// </summary>
+        public void PlayAttack(Action onImpact = null, float chargeHeight = 16f,
+            float slamHeight = 12f, float chargeTime = 0.14f, float slamTime = 0.07f)
+        {
+            RectTransform rect = Rect;
+            if (rect == null)
+            {
+                onImpact?.Invoke();
+                return;
+            }
+
+            // 连击时不叠加，直接打断上一次动作
+            if (m_AttackTween != null)
+            {
+                m_AttackTween.Kill();
+                m_AttackTween = null;
+            }
+
+            Vector2 home = rect.anchoredPosition;
+
+            Sequence seq = DOTween.Sequence();
+            seq.Append(rect.DOAnchorPos(home + new Vector2(0f, chargeHeight), chargeTime)
+                .SetEase(Ease.OutQuad));
+            seq.Append(rect.DOAnchorPos(home - new Vector2(0f, slamHeight), slamTime)
+                .SetEase(Ease.InQuad));
+            seq.AppendCallback(() => onImpact?.Invoke());
+            seq.Append(rect.DOAnchorPos(home, 0.12f).SetEase(Ease.OutQuad));
+            seq.OnComplete(() =>
+            {
+                rect.anchoredPosition = home;
+                m_AttackTween = null;
+            });
+
+            m_AttackTween = seq;
         }
 
         // ---------------------------------------------------------------- 翻面

@@ -1271,7 +1271,62 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>所有存活敌人依次攻击玩家，护甲逐个抵扣。</summary>
-        public List<string> ResolveEnemyTurn()
+        /// <summary>敌人这段攻击每段的基础伤害（已含自身攻击加成）。</summary>
+        public int EnemyAttackPerHit(EnemyInstance enemy)
+        {
+            if (enemy == null || enemy.CurrentIntent == null)
+            {
+                return 0;
+            }
+
+            return ApplyBuffModifiers(enemy.CurrentIntent.Value + enemy.AttackBonus,
+                "damage_dealt", enemy.Buffs);
+        }
+
+        /// <summary>本回合这段攻击总共打几段（含嗜血类累积的额外段数，调用即清零）。</summary>
+        public int ConsumeEnemyHitCount(EnemyInstance enemy)
+        {
+            if (enemy == null || enemy.CurrentIntent == null)
+            {
+                return 0;
+            }
+
+            return Math.Max(1, enemy.CurrentIntent.Hits) + enemy.ConsumeBonusHits();
+        }
+
+        /// <summary>
+        /// 敌人的一段攻击命中玩家：护甲先吸收，剩下的扣生命。
+        /// 返回实际掉的生命值（护甲全挡住时是 0）。
+        /// 表现层逐段调用这个，才能做到「每次伤害后立刻刷新血条」。
+        /// </summary>
+        public int ApplyEnemyAttackHit(EnemyInstance enemy, int damage)
+        {
+            if (damage <= 0 || IsBattleOver)
+            {
+                return 0;
+            }
+
+            int raw = ApplyBuffModifiers(damage, "damage_taken", PlayerBuffs, true);
+            int absorbed = Math.Min(PlayerArmor, raw);
+            PlayerArmor -= absorbed;
+            int toHp = raw - absorbed;
+            PlayerHp = Math.Max(0, PlayerHp - toHp);
+
+            if (toHp > 0)
+            {
+                RunTriggers(enemy.Buffs, Data.BuffTrigger.DealtUnblocked, null, enemy);
+            }
+
+            if (PlayerHp <= 0)
+            {
+                IsDefeat = true;
+                BattleEnded?.Invoke(false);
+            }
+
+            return toHp;
+        }
+
+        public List<string> ResolveEnemyTurn(bool skipAttackDamage = false)
         {
             var log = new List<string>();
             if (IsBattleOver)
@@ -1309,31 +1364,40 @@ namespace TurnCard.Game.Battle
                             "damage_dealt", enemy.Buffs);
                         int hpBefore = PlayerHp;
                         bool unblocked = false;
-                        // 嗜血类 buff 累积的额外段数，打完即清零
-                        int hits = intent.Hits + enemy.ConsumeBonusHits();
-                        for (int hit = 0; hit < hits; hit++)
+
+                        if (!skipAttackDamage)
                         {
-                            int raw = ApplyBuffModifiers(perHit, "damage_taken", PlayerBuffs, true);
-                            int absorbed = Math.Min(PlayerArmor, raw);
-                            PlayerArmor -= absorbed;
-                            int toHp = raw - absorbed;
-                            PlayerHp = Math.Max(0, PlayerHp - toHp);
-                            if (toHp > 0)
+                            // 嗜血类 buff 累积的额外段数，打完即清零
+                            int hits = intent.Hits + enemy.ConsumeBonusHits();
+                            for (int hit = 0; hit < hits; hit++)
                             {
-                                unblocked = true;
+                                int raw = ApplyBuffModifiers(perHit, "damage_taken", PlayerBuffs, true);
+                                int absorbed = Math.Min(PlayerArmor, raw);
+                                PlayerArmor -= absorbed;
+                                int toHp = raw - absorbed;
+                                PlayerHp = Math.Max(0, PlayerHp - toHp);
+                                if (toHp > 0)
+                                {
+                                    unblocked = true;
+                                }
+
+                                log.Add($"{enemy.Form.DisplayName} 造成 {raw} 点伤害（护甲吸收 {absorbed}，生命 -{toHp}）");
+
+                                if (PlayerHp <= 0)
+                                {
+                                    IsDefeat = true;
+                                    BattleEnded?.Invoke(false);
+                                    return log;
+                                }
                             }
 
-                            log.Add($"{enemy.Form.DisplayName} 造成 {raw} 点伤害（护甲吸收 {absorbed}，生命 -{toHp}）");
-
-                            if (PlayerHp <= 0)
-                            {
-                                IsDefeat = true;
-                                BattleEnded?.Invoke(false);
-                                return log;
-                            }
+                            enemy.DealtDamageThisTurn = PlayerHp < hpBefore;
                         }
-
-                        enemy.DealtDamageThisTurn = PlayerHp < hpBefore;
+                        else
+                        {
+                            // 伤害已经由表现层逐段结算（为了血条实时刷新），这里只补附带 buff
+                            enemy.DealtDamageThisTurn = true;
+                        }
 
                         // 攻击附带 buff（如浮士德「贪婪一击」：造成伤害并 +1 贪婪）
                         if (intent.BuffId != 0)

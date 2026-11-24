@@ -1687,28 +1687,8 @@ namespace Window.BattleForm
             switch (intent.Intent)
             {
                 case EnemyIntentType.Attack:
-                {
-                    for (int hit = 0; hit < intent.Hits; hit++)
-                    {
-                        Vector2 from = (Vector2)m_FxLayer.InverseTransformPoint(enemyView.Rect.position);
-                        bool done = false;
-                        TurnCard.Game.Audio.Sfx.Attack(intent.Value);
-                        TurnCard.Game.UI.Fx.ProjectileView.Play(m_FxLayer, from, to, intent.Value >= 8, () =>
-                        {
-                            TurnCard.Game.Audio.Sfx.Hit();
-                            done = true;
-                        }, fx.FlightFor(intent.Value >= 8));
-
-                        yield return new WaitUntil(() => done);
-
-                        if (hit + 1 < intent.Hits)
-                        {
-                            yield return new WaitForSeconds(fx.HitInterval);
-                        }
-                    }
-
+                    // 攻击动作由 PlayEnemyAttack 负责（卡牌蓄力 + 撞击，不走弹道）
                     break;
-                }
 
                 case EnemyIntentType.Defend:
                     PopDamage(popupAt, "护甲 +" + intent.Value, new Color(0.65f, 0.85f, 1f));
@@ -1724,6 +1704,56 @@ namespace Window.BattleForm
                     PopDamage(popupAt, "易伤 +" + intent.Value, new Color(1f, 0.6f, 0.85f));
                     yield return new WaitForSeconds(0.35f);
                     break;
+            }
+        }
+
+        /// <summary>
+        /// 敌人的攻击：卡牌抬起来蓄力 → 向下撞一下 → 回位；
+        /// 撞击那一下结算这一段伤害，并**立即刷新所有血条**（多段时每段都刷）。
+        /// </summary>
+        private IEnumerator PlayEnemyAttack(EnemyCardView enemyView, BattleFxSettings fx)
+        {
+            if (enemyView == null || m_State == null)
+            {
+                yield break;
+            }
+
+            int perHit = m_State.EnemyAttackPerHit(enemyView.Enemy);
+            int hits = m_State.ConsumeEnemyHitCount(enemyView.Enemy);
+            Vector3 popupAt = txtStatus.rectTransform.position + new Vector3(0f, 10f, 0f);
+
+            for (int hit = 0; hit < hits; hit++)
+            {
+                bool impacted = false;
+                TurnCard.Game.Audio.Sfx.Attack(perHit);
+
+                enemyView.PlayAttack(() =>
+                {
+                    int lost = m_State.ApplyEnemyAttackHit(enemyView.Enemy, perHit);
+                    TurnCard.Game.Audio.Sfx.Hit();
+
+                    if (lost > 0)
+                    {
+                        PopDamage(popupAt, "-" + lost, new Color(1f, 0.45f, 0.45f));
+                        m_FormRect.DOShakePosition(0.16f, 6f, 12, 80f, false, true);
+                    }
+
+                    // 每一段打完立刻刷新玩家血条与所有敌人卡（不等整轮结算）
+                    RefreshAllHpBars();
+                    impacted = true;
+                });
+
+                yield return new WaitUntil(() => impacted);
+
+                if (m_State.IsBattleOver)
+                {
+                    yield break;
+                }
+
+                if (hit + 1 < hits)
+                {
+                    yield return new WaitForSeconds(fx.HitInterval);
+                }
             }
         }
 
@@ -1761,12 +1791,22 @@ namespace Window.BattleForm
                     continue;
                 }
 
-                yield return PlayEnemyIntent(enemyView, intent, fx);
+                if (intent.Intent == EnemyIntentType.Attack)
+                {
+                    // 攻击：卡牌蓄力 + 撞击，每段命中立刻扣血并刷血条
+                    yield return PlayEnemyAttack(enemyView, fx);
+                }
+                else
+                {
+                    yield return PlayEnemyIntent(enemyView, intent, fx);
+                }
             }
 
-            UnityEngine.Debug.Log("[回合] 5 敌人出招播完，开始结算");
+            UnityEngine.Debug.Log("[回合] 5 敌人出招播完，结算非攻击部分");
             int hpBefore = m_State.PlayerHp;
-            m_State.ResolveEnemyTurn();
+
+            // 攻击伤害已经在表现里逐段结算，这里只补防御/强化/晕眩/回血等
+            m_State.ResolveEnemyTurn(true);
             UnityEngine.Debug.Log("[回合] 6 敌人结算完成 hp=" + m_State.PlayerHp);
 
             RefreshEnemyCardViews();
@@ -1779,7 +1819,7 @@ namespace Window.BattleForm
                     "-" + hpLost, new Color(1f, 0.45f, 0.45f));
             }
 
-            RefreshHud();
+            RefreshAllHpBars();
             yield return new WaitForSeconds(0.5f);
 
             if (m_State.IsBattleOver)
