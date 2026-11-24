@@ -1481,22 +1481,6 @@ namespace TurnCard.Game.Battle
             IsPlayerTurn = false;
             TurnEnded?.Invoke();
 
-            RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnEnd, PickRandomAliveEnemy());
-
-            // 「若攻击未对玩家造成伤害」这类特性：在敌人回合结束后判定
-            foreach (EnemyInstance enemy in m_Enemies)
-            {
-                if (enemy == null || enemy.IsDead || enemy.DealtDamageThisTurn)
-                {
-                    continue;
-                }
-
-                RunTriggers(enemy.Buffs, Data.BuffTrigger.NoDamageDealt, null, enemy);
-            }
-            foreach (EnemyInstance e in m_Enemies)
-            {
-                RunTriggers(e.Buffs, Data.BuffTrigger.TurnEnd, PickRandomAliveEnemy());
-            }
         }
 
         public void StartPlayerTurn()
@@ -1520,31 +1504,15 @@ namespace TurnCard.Game.Battle
                 PlayerArmor = 0;
             }
 
-            // buff：回合开始触发，然后扣掉按回合消耗的层数
+            // 玩家自己的回合开始触发（含按回合衰减）。敌人的同类触发在敌人阶段，见 BeginEnemyTurn
             RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnStart, PickRandomAliveEnemy());
 
-            // 敌人自己的回合开始触发（自愈等挂在自己身上的 buff 靠这里结算）
-            foreach (EnemyInstance enemy in m_Enemies)
-            {
-                if (enemy == null || enemy.IsDead)
-                {
-                    continue;
-                }
-
-                RunTriggers(enemy.Buffs, Data.BuffTrigger.TurnStart, null, enemy);
-            }
-
-            // 敌人护甲同样每回合清零
+            // 敌人招式补齐（护甲清零与回合开始触发在敌人阶段处理）
             foreach (EnemyInstance enemy in m_Enemies)
             {
                 if (enemy.IsDead)
                 {
                     continue;
-                }
-
-                if (!enemy.Buffs.BlocksRule("armor_clear"))
-                {
-                    enemy.Armor = 0;
                 }
 
                 if (enemy.CurrentIntent == null)
@@ -1749,6 +1717,35 @@ namespace TurnCard.Game.Battle
                 m_Hand.RemoveAt(i);
                 m_DiscardPile.Add(card);
                 CardDiscarded?.Invoke(card);
+            }
+
+            // 玩家回合结束：只跑玩家自己的「回合结束」触发
+            RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnEnd, PickRandomAliveEnemy());
+
+            // 敌人阶段开始：敌人自己的「回合开始」触发（自愈、久睡翻面…）与按回合衰减
+            BeginEnemyTurn();
+        }
+
+        /// <summary>
+        /// 敌人阶段开始：只处理敌人自己的回合开始。
+        /// 敌人护甲也在这里清零 —— 它在上个敌人回合获得的护甲要能挡住玩家这个回合。
+        /// </summary>
+        private void BeginEnemyTurn()
+        {
+            foreach (EnemyInstance enemy in m_Enemies)
+            {
+                if (enemy == null || enemy.IsDead)
+                {
+                    continue;
+                }
+
+                enemy.DealtDamageThisTurn = false;
+                RunTriggers(enemy.Buffs, Data.BuffTrigger.TurnStart, null, enemy);
+
+                if (!enemy.Buffs.BlocksRule("armor_clear"))
+                {
+                    enemy.Armor = 0;
+                }
             }
         }
 
@@ -2046,6 +2043,22 @@ namespace TurnCard.Game.Battle
                 {
                     enemy.RefillIntents(IntentsFor(enemy));
                 }
+            }
+
+            // 敌人回合结束：空挥类特性 + 敌人自己的「回合结束」触发（含按回合衰减）
+            foreach (EnemyInstance enemy in m_Enemies)
+            {
+                if (enemy == null || enemy.IsDead)
+                {
+                    continue;
+                }
+
+                if (!enemy.DealtDamageThisTurn)
+                {
+                    RunTriggers(enemy.Buffs, Data.BuffTrigger.NoDamageDealt, null, enemy);
+                }
+
+                RunTriggers(enemy.Buffs, Data.BuffTrigger.TurnEnd, PickRandomAliveEnemy());
             }
 
             if (AllEnemiesDead())
