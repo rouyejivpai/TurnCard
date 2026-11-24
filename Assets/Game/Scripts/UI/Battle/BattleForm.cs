@@ -73,6 +73,9 @@ namespace Window.BattleForm
         /// <summary>开幕/关幕协程。</summary>
         private Coroutine m_BattleIntro;
 
+        /// <summary>玩家血条下方的 buff 图标条（每场战斗重建，退出时销毁）。</summary>
+        private BuffIconStrip m_PlayerBuffStrip;
+
         /// <summary>牌离场前的世界坐标：牌没了以后，它的特效仍要能从这个位置出发。</summary>
         private readonly Dictionary<CardInstance, Vector3> m_CardLastWorldPos =
             new Dictionary<CardInstance, Vector3>();
@@ -242,6 +245,56 @@ namespace Window.BattleForm
             rect.offsetMax = Vector2.zero;
             go.SetActive(false);
             return rect;
+        }
+
+        /// <summary>
+        /// 战斗界面关闭 = 战斗状态机退出。这里必须把整场战斗的东西清干净，
+        /// 否则手牌、buff、待结算队列、静态预览源会泄露到下一场或其它界面。
+        /// </summary>
+        protected override void OnClose(bool isShutdown, object userData)
+        {
+            ReleaseBattleState();
+            base.OnClose(isShutdown, userData);
+        }
+
+        /// <summary>清空一切与「这一场战斗」有关的状态（不包括 RunState 这种整局数据）。</summary>
+        private void ReleaseBattleState()
+        {
+            StopAllCoroutines();
+            m_BattleIntro = null;
+
+            // 界面上的临时对象与缓存
+            m_HandViews.Clear();
+            m_EnemyCardViews.Clear();
+            m_CardLastWorldPos.Clear();
+            m_HoverTarget = null;
+            m_ChoiceView = null;
+            m_Busy = false;
+            m_HandDirty = false;
+            m_RenderDirty = false;
+            m_FlipAnimating = 0;
+
+            // 静态引用（最容易泄露的地方）
+            CardPreviewSource.State = null;
+            CardPreviewSource.Target = null;
+            DebugPendingLineup = null;
+            PendingRouteSelect = false;
+            m_PendingPool = null;
+
+            if (m_PlayerBuffStrip != null)
+            {
+                Destroy(m_PlayerBuffStrip.gameObject);
+                m_PlayerBuffStrip = null;
+            }
+
+            // ViewModel 里还握着上一场的 CardInstance / EnemyInstance
+            m_Vm.Update(null, null);
+
+            if (m_State != null)
+            {
+                m_State.Clear();
+                m_State = null;
+            }
         }
 
         protected override void OnShow()
@@ -569,7 +622,14 @@ namespace Window.BattleForm
             Transform buffRoot = m_BuffArea != null ? m_BuffArea : (txtStatus != null ? txtStatus.transform : null);
             if (buffRoot != null)
             {
-                BuffIconStrip.Attach((RectTransform)buffRoot, m_State.PlayerBuffs,
+                // 上一场留下的条先拆掉，避免每场战斗都在同一个节点下挂一条
+                if (m_PlayerBuffStrip != null)
+                {
+                    Destroy(m_PlayerBuffStrip.gameObject);
+                    m_PlayerBuffStrip = null;
+                }
+
+                m_PlayerBuffStrip = BuffIconStrip.Attach((RectTransform)buffRoot, m_State.PlayerBuffs,
                     new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero);
             }
 
@@ -590,6 +650,9 @@ namespace Window.BattleForm
             UnityEngine.Debug.Log("[战斗] 3 阵容人数=" + lineup.Length);
 
             m_State.Setup(deck, lineup);
+
+            // 血量从整局进度带入，战斗结束由 ProcedureBattle 写回
+            m_State.BeginPlayerHp(TurnCard.Game.Run.RunState.Current.Hp);
             UnityEngine.Debug.Log("[战斗] 4 Setup 完成");
 
             // 敌人的 buff 变化同样会影响意图数值的显示

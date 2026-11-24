@@ -642,6 +642,63 @@ namespace TurnCard.Game.Battle
             m_ExecutingCard = previous;
         }
 
+        /// <summary>
+        /// 战斗开始时把玩家血量摆到整局进度里的值（RunState.Hp），
+        /// 而不是每场都满血——这样离开战斗后的血量才不会被重置掉。
+        /// </summary>
+        public void BeginPlayerHp(int hp)
+        {
+            PlayerHp = Math.Min(PlayerMaxHp, Math.Max(1, hp));
+        }
+
+        /// <summary>
+        /// 整场战斗的清理：牌堆/手牌/敌人/buff/各种队列全部清空，并把所有事件摘掉。
+        /// 战斗界面关闭时调用，避免战斗状态（手牌、buff、待结算伤害…）泄露到下一场或别的界面。
+        /// </summary>
+        public void Clear()
+        {
+            m_Hand.Clear();
+            m_DrawPile.Clear();
+            m_DiscardPile.Clear();
+            m_Enemies.Clear();
+            m_Pending.Clear();
+            m_PendingFlips.Clear();
+            m_PendingInstants.Clear();
+            m_LastDamages.Clear();
+
+            PlayerBuffs.Clear();
+
+            // 结算上下文与开关全部归位
+            m_DeferDamage = false;
+            m_InstantPhase = false;
+            m_InstantDepth = 0;
+            m_ExecutingCard = null;
+            m_PlayTarget = null;
+            m_FlipSource = FlipSource.Effect;
+            m_LastInstantFlip = null;
+            PendingChoice = ChoiceKind.None;
+            SelectedForChoice = null;
+            m_PlaysThisTurn = 0;
+            InstantCountThisTurn = 0;
+            TurnNumber = 0;
+            IsPlayerTurn = false;
+
+            // 摘掉所有订阅（UI 的 lambda 也是订阅者，不清会一直吊着界面对象）
+            Changed = null;
+            PlayerHpChanged = null;
+            PlayerArmorChanged = null;
+            EnergyChanged = null;
+            DamageApplied = null;
+            EnemyFlipped = null;
+            EnemyDied = null;
+            BattleEnded = null;
+            TurnStarted = null;
+            TurnEnded = null;
+            CardDrawn = null;
+            CardDiscarded = null;
+            InstantTriggered = null;
+        }
+
         /// <summary>战斗结束时丢掉没执行的瞬发。</summary>
         public void ClearPendingInstants()
         {
