@@ -704,7 +704,15 @@ namespace TurnCard.Game.Battle
                     Face = face,
                 };
 
-                CardEffects.ExecuteAll(nested);
+                CardInstance previousCard = context.State.EnterCardContext(neighbour);
+                try
+                {
+                    CardEffects.ExecuteAll(nested);
+                }
+                finally
+                {
+                    context.State.ExitCardContext(previousCard);
+                }
 
                 if (m_DiscardAfter)
                 {

@@ -619,6 +619,29 @@ namespace TurnCard.Game.Battle
             }
         }
 
+        /// <summary>
+        /// 当前正在执行效果的卡：出牌 / 翻面瞬发 / 相邻牌效果都会设置。
+        /// 伤害入队时记录它，表现层才知道特效该从哪张牌出发。
+        /// </summary>
+        private CardInstance m_ExecutingCard;
+
+        /// <summary>当前效果来源卡（没有则为 null）。</summary>
+        public CardInstance ExecutingCard => m_ExecutingCard;
+
+        /// <summary>进入某张卡的效果上下文，返回上一张（配合 <see cref="ExitCardContext"/>）。</summary>
+        public CardInstance EnterCardContext(CardInstance card)
+        {
+            CardInstance previous = m_ExecutingCard;
+            m_ExecutingCard = card;
+            return previous;
+        }
+
+        /// <summary>恢复上一层效果上下文。</summary>
+        public void ExitCardContext(CardInstance previous)
+        {
+            m_ExecutingCard = previous;
+        }
+
         /// <summary>战斗结束时丢掉没执行的瞬发。</summary>
         public void ClearPendingInstants()
         {
@@ -2015,6 +2038,7 @@ namespace TurnCard.Game.Battle
 
             // 出牌期间的伤害（含翻面触发的瞬发）全部先入队，等动画命中再扣血。
             m_DeferDamage = true;
+            CardInstance previousCard = EnterCardContext(card);
             try
             {
                 RunTriggers(PlayerBuffs, Data.BuffTrigger.CardPlayed, target);
@@ -2026,6 +2050,7 @@ namespace TurnCard.Game.Battle
             }
             finally
             {
+                ExitCardContext(previousCard);
                 m_DeferDamage = false;
             }
 
@@ -2099,11 +2124,12 @@ namespace TurnCard.Game.Battle
         /// <summary>这次出牌里「伤害已经入队、但还没落地」。命中动画播到才提交。</summary>
         public readonly struct PendingHit
         {
-            public PendingHit(EnemyInstance enemy, int amount, HitOrigin origin)
+            public PendingHit(EnemyInstance enemy, int amount, HitOrigin origin, CardInstance source)
             {
                 Enemy = enemy;
                 Amount = amount;
                 Origin = origin;
+                Source = source;
             }
 
             public EnemyInstance Enemy { get; }
@@ -2111,6 +2137,12 @@ namespace TurnCard.Game.Battle
 
             /// <summary>伤害来源：出牌本身，还是翻面触发的瞬发。</summary>
             public HitOrigin Origin { get; }
+
+            /// <summary>
+            /// 真正产生这次伤害的卡（出牌 / 该牌的瞬发 / 被使用的邻牌）。
+            /// 表现层据此让特效从那张牌出发；为 null 表示没有具体来源。
+            /// </summary>
+            public CardInstance Source { get; }
         }
 
         private readonly List<PendingHit> m_Pending = new List<PendingHit>();
@@ -2153,6 +2185,7 @@ namespace TurnCard.Game.Battle
 
             InstantCountThisTurn++;
             m_InstantDepth++;
+            CardInstance previousCard = EnterCardContext(card);
             try
             {
                 for (int i = 0; i < repeat; i++)
@@ -2179,6 +2212,7 @@ namespace TurnCard.Game.Battle
             }
             finally
             {
+                ExitCardContext(previousCard);
                 m_InstantDepth--;
             }
 
@@ -2238,7 +2272,7 @@ namespace TurnCard.Game.Battle
             if (m_DeferDamage)
             {
                 m_Pending.Add(new PendingHit(enemy, amount,
-                    m_InstantPhase ? HitOrigin.Instant : HitOrigin.Play));
+                    m_InstantPhase ? HitOrigin.Instant : HitOrigin.Play, m_ExecutingCard));
                 return false;
             }
 

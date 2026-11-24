@@ -73,6 +73,10 @@ namespace Window.BattleForm
         /// <summary>开幕/关幕协程。</summary>
         private Coroutine m_BattleIntro;
 
+        /// <summary>牌离场前的世界坐标：牌没了以后，它的特效仍要能从这个位置出发。</summary>
+        private readonly Dictionary<CardInstance, Vector3> m_CardLastWorldPos =
+            new Dictionary<CardInstance, Vector3>();
+
         /// <summary>UI 需要重刷（同一帧多次事件只刷一次，帧末统一 FlushRender）。</summary>
         private bool m_RenderDirty;
 
@@ -1055,6 +1059,7 @@ namespace Window.BattleForm
                 return;
             }
 
+            RememberCardPosition(card);
             m_HandViews.Remove(view);
             view.Interactable = false;
 
@@ -1076,6 +1081,14 @@ namespace Window.BattleForm
             }
 
             var views = new List<CardView>(m_HandViews);
+            foreach (CardView handView in views)
+            {
+                if (handView != null && handView.Card != null)
+                {
+                    RememberCardPosition(handView.Card);
+                }
+            }
+
             m_HandViews.Clear();
 
             Vector2 discardLocal = btnDiscardPile != null
@@ -1163,14 +1176,14 @@ namespace Window.BattleForm
             RefreshHud();
 
             CommitAndDispatchFlips();
-            yield return PlayDamageQueue(m_ChoiceView, m_State.FirstAliveEnemy(), default, HitOrigin.Play);
+            yield return PlayDamageQueue(m_State.FirstAliveEnemy(), HitOrigin.Play);
             yield return WaitForFlipAnimations();
 
             if (m_State.HasPendingInstants)
             {
                 m_State.ResolvePendingInstants();
                 RefreshEnemyCardViews();
-                yield return PlayDamageQueue(m_ChoiceView, m_State.FirstAliveEnemy(), default, HitOrigin.Instant);
+                yield return PlayDamageQueue(m_State.FirstAliveEnemy(), HitOrigin.Instant);
             }
 
             m_ChoiceView = null;
@@ -1377,16 +1390,57 @@ namespace Window.BattleForm
             return false;
         }
 
-        private IEnumerator PlayDamageQueue(CardView sourceView, EnemyInstance target,
-            CardFace playedFace, HitOrigin origin)
+        /// <summary>
+        /// 算一发伤害的起点：优先用来源卡当前的视图；
+        /// 牌已经离场（弃掉/用完即弃）就用它离场前的位置快照。
+        /// </summary>
+        private bool TryGetHitOrigin(CardInstance card, out Vector2 local)
         {
-            if (sourceView == null || m_State == null)
+            local = Vector2.zero;
+            if (card == null)
+            {
+                return false;
+            }
+
+            CardView view = FindView(card);
+            if (view != null)
+            {
+                local = m_FxLayer.InverseTransformPoint(view.transform.position);
+                return true;
+            }
+
+            if (m_CardLastWorldPos.TryGetValue(card, out Vector3 world))
+            {
+                local = m_FxLayer.InverseTransformPoint(world);
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>牌要离场了：记下它最后的位置，后续特效还能从这里出发。</summary>
+        private void RememberCardPosition(CardInstance card)
+        {
+            if (card == null)
+            {
+                return;
+            }
+
+            CardView view = FindView(card);
+            if (view != null)
+            {
+                m_CardLastWorldPos[card] = view.transform.position;
+            }
+        }
+
+        private IEnumerator PlayDamageQueue(EnemyInstance target, HitOrigin origin)
+        {
+            if (m_State == null)
             {
                 yield break;
             }
 
             BattleFxSettings fx = BattleFxSettings.Current;
-            Vector2 from = (Vector2)m_FxLayer.InverseTransformPoint(((RectTransform)sourceView.transform).position);
 
             while (m_State.IsResolving)
             {
@@ -1397,7 +1451,16 @@ namespace Window.BattleForm
                 }
 
                 int amount = next.Amount;
-                bool cannon = IsCannon(playedFace, sourceView.Card.Face, amount);
+
+                // 每一发都按自己的来源卡算起点：瞬发/邻牌的效果不会从被出的那张牌飞出去
+                Vector2 from;
+                if (!TryGetHitOrigin(next.Source, out from))
+                {
+                    from = (Vector2)m_FxLayer.InverseTransformPoint(m_FormRect.position);
+                }
+
+                CardFace sourceFace = next.Source != null ? next.Source.Face : default;
+                bool cannon = IsCannon(sourceFace, amount);
 
                 TurnCard.Game.Audio.Sfx.Attack(amount);
 
@@ -1431,9 +1494,6 @@ namespace Window.BattleForm
 
         private IEnumerator PlayCardRoutine(CardView view, EnemyInstance target)
         {
-            // 打出前的这一面才是结算用的面（结算会把卡翻到另一面）
-            CardFace playedFace = view.Card.Face;
-            int damage = playedFace.Damage;
 
             PlayResult result = m_State.PlayCard(view.Card, target,
                 out EnemyInstance flippedEnemy, out bool battleEnded);
@@ -1478,7 +1538,7 @@ namespace Window.BattleForm
                     if (firstRound)
                     {
                         firstRound = false;
-                        yield return PlayDamageQueue(view, target, playedFace, HitOrigin.Play);
+                        yield return PlayDamageQueue(target, HitOrigin.Play);
                     }
 
                     yield return WaitForFlipAnimations();
@@ -1502,7 +1562,7 @@ namespace Window.BattleForm
 
                     RefreshEnemyCardViews();
 
-                    yield return PlayDamageQueue(view, target, playedFace, HitOrigin.Instant);
+                    yield return PlayDamageQueue(target, HitOrigin.Instant);
 
                     if (!m_State.IsResolvingFlips)
                     {
@@ -1818,15 +1878,15 @@ namespace Window.BattleForm
         /// 规则：伤害够大（≥8）用炮；「随机 / 全体」这类间接伤害也用炮（比如 装填→开火）。
         /// 以后如果要给某张卡指定特效，可以在表里加一列明确写死，不必靠猜。
         /// </summary>
-        private static bool IsCannon(CardFace playedFace, CardFace currentFace, int damage)
+        private static bool IsCannon(CardFace sourceFace, int damage)
         {
             if (damage >= 8)
             {
                 return true;
             }
 
-            // 伤害可能来自翻面后的那一面（装填 → 开火），两面都要看
-            return IsIndirect(playedFace) || IsIndirect(currentFace);
+            // 看「真正产生伤害的那张牌」当前这一面（瞬发卡 / 邻牌 / 被出的牌）
+            return IsIndirect(sourceFace);
         }
 
         /// <summary>是否是「随机 / 全体」这类间接伤害（用炮弹表现）。</summary>
