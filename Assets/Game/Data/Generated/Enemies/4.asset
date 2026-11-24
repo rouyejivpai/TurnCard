@@ -34,4 +34,4 @@ MonoBehaviour:
   m_BackHp: 50
   m_BackAttack: 0
   m_BackDescription: "\u5438\u6536\u4F24\u5BB3\uFF0C\u4E00\u56DE\u5408\u540E\u7FFB\u9762\u3002"
-  m_BackArt: {fileID: 0}
+  m_BackArt: {fileID: 21300000, guid: ec6133d0d8395134d8ea61180c99544c, type: 3}

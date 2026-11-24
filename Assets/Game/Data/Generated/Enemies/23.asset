@@ -25,7 +25,7 @@ MonoBehaviour:
   m_FrontHp: 1
   m_FrontAttack: 0
   m_FrontDescription: "\u66FE\u7ECF\u7684\u5267\u56E2\u7F16\u8F91"
-  m_FrontArt: {fileID: 0}
+  m_FrontArt: {fileID: 21300000, guid: 7ea56315d46e0dc4daa0bf8021674a23, type: 3}
   m_Twin: 0
   m_PairId: 0
   m_Note: "\u5360\u4F4D\uFF1A\u6570\u503C/\u7279\u6027/\u610F\u56FE\u5F85\u8865\uFF08\u539F\u8868\u4E3A
@@ -35,4 +35,4 @@ MonoBehaviour:
   m_BackHp: 1
   m_BackAttack: 0
   m_BackDescription: "\u66FE\u7ECF\u7684\u5267\u56E2\u7F16\u8F91"
-  m_BackArt: {fileID: 0}
+  m_BackArt: {fileID: 21300000, guid: 3c18c41825fb8df42b11f77a11c973aa, type: 3}
