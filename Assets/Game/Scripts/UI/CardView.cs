@@ -482,6 +482,20 @@ namespace TurnCard.Game.UI
             FillFace(m_BackFace, backName, backDesc, backCost, backType, backBg, backData);
         }
 
+        /// <summary>
+        /// 某一面的预览选项：战斗中有 BattleState 就向它要（按这一面算 token），
+        /// 否则用本视图自己的预览值。
+        /// </summary>
+        private CardText.FormatOptions OptionsForFace(CardFace face)
+        {
+            if (CardPreviewSource.State != null)
+            {
+                return CardPreviewSource.BuildOptions(face);
+            }
+
+            return PreviewOptions();
+        }
+
         /// <summary>当前预览选项（没设置时就是卡面原值）。</summary>
         private CardText.FormatOptions PreviewOptions()
         {
@@ -558,8 +572,9 @@ namespace TurnCard.Game.UI
             }
 
             // 有卡面数据时走标记解析：[[关键词]] → 粗体、*文字* → 斜体、{damage} → 实时数值
+            // 预览按「这一面」算：隐藏面也能拿到自己的 token（{total_armor} 之类）
             string formatted = data.HasValue
-                ? CardText.Format(description, data.Value, PreviewOptions())
+                ? CardText.Format(description, data.Value, OptionsForFace(data.Value))
                 : description ?? string.Empty;
 
             if (face.NameText != null) face.NameText.text = displayName ?? string.Empty;

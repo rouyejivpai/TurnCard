@@ -18,7 +18,7 @@ MonoBehaviour:
   m_Description: "\u53D7\u5230\u7684\u4F24\u5BB3 +3"
   m_Icon: buff_vulnerable
   m_StackRule: 0
-  m_Consume: 1
+  m_Consume: 0
   m_MaxStacks: 99
   m_Modifier: damage_taken:+3
   m_Trigger: 0

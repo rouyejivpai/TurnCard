@@ -355,6 +355,17 @@ namespace TurnCard.Game
                 return value;
             }
 
+            // 「总量」类 token 拿不到上下文时退回单次值，至少不显示花括号
+            if (token == "total_damage")
+            {
+                return Preview(face.Damage, options.Damage, options.MarkModified);
+            }
+
+            if (token == "total_armor")
+            {
+                return Preview(face.Armor, options.Armor, options.MarkModified);
+            }
+
             // 解析不到就原样保留，方便在界面上发现问题
             return "{" + token + "}";
         }

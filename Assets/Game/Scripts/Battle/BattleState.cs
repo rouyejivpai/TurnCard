@@ -1309,6 +1309,16 @@ namespace TurnCard.Game.Battle
                 RunTriggers(enemy.Buffs, Data.BuffTrigger.TurnStart, null, enemy);
             }
 
+            // 触发完之后再扣层数：虚弱/易伤这类「按回合消耗」的 buff 每回合开始掉一层
+            PlayerBuffs.TickTurn();
+            foreach (EnemyInstance ticking in m_Enemies)
+            {
+                if (ticking != null && !ticking.IsDead)
+                {
+                    ticking.Buffs.TickTurn();
+                }
+            }
+
             // 敌人护甲同样每回合清零
             foreach (EnemyInstance enemy in m_Enemies)
             {

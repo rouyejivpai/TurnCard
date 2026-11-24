@@ -265,12 +265,18 @@ namespace TurnCard.Game.Battle
                     continue;
                 }
 
+                // 层数就是剩余回合：每回合开始掉一层，掉光即移除（虚弱/易伤这类）
+                if (buff.Stacks > 0)
+                {
+                    buff.Stacks--;
+                }
+
                 if (buff.Remaining > 0)
                 {
                     buff.Remaining--;
                 }
 
-                if (buff.Remaining == 0 || buff.Stacks <= 0)
+                if (buff.Stacks <= 0 || (buff.Definition.Consume == BuffConsume.Turn && buff.Remaining == 0))
                 {
                     m_Buffs.RemoveAt(i);
                 }
