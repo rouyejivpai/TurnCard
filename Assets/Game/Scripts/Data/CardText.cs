@@ -322,7 +322,16 @@ namespace TurnCard.Game
 
                 case "damage":
                 case "dmg":
-                case "demage":     // 表格里历史遗留的拼写，含义与 damage 相同
+                    return Preview(face.Damage, options.Damage, options.MarkModified);
+
+                case "demage":     // 表格里历史遗留的拼写
+                    // 效果能算出实时值（如闪电破击的「每瞬发 +4」）时优先用它
+                    if (options.Tokens != null &&
+                        options.Tokens.TryGetValue("demage", out int liveDemage))
+                    {
+                        return Preview(face.Damage, liveDemage, options.MarkModified);
+                    }
+
                     return Preview(face.Damage, options.Damage, options.MarkModified);
 
                 case "armor":

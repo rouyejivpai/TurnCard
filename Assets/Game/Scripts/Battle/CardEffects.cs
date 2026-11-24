@@ -726,9 +726,11 @@ namespace TurnCard.Game.Battle
         {
             public void Apply(CardEffectContext context, string[] args)
             {
-                if (context.Card != null && context.Card.Side == CardFaceSide.Back)
+                if (context.Card != null)
                 {
-                    context.State.RequestFlip(context.Card, BattleState.FlipSource.Keyword);
+                    // 指定目标面：双重瞬发连点两次也只会收敛到正面，不会来回翻
+                    context.State.RequestFlipTo(context.Card, CardFaceSide.Front,
+                        BattleState.FlipSource.Keyword);
                 }
             }
         }

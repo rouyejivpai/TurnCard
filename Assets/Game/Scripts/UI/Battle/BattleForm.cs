@@ -799,7 +799,7 @@ namespace Window.BattleForm
                 CardView view = FindView(vm.Card);
                 if (view != null)
                 {
-                    view.SetValuePreview(vm.Damage, vm.Armor, vm.Modified, vm.Tokens);
+                    view.SetValuePreview(vm.Damage, vm.Armor, true, vm.Tokens);   // 只给和原值不同的数字染色
                 }
             }
 

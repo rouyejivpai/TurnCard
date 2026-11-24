@@ -28,7 +28,18 @@ namespace TurnCard.Game.Battle
 
         public void Flip()
         {
-            Side = Side == CardFaceSide.Front ? CardFaceSide.Back : CardFaceSide.Front;
+            SetSide(Side == CardFaceSide.Front ? CardFaceSide.Back : CardFaceSide.Front);
+        }
+
+        /// <summary>直接摆到指定面（同面则没有变化）。</summary>
+        public void SetSide(CardFaceSide side)
+        {
+            if (Side == side)
+            {
+                return;
+            }
+
+            Side = side;
             Flipped?.Invoke(this);
         }
 
@@ -358,12 +369,17 @@ namespace TurnCard.Game.Battle
         /// <summary>排队中的一次翻面。</summary>
         public readonly struct PendingFlip
         {
-            public PendingFlip(CardInstance card, FlipSource source, EnemyInstance target)
+            public PendingFlip(CardInstance card, FlipSource source, EnemyInstance target,
+                CardFaceSide? targetSide = null)
             {
                 Card = card;
                 Source = source;
                 Target = target;
+                TargetSide = targetSide;
             }
+
+            /// <summary>指定的目标面（null = 直接翻到另一面）。</summary>
+            public CardFaceSide? TargetSide { get; }
 
             public CardInstance Card { get; }
             public FlipSource Source { get; }
@@ -416,6 +432,26 @@ namespace TurnCard.Game.Battle
             }
 
             m_PendingFlips.Add(new PendingFlip(card, source, target));
+        }
+
+        /// <summary>
+        /// 请求翻到**指定面**（已经是那一面就什么都不做）。
+        /// 电光火石用这个：即使「双重瞬发」连续触发两次，也只会收敛到目标面，不会来回翻。
+        /// </summary>
+        public void RequestFlipTo(CardInstance card, CardFaceSide side, FlipSource source,
+            EnemyInstance target = null)
+        {
+            if (card == null || IsBattleOver)
+            {
+                return;
+            }
+
+            if (card.Side == side)
+            {
+                return;
+            }
+
+            m_PendingFlips.Add(new PendingFlip(card, source, target, side));
         }
 
         /// <summary>
@@ -514,12 +550,25 @@ namespace TurnCard.Game.Battle
 
             CardFaceSide from = flip.Card.Side;
 
+            // 指定了目标面就摆到那一面（同面则视为无效翻面）
+            if (flip.TargetSide.HasValue && from == flip.TargetSide.Value)
+            {
+                return null;
+            }
+
             m_FlipSource = flip.Source;
             m_PlayTarget = flip.Target;
             m_LastInstantFlip = null;
             try
             {
-                flip.Card.Flip();
+                if (flip.TargetSide.HasValue)
+                {
+                    flip.Card.SetSide(flip.TargetSide.Value);
+                }
+                else
+                {
+                    flip.Card.Flip();
+                }
             }
             finally
             {

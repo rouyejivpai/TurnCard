@@ -31,8 +31,9 @@ namespace TurnCard.Game.UI
             var tokens = new Dictionary<string, int>();
             State.CollectPreviewTokens(face, Target, tokens);
 
-            view.SetValuePreview(damage.Value, armor.Value,
-                damage.Modified || armor.Modified, tokens.Count > 0 ? tokens : null);
+            // MarkModified 只是允许染色，实际是否变红由 CardText 比较结果决定
+            view.SetValuePreview(damage.Value, armor.Value, true,
+                tokens.Count > 0 ? tokens : null);
         }
     }
 }
