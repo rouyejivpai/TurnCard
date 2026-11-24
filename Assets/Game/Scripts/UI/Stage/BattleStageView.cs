@@ -111,8 +111,8 @@ namespace TurnCard.Game.UI
             }
         }
 
-        /// <summary>显示下一幕选项；onPick 收到的是选项下标。</summary>
-        public void ShowRoutes(int count, Action<int> onPick)
+        /// <summary>显示路线节点；onPick 收到的是选项下标。</summary>
+        public void ShowRoutes(IReadOnlyList<TurnCard.Game.Run.MapNode> nodes, Action<int> onPick)
         {
             EnsureVisible();
             HideChest();
@@ -126,7 +126,12 @@ namespace TurnCard.Game.UI
             m_RouteRoot.gameObject.SetActive(true);
             ClearRoutes();
 
-            count = Mathf.Max(1, count);
+            if (nodes == null || nodes.Count == 0)
+            {
+                return;
+            }
+
+            int count = nodes.Count;
             for (int i = 0; i < count; i++)
             {
                 RouteOptionView option = CreatePrefab<RouteOptionView>(
@@ -136,15 +141,16 @@ namespace TurnCard.Game.UI
                     return;
                 }
 
+                TurnCard.Game.Run.MapNode node = nodes[i];
                 option.gameObject.SetActive(true);
-                option.Bind(i, "第 " + (i + 1) + " 幕", onPick);
+                option.Bind(i, node.Label, AccentFor(node.Type), onPick);
 
                 var rect = (RectTransform)option.transform;
                 rect.anchoredPosition = new Vector2((i - (count - 1) * 0.5f) * 380f, 0f);
 
                 m_Routes.Add(option);
 
-                // 依次淡入，避免三个按钮同时蹦出来
+                // 依次淡入，避免几个按钮同时蹦出来
                 var group = option.GetComponent<CanvasGroup>();
                 if (group == null)
                 {
@@ -153,6 +159,24 @@ namespace TurnCard.Game.UI
 
                 group.alpha = 0f;
                 group.DOFade(1f, 0.18f).SetDelay(i * 0.06f);
+            }
+        }
+
+        /// <summary>不同节点类型给个颜色区分（美术图到位后可以换成图标）。</summary>
+        private static Color AccentFor(TurnCard.Game.Run.MapNodeType type)
+        {
+            switch (type)
+            {
+                case TurnCard.Game.Run.MapNodeType.Elite:
+                    return new Color(1f, 0.72f, 0.45f);
+                case TurnCard.Game.Run.MapNodeType.Rest:
+                    return new Color(0.72f, 1f, 0.78f);
+                case TurnCard.Game.Run.MapNodeType.Shop:
+                    return new Color(1f, 0.92f, 0.55f);
+                case TurnCard.Game.Run.MapNodeType.Boss:
+                    return new Color(1f, 0.55f, 0.55f);
+                default:
+                    return new Color(0.85f, 0.9f, 1f);
             }
         }
 

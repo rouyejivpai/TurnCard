@@ -19,7 +19,10 @@ namespace TurnCard.Game.Procedure
             screen.AddButton("开始新游戏", () =>
             {
                 RunState.NewRun();
-                ChangeState<ProcedureMap>(procedureOwner);
+
+                // 选关不再用独立的地图界面：直接进战斗界面，先显示路线选项
+                Window.BattleForm.BattleForm.PendingRouteSelect = true;
+                ChangeState<ProcedureBattle>(procedureOwner);
             });
 
             screen.AddButton("退出", UnityEngine.Application.Quit);

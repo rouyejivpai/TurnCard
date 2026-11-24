@@ -5,6 +5,7 @@ using TMPro;
 using TurnCard.Game;
 using TurnCard.Game.Battle;
 using TurnCard.Game.Data;
+using TurnCard.Game.Run;
 using TurnCard.Game.UI;
 using TurnCard.Game.UI.Fx;
 using UnityGameFramework.Runtime;
@@ -33,6 +34,12 @@ namespace Window.BattleForm
 
         /// <summary>调试台指定的下一场阵容（null = 按池子随机抽）。</summary>
         public static TurnCard.Game.Data.EnemyDefinition[] DebugPendingLineup;
+
+        /// <summary>打开界面后先进选关（「开始新游戏」用）。</summary>
+        public static bool PendingRouteSelect;
+
+        /// <summary>这一场要用哪个池子（普通 / 精英 / 首领），null 表示普通。</summary>
+        private TurnCard.Game.Data.EnemyPool? m_PendingPool;
         private RectTransform m_FxLayer;
         private RectTransform m_HandRoot;
         private RectTransform m_ArrowLayer;
@@ -227,6 +234,15 @@ namespace Window.BattleForm
         protected override void OnShow()
         {
             UnityEngine.Debug.Log("[战斗] G OnShow 开始");
+
+            // 「开始新游戏」走选关：先只显示路线选项，选中战斗节点才开打
+            if (PendingRouteSelect)
+            {
+                PendingRouteSelect = false;
+                EnterRouteSelect();
+                return;
+            }
+
             StartBattle();
         }
 
@@ -550,7 +566,9 @@ namespace Window.BattleForm
 
             // 阵容来自配置表：同一 group 的多行按 order 从左到右排开
             UnityEngine.Debug.Log("[战斗] 2 解析阵容");
-            var lineup = DebugPendingLineup ?? ResolveEncounter(TurnCard.Game.Data.EnemyPool.Normal);
+            TurnCard.Game.Data.EnemyPool pool = m_PendingPool ?? TurnCard.Game.Data.EnemyPool.Normal;
+            m_PendingPool = null;
+            var lineup = DebugPendingLineup ?? ResolveEncounter(pool);
             DebugPendingLineup = null;
             UnityEngine.Debug.Log("[战斗] 3 阵容人数=" + lineup.Length);
 
@@ -1436,7 +1454,7 @@ namespace Window.BattleForm
             m_RewardScreen = null;
         }
 
-        /// <summary>舞台区显示下一幕选项（占位）。</summary>
+        /// <summary>清场并显示这一步的路线选项（普通战斗 / 精英战斗 / 火堆 / 商店）。</summary>
         private void ShowRoutes()
         {
             if (m_Stage == null)
@@ -1444,12 +1462,90 @@ namespace Window.BattleForm
                 return;
             }
 
-            m_Stage.ShowRoutes(FlowSettings.Current.RouteOptionCount, index =>
+            RunState run = RunState.Current;
+            run.RollRouteOptions();
+            m_Stage.ShowRoutes(run.RouteOptions, OnRoutePicked);
+        }
+
+        /// <summary>玩家选中了一个路线节点。</summary>
+        private void OnRoutePicked(int index)
+        {
+            RunState run = RunState.Current;
+            TurnCard.Game.Run.MapNode node = run.ChooseRoute(index);
+            if (node == null)
             {
-                m_BattleRound++;
-                m_Stage.ShowBattle();
-                RestartBattle();
-            });
+                return;
+            }
+
+            m_BattleRound++;
+            m_Stage.ShowBattle();
+
+            switch (node.Type)
+            {
+                case TurnCard.Game.Run.MapNodeType.Elite:
+                    StartBattleWithPool(TurnCard.Game.Data.EnemyPool.Elite);
+                    break;
+
+                case TurnCard.Game.Run.MapNodeType.Rest:
+                {
+                    // 火堆：回血后重新抽路线
+                    int healed = run.RestHeal();
+                    if (txtHint != null)
+                    {
+                        txtHint.text = "火堆：回复 " + healed + " 点生命";
+                    }
+
+                    ShowRoutes();
+                    break;
+                }
+
+                case TurnCard.Game.Run.MapNodeType.Shop:
+                    // 商店还没实装：先跳过并重新抽路线
+                    if (txtHint != null)
+                    {
+                        txtHint.text = "商店（待实装）";
+                    }
+
+                    ShowRoutes();
+                    break;
+
+                case TurnCard.Game.Run.MapNodeType.Boss:
+                    StartBattleWithPool(TurnCard.Game.Data.EnemyPool.Boss);
+                    break;
+
+                default:
+                    StartBattleWithPool(TurnCard.Game.Data.EnemyPool.Normal);
+                    break;
+            }
+        }
+
+        /// <summary>用指定池子开一场战斗（普通 / 精英 / 首领）。</summary>
+        private void StartBattleWithPool(TurnCard.Game.Data.EnemyPool pool)
+        {
+            m_PendingPool = pool;
+            StartBattle();
+        }
+
+        /// <summary>进入选关：不打架，只显示这一步的路线选项。</summary>
+        public void EnterRouteSelect()
+        {
+            m_Content = Resources.Load<BattleContent>("BattleContent");
+            if (m_Content == null || m_Content.Cards.Length == 0)
+            {
+                txtHint.text = "缺少 BattleContent，请先生成数据表";
+                return;
+            }
+
+            ResetBattleState();
+            if (txtStatus != null)
+            {
+                txtStatus.text = string.Empty;
+            }
+
+            ShowRoutes();
+
+            // 选关时幕布是拉开的
+            CurtainView.PlayAll();
         }
 
         /// <summary>同一界面重开一场：清场与重建都交给 StartBattle 的时序。</summary>

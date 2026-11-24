@@ -6,7 +6,8 @@ using UnityEngine.UI;
 namespace TurnCard.Game.UI
 {
     /// <summary>
-    /// 下一幕选项（占位阶段就是「第 N 战」）。结构来自 <c>Resources/UI/Stage/RouteOption</c>。
+    /// 路线上的一个节点选项（普通战斗 / 精英战斗 / 火堆 / 商店）。
+    /// 结构来自 <c>Resources/UI/Stage/RouteOption</c>。
     /// </summary>
     public sealed class RouteOptionView : MonoBehaviour
     {
@@ -18,7 +19,7 @@ namespace TurnCard.Game.UI
         private Action<int> m_OnPick;
         private int m_Index;
 
-        public void Bind(int index, string label, Action<int> onPick)
+        public void Bind(int index, string label, Color accent, Action<int> onPick)
         {
             m_Index = index;
             m_OnPick = onPick;
@@ -26,6 +27,7 @@ namespace TurnCard.Game.UI
             if (m_Label != null)
             {
                 m_Label.text = label ?? string.Empty;
+                m_Label.color = accent;
             }
 
             if (m_Button == null)

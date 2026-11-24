@@ -133,6 +133,87 @@ namespace TurnCard.Game.Run
             NodeIndex = -1;
         }
 
+        // ---------------- 路线：每步随机抽 1~3 个节点 ----------------
+
+        private readonly List<MapNode> m_RouteOptions = new List<MapNode>();
+
+        /// <summary>当前这一步可以选的节点（1~3 个）。</summary>
+        public IReadOnlyList<MapNode> RouteOptions => m_RouteOptions;
+
+        /// <summary>已经走过的节点数。</summary>
+        public int RouteStep { get; private set; }
+
+        /// <summary>重新抽一次路线候选。</summary>
+        public void RollRouteOptions()
+        {
+            int count = UnityEngine.Random.Range(1, 4);   // 1、2、3
+            m_RouteOptions.Clear();
+
+            // 同一轮里不重复类型：先把候选池洗一遍，取前 count 个
+            var pool = new List<MapNodeType>
+            {
+                MapNodeType.Battle,
+                MapNodeType.Battle,      // 普通怪权重高一点
+                MapNodeType.Elite,
+                MapNodeType.Rest,
+                MapNodeType.Shop,
+            };
+
+            for (int i = 0; i < count && pool.Count > 0; i++)
+            {
+                int pick = UnityEngine.Random.Range(0, pool.Count);
+                MapNodeType type = pool[pick];
+                pool.RemoveAt(pick);
+                m_RouteOptions.Add(new MapNode(type, LabelFor(type)));
+            }
+        }
+
+        /// <summary>选定第 index 个节点，返回它并进入下一步。</summary>
+        public MapNode ChooseRoute(int index)
+        {
+            if (index < 0 || index >= m_RouteOptions.Count)
+            {
+                return null;
+            }
+
+            MapNode node = m_RouteOptions[index];
+            m_RouteOptions.Clear();
+            RouteStep++;
+            return node;
+        }
+
+        public static string LabelFor(MapNodeType type)
+        {
+            switch (type)
+            {
+                case MapNodeType.Elite:
+                    return "精英战斗";
+                case MapNodeType.Rest:
+                    return "火堆";
+                case MapNodeType.Shop:
+                    return "商店";
+                case MapNodeType.Boss:
+                    return "首领";
+                default:
+                    return "普通战斗";
+            }
+        }
+
+        /// <summary>火堆回血：回复上限的 30%。</summary>
+        public int RestHeal()
+        {
+            int amount = System.Math.Max(1, MaxHp * 3 / 10);
+            int before = Hp;
+            Hp = System.Math.Min(MaxHp, Hp + amount);
+            int healed = Hp - before;
+            if (healed > 0)
+            {
+                HpChanged?.Invoke(Hp);
+            }
+
+            return healed;
+        }
+
         /// <summary>推进到下一个节点，返回该节点；没有更多节点时返回 null。</summary>
         public MapNode Advance()
         {
