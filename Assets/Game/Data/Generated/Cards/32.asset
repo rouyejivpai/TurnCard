@@ -21,7 +21,7 @@ MonoBehaviour:
   m_FrontDamage: 0
   m_FrontArmor: 0
   m_FrontDescription: "\u62BD\u5230\u65F6\u91CA\u653E\uFF0C\u5BF9\u6240\u6709\u5355\u4F4D\u65BD\u52A0\u4E00\u5C42\u6613\u4F24"
-  m_FrontEffects: buff:4,1,-1,all
+  m_FrontEffects: buff:1,1,-1,all
   m_FrontParams: 
   m_FrontKeywords: "\u62BD\u5230\u91CA\u653E"
   m_BackName: "\u653E\u9010"
