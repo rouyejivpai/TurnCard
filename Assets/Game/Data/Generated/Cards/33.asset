@@ -20,9 +20,9 @@ MonoBehaviour:
   m_FrontType: 1
   m_FrontDamage: 0
   m_FrontArmor: 0
-  m_FrontDescription: "\u83B7\u5F97 5 \u70B9\u683C\u6321 X \u6B21\uFF0CX \u4E3A\u624B\u724C\u4E2D\u72B6\u6001\u724C\u6570\u91CF"
-  m_FrontEffects: 
-  m_FrontParams: 
+  m_FrontDescription: "\u83B7\u5F97 5 \u70B9\u683C\u6321 {x} \u6B21\uFF0C{x} \u4E3A\u624B\u724C\u4E2D\u72B6\u6001\u724C\u6570\u91CF"
+  m_FrontEffects: armor_times:5,{X}
+  m_FrontParams: x=status
   m_FrontKeywords: 
   m_BackName: "\u91CD\u6574\u65D7\u9F13"
   m_BackCost: 1

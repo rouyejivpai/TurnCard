@@ -318,11 +318,16 @@ namespace TurnCard.Game.Battle
                     continue;
                 }
 
-                // 刚挂上的那层先跳过一次衰减（用了豁免就清掉标记，下次正常掉）
+                // 刚挂上的那层在「回合开始」时先豁免一次（否则本回合刚施加的虚弱会被立刻抹掉）；
+                // 回合结束类的衰减不豁免——临时力量这类就是要当回合消失的。
                 if (buff.Fresh)
                 {
+                    bool exempt = trigger == Data.BuffTrigger.TurnStart;
                     buff.Fresh = false;
-                    continue;
+                    if (exempt)
+                    {
+                        continue;
+                    }
                 }
 
                 buff.Stacks -= buff.Definition.DecayStacks;

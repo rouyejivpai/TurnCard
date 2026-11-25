@@ -20,9 +20,9 @@ MonoBehaviour:
   m_FrontType: 0
   m_FrontDamage: 0
   m_FrontArmor: 0
-  m_FrontDescription: "\u9020\u6210 4 \u70B9\u4F24\u5BB3 X \u6B21\uFF0CX \u4E3A\u4F60\u7684\u624B\u724C\u6570\u91CF"
-  m_FrontEffects: 
-  m_FrontParams: 
+  m_FrontDescription: "\u9020\u6210 4 \u70B9\u4F24\u5BB3 {x} \u6B21\uFF0C{x} \u4E3A\u4F60\u7684\u624B\u724C\u6570\u91CF"
+  m_FrontEffects: damage_times:4,{X}
+  m_FrontParams: x=hand
   m_FrontKeywords: 
   m_BackName: "\u6DF1\u5EA6\u75B2\u52B3"
   m_BackCost: 1

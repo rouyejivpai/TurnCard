@@ -69,6 +69,10 @@ namespace TurnCard.Game.Battle
                 { "flip_right_discard_left", new FlipRightDiscardLeftEffect() },
                 { "damage_per_attack", new DamagePerAttackCardsEffect() },
                 { "armor_per_skill", new ArmorPerSkillCardsEffect() },
+                { "damage_times", new DamageTimesEffect() },
+                { "armor_times", new ArmorTimesEffect() },
+                { "flip_status", new FlipStatusEffect() },
+                { "temp_strength", new TempStrengthEffect() },
                 { "exhaust_self", new ExhaustSelfEffect() },
                 { "discard_status", new DiscardStatusEffect() },
                 { "buff", new BuffEffect() },
@@ -119,6 +123,11 @@ namespace TurnCard.Game.Battle
 
                 string key = entry;
                 string[] args = Array.Empty<string>();
+
+                // {X} / {x} 替换成当前出牌结算里的 X 值（X 费、手牌数、状态牌数…）
+                entry = entry.Replace('{', ' ').Replace('}', ' ');
+                entry = entry.Replace(" X ", " " + context.State.CurrentX + " ");
+                entry = entry.Replace(" x ", " " + context.State.CurrentX + " ");
 
                 int colon = entry.IndexOf(':');
                 if (colon >= 0)
@@ -226,6 +235,73 @@ namespace TurnCard.Game.Battle
                 {
                     preview.CollectPreview(context, args, tokens);
                 }
+            }
+        }
+
+        /// <summary>造成 a 点伤害，重复 count 次（每次独立入队，表现层逐段播）。</summary>
+        private sealed class DamageTimesEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int amount = Arg(args, 0, 0);
+                int times = Arg(args, 1, 1);
+                for (int i = 0; i < times; i++)
+                {
+                    Builtins["damage"].Apply(context, new[] { amount.ToString() });
+                }
+            }
+        }
+
+        /// <summary>获得 a 点护甲，重复 count 次。</summary>
+        private sealed class ArmorTimesEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int amount = Arg(args, 0, 0);
+                int times = Arg(args, 1, 1);
+                for (int i = 0; i < times; i++)
+                {
+                    Builtins["armor"].Apply(context, new[] { amount.ToString() });
+                }
+            }
+        }
+
+        /// <summary>翻面手牌中最前面 count 张「状态牌」。</summary>
+        private sealed class FlipStatusEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int count = Math.Max(1, Arg(args, 0, 1));
+                int flipped = 0;
+                foreach (CardInstance card in context.State.Hand)
+                {
+                    if (flipped >= count)
+                    {
+                        break;
+                    }
+
+                    if (card != null && card.Face.Type == CardType.Status)
+                    {
+                        context.State.RequestFlip(card, BattleState.FlipSource.Effect);
+                        flipped++;
+                    }
+                }
+            }
+        }
+
+        /// <summary>获得临时力量（回合结束消失）。</summary>
+        private sealed class TempStrengthEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int stacks = Arg(args, 0, 1);
+                if (stacks <= 0)
+                {
+                    return;
+                }
+
+                // 临时力量的 buff id 在表里固定为 32（buff.xlsx）
+                context.State.ApplyBuff(context.State.PlayerBuffs, 32, stacks, -1);
             }
         }
 

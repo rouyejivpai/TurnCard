@@ -1198,6 +1198,45 @@ namespace TurnCard.Game.Battle
             public bool Modified => Value != BaseValue;
         }
 
+        /// <summary>当前出牌结算中的 X 值（X 费 / {X} 占位用）。</summary>
+        public int CurrentX { get; private set; }
+
+        /// <summary>
+        /// 这一面的 X 来源：energy（剩余能量）/ status（手牌状态牌数）/ hand（手牌数）。
+        /// 没配 x 参数返回 null。
+        /// </summary>
+        public string XSource(Data.CardFace face)
+        {
+            if (face.Params != null && face.Params.TryGetValue("x", out string src))
+            {
+                return src == null ? null : src.Trim().ToLowerInvariant();
+            }
+
+            return null;
+        }
+
+        /// <summary>按来源算这一面的 X 值。</summary>
+        public int EvaluateX(Data.CardFace face)
+        {
+            string src = XSource(face);
+            if (string.IsNullOrEmpty(src))
+            {
+                return 0;
+            }
+
+            switch (src)
+            {
+                case "energy":
+                    return Math.Max(0, Energy);
+                case "status":
+                    return CountHandOfType(CardType.Status);
+                case "hand":
+                    return m_Hand.Count;
+                default:
+                    return 0;
+            }
+        }
+
         /// <summary>这张牌打出去的实际伤害；给了 target 就把目标的易伤也算进去。</summary>
         public ValuePreview PreviewPlayerDamage(Data.CardFace face, EnemyInstance target)
         {
@@ -1264,6 +1303,13 @@ namespace TurnCard.Game.Battle
             }
 
             CardEffects.CollectPreviewTokens(face, this, target, tokens);
+
+            // {x}：描述里显示当前 X 值（X 费牌 X = 当前能量，其余按来源算）
+            int x = EvaluateX(face);
+            if (!string.IsNullOrEmpty(XSource(face)))
+            {
+                tokens["x"] = x;
+            }
 
             // 伤害类 token 统一过一遍 buff，保证和实际结算一致
             if (tokens.ContainsKey("total_damage"))
@@ -1675,6 +1721,12 @@ namespace TurnCard.Game.Battle
         /// </summary>
         public int EffectiveCost(CardFace face)
         {
+            // X 费牌：费用等于按来源算出来的 X（energy 来源就是当前全部能量）
+            if (!string.IsNullOrEmpty(XSource(face)))
+            {
+                return Math.Max(0, EvaluateX(face));
+            }
+
             float raw = face.Cost + PlayerBuffs.Flat("cost");
             int cost = (int)System.Math.Round(raw);
             return cost < 0 ? 0 : cost;
@@ -2350,8 +2402,10 @@ namespace TurnCard.Game.Battle
 
             CardFace face = card.Face;
 
-            // 1) 实际要付多少：贪婪给玩家挂的「费用归零」buff 会把 cost 修饰成 0
+            // 1) 实际要付多少：贪婪给玩家挂的「费用归零」buff 会把 cost 修饰成 0；
+            //    X 费牌在这里把 X 记下来，供效果串里的 {X} 使用
             int paid = EffectiveCost(face);
+            CurrentX = string.IsNullOrEmpty(XSource(face)) ? 0 : paid;
 
             // 2) 这张牌之前是否被「免费打出」标记过（代价据此结算）
             bool markedFree = card.FreePlayed;
