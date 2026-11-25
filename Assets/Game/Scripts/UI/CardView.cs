@@ -599,7 +599,7 @@ namespace TurnCard.Game.UI
 
             if (face.CostText != null)
             {
-                face.CostText.text = cost >= 0 ? cost.ToString() : string.Empty;
+                face.CostText.text = CostTextFor(cost, data);
             }
 
             if (face.TypeText != null)
@@ -609,9 +609,52 @@ namespace TurnCard.Game.UI
             }
         }
 
+        /// <summary>
+        /// 按「当前显示的那一面」重算费用文本。
+        /// X 费牌的费用随局面变化（能量、手牌状态牌数），翻面/刷新时都要重算，
+        /// 否则会一直停在绑卡那一刻的数字。
+        /// </summary>
+        public void RefreshCostText()
+        {
+            if (Card == null)
+            {
+                return;
+            }
+
+            FaceWidgets face = m_ShownSide == CardFaceSide.Back ? m_BackFace : m_FrontFace;
+            if (face == null || face.CostText == null)
+            {
+                return;
+            }
+
+            face.CostText.text = CostTextFor(Card.Face.Cost, Card.Face);
+        }
+
+        /// <summary>
+        /// 费用文本：X 费牌（params 里有 xcost）显示当前实际费用；
+        /// 战斗外（牌库、商店）没有 BattleState，就显示 X。
+        /// </summary>
+        private static string CostTextFor(int cost, CardFace? data)
+        {
+            if (data.HasValue && data.Value.Params != null && data.Value.Params.ContainsKey("xcost"))
+            {
+                BattleState state = CardPreviewSource.State;
+                if (state != null)
+                {
+                    return state.EffectiveCostFor(data.Value).ToString();
+                }
+
+                return "X";
+            }
+
+            return cost >= 0 ? cost.ToString() : string.Empty;
+        }
+
         /// <summary>按卡牌实例当前的面刷新（不播动画）。</summary>
         public void RefreshVisual()
         {
+            RefreshCostText();
+
             if (Card != null)
             {
                 ApplySide(Card.Side, false, 0f, null, null);
@@ -629,6 +672,7 @@ namespace TurnCard.Game.UI
             Action onCompleted)
         {
             m_ShownSide = side;
+            RefreshCostText();
             float targetY = side == CardFaceSide.Back ? 180f : 0f;
 
             // 面变了，之前那面的关键词提示就不再成立
@@ -1210,7 +1254,7 @@ namespace TurnCard.Game.UI
 
             // 直接写这一面的费用文字：不能靠 RefreshVisual，因为「同一面」时它不会重刷
             int shown = cost ?? Card.Face.Cost;
-            face.CostText.text = shown >= 0 ? shown.ToString() : string.Empty;
+            face.CostText.text = CostTextFor(shown, Card.Face);
             face.CostText.color = cost.HasValue ? new Color(1f, 0.86f, 0.35f) : Color.white;
         }
 

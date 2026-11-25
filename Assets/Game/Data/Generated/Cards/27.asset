@@ -32,5 +32,5 @@ MonoBehaviour:
   m_BackDescription: "**\u4FDD\u7559**\uFF1B\u6B64\u724C\u8017\u80FD\u56FA\u5B9A\u4E3A\u624B\u724C\u4E2D\u72B6\u6001\u724C\u7684\u6570\u91CF\uFF08\u5F53\u524D
     {x}\uFF09"
   m_BackEffects: 
-  m_BackParams: x=status
+  m_BackParams: x=status;xcost=status
   m_BackKeywords: "\u4FDD\u7559"

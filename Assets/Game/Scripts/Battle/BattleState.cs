@@ -1292,6 +1292,38 @@ namespace TurnCard.Game.Battle
             return null;
         }
 
+        /// <summary>
+        /// 这一面是不是「X 费」：params 里写 <c>xcost=energy/status/hand</c>。
+        /// 只写 <c>x=…</c> 的是「数值用 X」，费用仍按 cost 列（全力一击 / 自愈这类）。
+        /// </summary>
+        public bool HasXCost(Data.CardFace face)
+        {
+            return face.Params != null && face.Params.ContainsKey("xcost");
+        }
+
+        /// <summary>按 xcost 的来源算这一面的费用。</summary>
+        public int EvaluateXCost(Data.CardFace face)
+        {
+            if (!HasXCost(face))
+            {
+                return 0;
+            }
+
+            string src = face.Params["xcost"];
+            src = src == null ? string.Empty : src.Trim().ToLowerInvariant();
+            switch (src)
+            {
+                case "energy":
+                    return Math.Max(0, Energy);
+                case "status":
+                    return CountHandOfType(CardType.Status);
+                case "hand":
+                    return m_Hand.Count;
+                default:
+                    return 0;
+            }
+        }
+
         /// <summary>按来源算这一面的 X 值。</summary>
         public int EvaluateX(Data.CardFace face)
         {
@@ -1828,9 +1860,9 @@ namespace TurnCard.Game.Battle
         public int EffectiveCost(CardFace face)
         {
             // X 费牌：费用等于按来源算出来的 X（energy 来源就是当前全部能量）
-            if (!string.IsNullOrEmpty(XSource(face)))
+            if (HasXCost(face))
             {
-                return Math.Max(0, EvaluateX(face));
+                return Math.Max(0, EvaluateXCost(face));
             }
 
             float raw = face.Cost + PlayerBuffs.Flat("cost");
@@ -2526,7 +2558,7 @@ namespace TurnCard.Game.Battle
             }
 
             int paid = EffectiveCost(face);
-            CurrentX = string.IsNullOrEmpty(XSource(face)) ? 0 : paid;
+            CurrentX = HasXCost(face) ? paid : EvaluateX(face);
 
             // 2) 这张牌之前是否被「免费打出」标记过（代价据此结算）
             bool markedFree = card.FreePlayed;
