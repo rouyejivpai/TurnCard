@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e0497a28085de4f48afc9c62ca876d8c, type: 3}
   m_Name: BattleRules
   m_EditorClassIdentifier: 
-  m_HandSize: 3
-  m_MaxHandSize: 6
+  m_DrawPerTurn: 3
+  m_MaxHandSize: 10
   m_EnergyPerTurn: 3
   m_PlayerMaxHp: 80

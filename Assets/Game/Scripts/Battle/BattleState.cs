@@ -342,8 +342,8 @@ namespace TurnCard.Game.Battle
         /// <summary>规则参数都在 Resources/Config/BattleRules.asset 里配（见 <see cref="BattleRules"/>）。</summary>
         public static int MaxEnergy => BattleRules.Current.EnergyPerTurn;
 
-        /// <summary>额定手牌数：每回合补到这么多张。</summary>
-        public static int HandSize => BattleRules.Current.HandSize;
+        /// <summary>每回合抽牌数（抽 N 张，不是补到 N 张）。</summary>
+        public static int DrawPerTurn => BattleRules.Current.DrawPerTurn;
 
         public static int PlayerMaxHp => BattleRules.Current.PlayerMaxHp;
 
@@ -1611,7 +1611,7 @@ namespace TurnCard.Game.Battle
 
             ResolveAbsorbBacklash();
             RefreshGreedBuff();
-            DrawUpTo(HandSize);
+            DrawCards(DrawPerTurn);
             RefreshPowerCards();
         }
 

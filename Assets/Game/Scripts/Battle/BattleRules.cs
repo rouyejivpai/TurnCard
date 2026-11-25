@@ -10,8 +10,8 @@ namespace TurnCard.Game.Battle
     public sealed class BattleRules : ScriptableObject
     {
         [Header("手牌")]
-        [Tooltip("每回合抽到这么多张（额定手牌数）。当前手牌高于它时不会额外抽。")]
-        [SerializeField] private int m_HandSize = 5;
+        [Tooltip("每回合抽几张（是「抽 N 张」，不是「补到 N 张」）。")]
+        [SerializeField] private int m_DrawPerTurn = 3;
 
         [Tooltip("手牌上限：抽牌时最多保留这么多张，0 表示不限制")]
         [SerializeField] private int m_MaxHandSize = 10;
@@ -23,7 +23,7 @@ namespace TurnCard.Game.Battle
         [Tooltip("玩家最大生命")]
         [SerializeField] private int m_PlayerMaxHp = 80;
 
-        public int HandSize => Mathf.Max(1, m_HandSize);
+        public int DrawPerTurn => Mathf.Max(1, m_DrawPerTurn);
         public int MaxHandSize => m_MaxHandSize <= 0 ? int.MaxValue : m_MaxHandSize;
         public int EnergyPerTurn => Mathf.Max(1, m_EnergyPerTurn);
         public int PlayerMaxHp => Mathf.Max(1, m_PlayerMaxHp);
