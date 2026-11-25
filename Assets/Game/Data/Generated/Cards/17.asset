@@ -17,12 +17,11 @@ MonoBehaviour:
   m_Quality: 1
   m_FrontName: "\u6218\u672F\u7D20\u517B"
   m_FrontCost: 1
-  m_FrontType: 2
+  m_FrontType: 1
   m_FrontDamage: 0
   m_FrontArmor: 0
-  m_FrontDescription: "\u624B\u724C\u4E2D\u4E14\u6B63\u9762\u671D\u4E0A\u65F6\uFF1A\u83B7\u5F97
-    1 \u70B9**\u529B\u91CF**"
-  m_FrontEffects: buff:2,1,-1,player
+  m_FrontDescription: "\u62BD 1 \u5F20\u724C"
+  m_FrontEffects: draw:1
   m_FrontParams: 
   m_FrontKeywords: 
   m_BackName: "\u6218\u672F\u7D20\u517B"
@@ -30,7 +29,8 @@ MonoBehaviour:
   m_BackType: 2
   m_BackDamage: 0
   m_BackArmor: 0
-  m_BackDescription: "\u80CC\u9762\u671D\u4E0A\u65F6\u4E0D\u751F\u6548"
-  m_BackEffects: 
+  m_BackDescription: "\u624B\u724C\u4E2D\u4E14\u6B64\u9762\u671D\u4E0A\u65F6\uFF1A\u83B7\u5F97
+    2 \u70B9**\u529B\u91CF**"
+  m_BackEffects: buff:2,2,-1,player
   m_BackParams: 
   m_BackKeywords: 
