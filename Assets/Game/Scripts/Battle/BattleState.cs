@@ -856,6 +856,7 @@ namespace TurnCard.Game.Battle
             m_Hand.Clear();
             m_DrawPile.Clear();
             m_DiscardPile.Clear();
+            m_ExhaustPile.Clear();
             m_Enemies.Clear();
             m_Pending.Clear();
             m_PendingFlips.Clear();
@@ -933,6 +934,7 @@ namespace TurnCard.Game.Battle
             m_Pending.Clear();
             m_PendingInstants.Clear();
             m_PendingFlips.Clear();
+            m_ExhaustPile.Clear();
             m_PowerBuffs.Clear();
             m_PowerRecording = null;
 
@@ -955,6 +957,32 @@ namespace TurnCard.Game.Battle
         public void ClearPendingInstants()
         {
             m_PendingInstants.Clear();
+        }
+
+        /// <summary>消耗堆：本场战斗内不再回到抽牌堆。</summary>
+        private readonly List<CardInstance> m_ExhaustPile = new List<CardInstance>();
+
+        public IReadOnlyList<CardInstance> ExhaustPile => m_ExhaustPile;
+
+        /// <summary>把一张牌移出战斗（进消耗堆）。</summary>
+        public void ExhaustCard(CardInstance card)
+        {
+            if (card == null)
+            {
+                return;
+            }
+
+            m_Hand.Remove(card);
+            m_DrawPile.Remove(card);
+            m_DiscardPile.Remove(card);
+
+            if (!m_ExhaustPile.Contains(card))
+            {
+                m_ExhaustPile.Add(card);
+            }
+
+            CardExhausted?.Invoke(card);
+            RaiseChanged();
         }
 
         private readonly List<CardInstance> m_DrawPile = new List<CardInstance>();
@@ -1475,6 +1503,9 @@ namespace TurnCard.Game.Battle
         /// <summary>手牌增减。</summary>
         public event Action<CardInstance> CardDrawn;
         public event Action<CardInstance> CardDiscarded;
+
+        /// <summary>一张牌被消耗（进消耗堆）。</summary>
+        public event Action<CardInstance> CardExhausted;
 
         /// <summary>回合开始 / 结束。</summary>
         public event Action<int> TurnStarted;

@@ -69,6 +69,8 @@ namespace TurnCard.Game.Battle
                 { "flip_right_discard_left", new FlipRightDiscardLeftEffect() },
                 { "damage_per_attack", new DamagePerAttackCardsEffect() },
                 { "armor_per_skill", new ArmorPerSkillCardsEffect() },
+                { "exhaust_self", new ExhaustSelfEffect() },
+                { "discard_status", new DiscardStatusEffect() },
                 { "buff", new BuffEffect() },
                 { "buff_self", new BuffSelfEffect() },
                 { "lose_armor", new LoseArmorEffect() },
@@ -223,6 +225,45 @@ namespace TurnCard.Game.Battle
                 if (effect is ICardEffectPreview preview)
                 {
                     preview.CollectPreview(context, args, tokens);
+                }
+            }
+        }
+
+        /// <summary>把打出的这张牌放进消耗堆（本场不再回来）。</summary>
+        private sealed class ExhaustSelfEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                if (context.Card != null)
+                {
+                    context.State.ExhaustCard(context.Card);
+                }
+            }
+        }
+
+        /// <summary>丢弃手牌中所有「状态牌」，并按丢弃数量抽牌。</summary>
+        private sealed class DiscardStatusEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                var statusCards = new List<CardInstance>();
+                foreach (CardInstance card in context.State.Hand)
+                {
+                    if (card != null && card.Face.Type == CardType.Status)
+                    {
+                        statusCards.Add(card);
+                    }
+                }
+
+                int count = statusCards.Count;
+                foreach (CardInstance card in statusCards)
+                {
+                    context.State.DiscardCard(card);
+                }
+
+                if (count > 0)
+                {
+                    context.State.DrawCards(count);
                 }
             }
         }

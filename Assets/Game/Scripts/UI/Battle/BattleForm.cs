@@ -73,6 +73,10 @@ namespace Window.BattleForm
         /// <summary>开幕/关幕协程。</summary>
         private Coroutine m_BattleIntro;
 
+        /// <summary>消耗堆按钮（运行时克隆弃牌堆按钮得到）。</summary>
+        private Button m_BtnExhaustPile;
+        private TextMeshProUGUI m_ExhaustCountText;
+
         /// <summary>玩家血条下方的 buff 图标条（每场战斗重建，退出时销毁）。</summary>
         private BuffIconStrip m_PlayerBuffStrip;
 
@@ -351,6 +355,7 @@ namespace Window.BattleForm
             btnEndTurn.onClick.AddListener(OnEndTurnClicked);
             btnDrawPile.onClick.AddListener(OpenDrawPile);
             btnDiscardPile.onClick.AddListener(OpenDiscardPile);
+            BuildExhaustPileButton();
         }
 
         /// <summary>
@@ -833,6 +838,11 @@ namespace Window.BattleForm
             {
                 txtDiscardCount.text = m_State.DiscardPile.Count.ToString();
             }
+
+            if (m_ExhaustCountText != null)
+            {
+                m_ExhaustCountText.text = "消耗 " + m_State.ExhaustPile.Count;
+            }
         }
 
         private void ApplyEnemyViews()
@@ -909,6 +919,7 @@ namespace Window.BattleForm
             // 弃牌：不再整手重建，而是把被弃的那张飞向弃牌堆再销毁，
             // 否则视图会在动画开始前就被重建掉，看起来像「瞬间消失」。
             state.CardDiscarded += PlayDiscardAnimation;
+            state.CardExhausted += _ => m_HandDirty = true;
             state.CardDiscarded += _ => MarkPreviewDirty();
             state.TurnStarted += _ =>
             {
@@ -2316,6 +2327,46 @@ namespace Window.BattleForm
                         RemainingHp = remainingHp,
                     });
             });
+        }
+
+        /// <summary>消耗堆按钮：克隆弃牌堆按钮的外观（运行时创建，避免动 UIBind 预制体）。</summary>
+        private void BuildExhaustPileButton()
+        {
+            if (m_BtnExhaustPile != null || btnDiscardPile == null)
+            {
+                return;
+            }
+
+            GameObject copy = Instantiate(btnDiscardPile.gameObject, btnDiscardPile.transform.parent);
+            copy.name = "btnExhaustPile";
+
+            var sourceRect = (RectTransform)btnDiscardPile.transform;
+            var rect = (RectTransform)copy.transform;
+            rect.anchoredPosition = sourceRect.anchoredPosition + new Vector2(0f, -96f);
+
+            m_BtnExhaustPile = copy.GetComponent<Button>();
+            if (m_BtnExhaustPile != null)
+            {
+                m_BtnExhaustPile.onClick.RemoveAllListeners();
+                m_BtnExhaustPile.onClick.AddListener(OpenExhaustPile);
+            }
+
+            foreach (TextMeshProUGUI label in copy.GetComponentsInChildren<TextMeshProUGUI>(true))
+            {
+                m_ExhaustCountText = label;
+                label.text = "消耗 0";
+                break;
+            }
+        }
+
+        private void OpenExhaustPile()
+        {
+            if (m_State == null)
+            {
+                return;
+            }
+
+            OpenPileList("消耗堆", m_State.ExhaustPile);
         }
 
         private void OpenDrawPile()
