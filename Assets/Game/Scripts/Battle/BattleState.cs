@@ -2574,9 +2574,10 @@ namespace TurnCard.Game.Battle
                 flippedEnemy = context.FlippedEnemy;
                 m_LastEffectFlipEnemy = context.FlippedEnemy;
 
-                // 先挂起（如果需要玩家选择），否则立刻进第二段
+                // 记下这次出牌；第二段（CompletePlay）负责翻面与收瞬发
                 m_PendingPlayCard = card;
                 m_PendingPlayTarget = target;
+                m_PlayInProgress = true;
                 flippedEnemy = context.FlippedEnemy;
             }
             finally
@@ -2589,7 +2590,6 @@ namespace TurnCard.Game.Battle
             if (HasPendingChoice)
             {
                 battleEnded = false;
-                m_PlayInProgress = true;
                 return PlayResult.NeedsChoice;
             }
 

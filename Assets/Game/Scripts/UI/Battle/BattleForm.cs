@@ -1723,6 +1723,19 @@ namespace Window.BattleForm
                 yield break;
             }
 
+            // 不需要选牌的普通出牌：这里必须补上第二段，
+            // 否则牌不翻面、瞬发不触发，还会把 m_PlayInProgress 卡住（下一回合都结算不了）。
+            if (result == PlayResult.Ok)
+            {
+                m_ChoiceResult = m_State.CompletePlay(out flippedEnemy, out battleEnded);
+                if (m_ChoiceResult != PlayResult.Ok)
+                {
+                    m_Busy = false;
+                    RefreshInteractivity();
+                    yield break;
+                }
+            }
+
             m_Busy = true;
             HideArrow();
             view.SetLifted(false);
