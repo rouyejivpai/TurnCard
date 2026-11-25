@@ -23,7 +23,7 @@ MonoBehaviour:
   m_FrontDescription: "**\u4FDD\u7559**\uFF0C\u5F53\u4F60\u624B\u724C\u4E2D\u72B6\u6001\u724C\u6570\u91CF\u5927\u4E8E
     3 \u65F6\u624D\u80FD\u6253\u51FA"
   m_FrontEffects: 
-  m_FrontParams: 
+  m_FrontParams: require=status>3
   m_FrontKeywords: "\u4FDD\u7559"
   m_BackName: "\u6B7B\u6597"
   m_BackCost: 0

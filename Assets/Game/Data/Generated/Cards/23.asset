@@ -21,7 +21,7 @@ MonoBehaviour:
   m_FrontDamage: 10
   m_FrontArmor: 0
   m_FrontDescription: "\u9020\u6210 10 \u70B9\u4F24\u5BB3\u4E24\u6B21\uFF0C\u6B64\u724C\u4E0E\u72B6\u6001\u724C\u76F8\u90BB\u65F6\u6539\u4E3A\u56DB\u6B21"
-  m_FrontEffects: damage:10;damage:10
+  m_FrontEffects: damage_times_adjacent_status:10,2,4
   m_FrontParams: 
   m_FrontKeywords: 
   m_BackName: "\u6DF1\u5EA6\u75B2\u52B3"

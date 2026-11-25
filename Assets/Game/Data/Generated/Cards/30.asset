@@ -21,7 +21,7 @@ MonoBehaviour:
   m_FrontDamage: 0
   m_FrontArmor: 0
   m_FrontDescription: "\u83B7\u5F97 2 \u70B9\u529B\u91CF\uFF0C\u4E22\u5F03\u76F8\u90BB\u7684\u724C\uFF0C\u82E5\u4E3A\u72B6\u6001\u724C\u5219\u6539\u4E3A\u6D88\u8017"
-  m_FrontEffects: buff:2,2,-1,player
+  m_FrontEffects: buff:2,2,-1,player;discard_adjacent
   m_FrontParams: 
   m_FrontKeywords: 
   m_BackName: "\u8FFD\u6094"

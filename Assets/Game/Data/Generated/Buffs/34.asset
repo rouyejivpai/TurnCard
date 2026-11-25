@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b95ecc669196734498f45e6b7d56ede, type: 3}
+  m_Name: SchemeAttack
+  m_EditorClassIdentifier: 
+  m_Id: 34
+  m_Name: 
+  m_DisplayName: "\u8BA1\u8C0B\xB7\u653B"
+  m_Description: "\u6709\u72B6\u6001\u724C\u88AB\u6253\u51FA\u65F6\u5BF9\u6240\u6709\u654C\u4EBA\u9020\u6210
+    4 \u70B9\u4F24\u5BB3"
+  m_Icon: buff_attack
+  m_StackRule: 0
+  m_Consume: 2
+  m_MaxStacks: 99
+  m_Modifier: 
+  m_Trigger: 13
+  m_TriggerAction: 0
+  m_TriggerCount: 0
+  m_RuleBlock: 
+  m_TriggerEffect: damage:4,all
+  m_DecayTrigger: 0
+  m_DecayStacks: 0
+  m_Hidden: 1

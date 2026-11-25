@@ -346,6 +346,9 @@ namespace TurnCard.Game.Battle
 
         /// <summary>这次出牌需要玩家先选一张牌（表现层进入选牌流程后再调 CompletePlay）。</summary>
         NeedsChoice,
+
+        /// <summary>卡面的打出条件不满足（如围困要求手牌状态牌 > 3）。</summary>
+        ConditionNotMet,
     }
 
     /// <summary>
@@ -950,6 +953,8 @@ namespace TurnCard.Game.Battle
             m_PendingInstants.Clear();
             m_PendingFlips.Clear();
             m_ExhaustPile.Clear();
+            m_ForcedPlayDepth = 0;
+            m_DrawReleaseDepth = 0;
             m_PowerBuffs.Clear();
             m_PowerRecording = null;
 
@@ -1307,6 +1312,29 @@ namespace TurnCard.Game.Battle
                 default:
                     return 0;
             }
+        }
+
+        /// <summary>
+        /// 卡面能不能打：目前支持 <c>params.require = status&gt;N</c>（围困：手牌状态牌多于 N 张）。
+        /// </summary>
+        public bool CanPlayFace(Data.CardFace face)
+        {
+            if (face.Params == null || !face.Params.TryGetValue("require", out string rule) ||
+                string.IsNullOrWhiteSpace(rule))
+            {
+                return true;
+            }
+
+            rule = rule.Trim().ToLowerInvariant();
+            if (rule.StartsWith("status>"))
+            {
+                if (int.TryParse(rule.Substring("status>".Length), out int limit))
+                {
+                    return CountHandOfType(CardType.Status) > limit;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>给表现层用的费用查询（含 X 费与 buff 修饰）。</summary>
@@ -1930,6 +1958,10 @@ namespace TurnCard.Game.Battle
             IsPlayerTurn = false;
             TurnEnded?.Invoke();
 
+            // 玩家回合结束的被动要按「弃牌之前的手牌」结算（佯攻、损伤都数手牌里的状态牌），
+            // 所以先跑 TurnEnd 触发，再弃牌。
+            RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnEnd, PickRandomAliveEnemy());
+
             // 「保留」的牌回合结束时不进弃牌堆，留在手上（关键词机制，见 keywords 列）
             for (int i = m_Hand.Count - 1; i >= 0; i--)
             {
@@ -1950,9 +1982,6 @@ namespace TurnCard.Game.Battle
             {
                 kept.RetainedThisTurn = false;
             }
-
-            // 玩家回合结束：只跑玩家自己的「回合结束」触发
-            RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnEnd, PickRandomAliveEnemy());
 
             // 敌人阶段开始：敌人自己的「回合开始」触发（自愈、久睡翻面…）与按回合衰减
             BeginEnemyTurn();
@@ -2488,6 +2517,14 @@ namespace TurnCard.Game.Battle
 
             // 1) 实际要付多少：贪婪给玩家挂的「费用归零」buff 会把 cost 修饰成 0；
             //    X 费牌在这里把 X 记下来，供效果串里的 {X} 使用
+            // 打出条件（围困这种）：不满足直接拒绝，不扣费
+            if (!CanPlayFace(face))
+            {
+                flippedEnemy = null;
+                battleEnded = false;
+                return PlayResult.ConditionNotMet;
+            }
+
             int paid = EffectiveCost(face);
             CurrentX = string.IsNullOrEmpty(XSource(face)) ? 0 : paid;
 
@@ -2526,6 +2563,13 @@ namespace TurnCard.Game.Battle
             try
             {
                 RunTriggers(PlayerBuffs, Data.BuffTrigger.CardPlayed, target);
+
+                // 计谋：守 / 计谋：攻 —— 只有「打出的这张牌当前面是状态牌」才触发
+                if (face.Type == CardType.Status)
+                {
+                    RunTriggers(PlayerBuffs, Data.BuffTrigger.StatusPlayed, target);
+                }
+
                 CardEffects.ExecuteAll(context);
                 flippedEnemy = context.FlippedEnemy;
                 m_LastEffectFlipEnemy = context.FlippedEnemy;
@@ -3105,10 +3149,97 @@ namespace TurnCard.Game.Battle
                 m_DrawPile.RemoveAt(0);
                 m_Hand.Add(card);
                 CardDrawn?.Invoke(card);
+
+                // 关键词「抽到释放」：抽到的瞬间执行这张面自己的效果，牌留在手上
+                if (card.Face.HasKeyword(KeywordMechanics.DrawRelease))
+                {
+                    RunDrawRelease(card);
+                }
             }
 
             RaiseChanged();
         }
+
+        /// <summary>强制把一张牌翻到正面并执行它的正面效果（放逐）。带深度保护，避免互相递归。</summary>
+        public void ForceFlipToFrontAndPlay(CardInstance card)
+        {
+            if (card == null || m_ForcedPlayDepth > 1)
+            {
+                return;
+            }
+
+            if (card.Side != CardFaceSide.Front)
+            {
+                // Flip() 会通过 Flipped 事件自动进入 OnCardFlipped（收瞬发、刷能力牌）
+                card.Flip();
+            }
+
+            m_ForcedPlayDepth++;
+            CardInstance previous = EnterCardContext(card);
+            try
+            {
+                var context = new CardEffectContext
+                {
+                    State = this,
+                    Card = card,
+                    Target = PickRandomAliveEnemy(),
+                    Face = card.Face,
+                };
+
+                CardEffects.ExecuteAll(context);
+            }
+            finally
+            {
+                m_ForcedPlayDepth--;
+                ExitCardContext(previous);
+            }
+        }
+
+        /// <summary>打出正面效果后立刻丢弃（重整旗鼓）。</summary>
+        public void PlayFrontThenDiscard(CardInstance card)
+        {
+            if (card == null)
+            {
+                return;
+            }
+
+            ForceFlipToFrontAndPlay(card);
+            DiscardCard(card);
+        }
+
+        private int m_ForcedPlayDepth;
+
+        /// <summary>「抽到释放」：按抽到的那一面跑一次效果（不扣费、不离开手牌）。</summary>
+        private void RunDrawRelease(CardInstance card)
+        {
+            if (card == null || m_DrawReleaseDepth > 1)
+            {
+                return;
+            }
+
+            m_DrawReleaseDepth++;
+            CardInstance previous = EnterCardContext(card);
+            try
+            {
+                var context = new CardEffectContext
+                {
+                    State = this,
+                    Card = card,
+                    Target = PickRandomAliveEnemy(),
+                    Face = card.Face,
+                };
+
+                CardEffects.ExecuteAll(context);
+            }
+            finally
+            {
+                m_DrawReleaseDepth--;
+                ExitCardContext(previous);
+                RaiseChanged();
+            }
+        }
+
+        private int m_DrawReleaseDepth;
 
         private void ReshuffleDiscardIntoDraw()
         {

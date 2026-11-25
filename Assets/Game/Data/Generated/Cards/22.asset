@@ -30,6 +30,6 @@ MonoBehaviour:
   m_BackDamage: 0
   m_BackArmor: 0
   m_BackDescription: "**\u4FDD\u7559**\uFF0C\u56DE\u5408\u7ED3\u675F\u65F6\u53D7\u5230\u7B49\u540C\u4E8E\u624B\u724C\u4E2D\u72B6\u6001\u724C\u6570\u91CF\u70B9\u4F24\u5BB3"
-  m_BackEffects: 
+  m_BackEffects: buff:36,1,-1,player
   m_BackParams: 
   m_BackKeywords: "\u4FDD\u7559"

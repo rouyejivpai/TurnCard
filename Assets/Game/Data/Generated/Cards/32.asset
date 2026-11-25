@@ -21,15 +21,15 @@ MonoBehaviour:
   m_FrontDamage: 0
   m_FrontArmor: 0
   m_FrontDescription: "\u62BD\u5230\u65F6\u91CA\u653E\uFF0C\u5BF9\u6240\u6709\u5355\u4F4D\u65BD\u52A0\u4E00\u5C42\u6613\u4F24"
-  m_FrontEffects: 
+  m_FrontEffects: buff:4,1,-1,all
   m_FrontParams: 
-  m_FrontKeywords: 
+  m_FrontKeywords: "\u62BD\u5230\u91CA\u653E"
   m_BackName: "\u653E\u9010"
   m_BackCost: 2
   m_BackType: 1
   m_BackDamage: 0
   m_BackArmor: 0
   m_BackDescription: "\u7FFB\u9762\u4F60\u624B\u724C\u4E2D\u6240\u6709\u7684\u72B6\u6001\u724C\uFF0C\u5E76\u6253\u51FA\u5B83\u4EEC\u7684\u6B63\u9762"
-  m_BackEffects: 
+  m_BackEffects: play_all_status_front
   m_BackParams: 
   m_BackKeywords: 

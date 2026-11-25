@@ -18,10 +18,14 @@ namespace TurnCard.Game.Battle
         /// <summary>回合结束时这张牌不进入弃牌堆，留在手上。</summary>
         public const string Keep = "保留";
 
+        /// <summary>抽到这张牌时立刻执行它当前面的效果，牌仍留在手上（以吾之名）。</summary>
+        public const string DrawRelease = "抽到释放";
+
         private static readonly HashSet<string> Known = new HashSet<string>(StringComparer.Ordinal)
         {
             Instant,
             Keep,
+            DrawRelease,
         };
 
         public static bool IsKnown(string keyword)

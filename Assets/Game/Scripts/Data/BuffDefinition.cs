@@ -64,6 +64,9 @@ namespace TurnCard.Game.Data
 
         /// <summary>友方（同场其他敌人）死亡。</summary>
         AllyDeath,
+
+        /// <summary>自己打出过一张「状态牌」（计谋：守 / 计谋：攻）。</summary>
+        StatusPlayed,
     }
 
     /// <summary>条件满足后做什么。</summary>

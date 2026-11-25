@@ -83,6 +83,12 @@ namespace TurnCard.Game.Battle
                 { "armor_times", new ArmorTimesEffect() },
                 { "flip_status", new FlipStatusEffect() },
                 { "temp_strength", new TempStrengthEffect() },
+                { "armor_per_status", new ArmorPerStatusEffect() },
+                { "damage_times_adjacent_status", new DamageTimesAdjacentStatusEffect() },
+                { "discard_adjacent", new DiscardAdjacentEffect() },
+                { "play_all_status_front", new PlayAllStatusFrontEffect() },
+                { "play_discard_all_status", new PlayDiscardAllStatusEffect() },
+                { "losehp_per_status", new LoseHpPerStatusEffect() },
                 { "exhaust_self", new ExhaustSelfEffect() },
                 { "discard_status", new DiscardStatusEffect() },
                 { "buff", new BuffEffect() },
@@ -248,6 +254,148 @@ namespace TurnCard.Game.Battle
                 if (effect is ICardEffectPreview preview)
                 {
                     preview.CollectPreview(context, args, tokens);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 力破万法：造成 base 点伤害 normalTimes 次；若这张牌左右相邻有「状态牌」则改成 statusTimes 次。
+        /// </summary>
+        private sealed class DamageTimesAdjacentStatusEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int baseDamage = Arg(args, 0, 0);
+                int normalTimes = args.Length > 1 ? Arg(args, 1, 1) : 1;
+                int boostedTimes = args.Length > 2 ? Arg(args, 2, normalTimes) : normalTimes;
+
+                int times = HasAdjacentStatus(context.State, context.Card) ? boostedTimes : normalTimes;
+                for (int i = 0; i < times; i++)
+                {
+                    Builtins["damage"].Apply(context, new[] { baseDamage.ToString() });
+                }
+            }
+
+            private static bool HasAdjacentStatus(BattleState state, CardInstance card)
+            {
+                IReadOnlyList<CardInstance> hand = state.Hand;
+                int index = IndexOf(hand, card);
+                if (index < 0)
+                {
+                    return false;
+                }
+
+                if (index > 0 && hand[index - 1] != null && hand[index - 1].Face.Type == CardType.Status)
+                {
+                    return true;
+                }
+
+                return index + 1 < hand.Count && hand[index + 1] != null &&
+                       hand[index + 1].Face.Type == CardType.Status;
+            }
+        }
+
+        /// <summary>撕毁：丢弃左右相邻的牌；其中是「状态牌」的改为消耗。</summary>
+        private sealed class DiscardAdjacentEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                IReadOnlyList<CardInstance> hand = context.State.Hand;
+                int index = IndexOf(hand, context.Card);
+                if (index < 0)
+                {
+                    return;
+                }
+
+                var targets = new List<CardInstance>();
+                if (index > 0) targets.Add(hand[index - 1]);
+                if (index + 1 < hand.Count) targets.Add(hand[index + 1]);
+
+                foreach (CardInstance card in targets)
+                {
+                    if (card == null)
+                    {
+                        continue;
+                    }
+
+                    if (card.Face.Type == CardType.Status)
+                    {
+                        context.State.ExhaustCard(card);
+                    }
+                    else
+                    {
+                        context.State.DiscardCard(card);
+                    }
+                }
+            }
+        }
+
+        /// <summary>放逐：翻面手牌里所有状态牌，并执行它们的正面效果。</summary>
+        private sealed class PlayAllStatusFrontEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                var statusCards = new List<CardInstance>();
+                foreach (CardInstance card in context.State.Hand)
+                {
+                    if (card != null && card.Face.Type == CardType.Status)
+                    {
+                        statusCards.Add(card);
+                    }
+                }
+
+                foreach (CardInstance card in statusCards)
+                {
+                    context.State.ForceFlipToFrontAndPlay(card);
+                }
+            }
+        }
+
+        /// <summary>重整旗鼓：打出并丢弃手牌里所有状态牌。</summary>
+        private sealed class PlayDiscardAllStatusEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                var statusCards = new List<CardInstance>();
+                foreach (CardInstance card in context.State.Hand)
+                {
+                    if (card != null && card.Face.Type == CardType.Status)
+                    {
+                        statusCards.Add(card);
+                    }
+                }
+
+                foreach (CardInstance card in statusCards)
+                {
+                    context.State.PlayFrontThenDiscard(card);
+                }
+            }
+        }
+
+        /// <summary>获得「每张手牌状态牌 × mult」点护甲（佯攻）。</summary>
+        private sealed class ArmorPerStatusEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int mult = Arg(args, 0, 1);
+                int count = context.State.CountHandOfType(CardType.Status);
+                if (count > 0 && mult > 0)
+                {
+                    Builtins["armor"].Apply(context, new[] { (count * mult).ToString() });
+                }
+            }
+        }
+
+        /// <summary>受到「每张手牌状态牌 × mult」点伤害（损伤）。</summary>
+        private sealed class LoseHpPerStatusEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                int mult = Arg(args, 0, 1);
+                int count = context.State.CountHandOfType(CardType.Status);
+                if (count > 0 && mult > 0)
+                {
+                    Builtins["losehp"].Apply(context, new[] { (count * mult).ToString() });
                 }
             }
         }
@@ -808,6 +956,21 @@ namespace TurnCard.Game.Battle
                 if (string.Equals(target, "player", System.StringComparison.OrdinalIgnoreCase))
                 {
                     context.State.ApplyBuff(context.State.PlayerBuffs, id, stacks, turns);
+                    return;
+                }
+
+                if (string.Equals(target, "all", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    // 「对所有单位」= 玩家 + 所有活着的敌人
+                    context.State.ApplyBuff(context.State.PlayerBuffs, id, stacks, turns);
+                    foreach (EnemyInstance enemy in context.State.Enemies)
+                    {
+                        if (enemy != null && !enemy.IsDead)
+                        {
+                            context.State.ApplyBuff(enemy.Buffs, id, stacks, turns);
+                        }
+                    }
+
                     return;
                 }
 

@@ -22,7 +22,7 @@ MonoBehaviour:
   m_FrontArmor: 0
   m_FrontDescription: "\u56DE\u5408\u7ED3\u675F\u65F6\u83B7\u5F97 X \u70B9\u683C\u6321\uFF0CX
     \u4E3A\u624B\u724C\u4E2D\u72B6\u6001\u724C\u7684\u6570\u91CF \xD7 2"
-  m_FrontEffects: 
+  m_FrontEffects: buff:35,1,-1,player
   m_FrontParams: 
   m_FrontKeywords: 
   m_BackName: "\u4F11\u606F"
