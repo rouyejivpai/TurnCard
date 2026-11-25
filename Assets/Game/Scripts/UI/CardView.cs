@@ -780,10 +780,46 @@ namespace TurnCard.Game.UI
         public void SetChoiceSelected(bool selected)
         {
             m_Rect.DOKill();
-            m_Rect.DOScale(m_BaseScale * (selected ? 1.12f : 1f), 0.12f).SetEase(Ease.OutQuad);
+            m_Rect.DOScale(m_BaseScale * (selected ? 1.18f : 1f), 0.12f).SetEase(Ease.OutQuad);
 
-            Vector2 target = selected ? m_HomePosition + new Vector2(0f, 56f) : m_HomePosition;
+            Vector2 target = selected ? m_HomePosition + new Vector2(0f, 84f) : m_HomePosition;
             m_Rect.DOAnchorPos(target, 0.14f).SetEase(Ease.OutQuad);
+
+            // 选中要跟「可打出」区分开：加一层金色底光
+            SetChoiceGlow(selected);
+        }
+
+        private Image m_ChoiceGlow;
+
+        /// <summary>选牌模式下的金色底光（选中时亮起，其余时候关掉）。</summary>
+        public void SetChoiceGlow(bool on)
+        {
+            if (on)
+            {
+                if (m_ChoiceGlow == null)
+                {
+                    RectTransform glow = UiFactory.CreateBox(m_Rect, "goChoiceGlow",
+                        new Color(1f, 0.83f, 0.28f, 0.90f),
+                        new Vector2(CardWidth + 16f, CardHeight + 16f),
+                        new Vector2(0.5f, 0.5f), Vector2.zero);
+                    m_ChoiceGlow = glow.GetComponent<Image>();
+                    m_ChoiceGlow.raycastTarget = false;
+                    glow.SetAsFirstSibling();
+                }
+
+                m_ChoiceGlow.gameObject.SetActive(true);
+            }
+            else if (m_ChoiceGlow != null)
+            {
+                m_ChoiceGlow.gameObject.SetActive(false);
+            }
+        }
+
+        /// <summary>选牌模式下把不可选的牌压暗（可打出的高亮是另一套，别混用）。</summary>
+        public void SetChoiceDimmed(bool dimmed)
+        {
+            CanvasGroup group = EnsureCanvasGroup();
+            group.alpha = dimmed ? 0.42f : 1f;
         }
 
         public void SetLifted(bool lifted)

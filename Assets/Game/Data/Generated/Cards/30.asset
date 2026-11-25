@@ -30,6 +30,6 @@ MonoBehaviour:
   m_BackDamage: 0
   m_BackArmor: 0
   m_BackDescription: "\u4ECE\u5F03\u724C\u5806\u4E2D\u9009\u62E9\u4E00\u5F20\u724C\u7F6E\u5165\u624B\u724C"
-  m_BackEffects: 
+  m_BackEffects: pick_discard_pile
   m_BackParams: 
   m_BackKeywords: 

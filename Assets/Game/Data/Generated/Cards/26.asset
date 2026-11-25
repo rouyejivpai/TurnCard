@@ -21,7 +21,7 @@ MonoBehaviour:
   m_FrontDamage: 0
   m_FrontArmor: 10
   m_FrontDescription: "\u83B7\u5F97 10 \u70B9\u683C\u6321\uFF0C\u9009\u62E9\u4E00\u5F20\u72B6\u6001\u724C\uFF0C\u5176\u5728\u518D\u6B21\u6253\u51FA\u4E4B\u524D\u83B7\u5F97**\u4FDD\u7559**"
-  m_FrontEffects: armor:10
+  m_FrontEffects: armor:10;choose_retain_status
   m_FrontParams: 
   m_FrontKeywords: 
   m_BackName: "\u78E8\u635F"

@@ -18,6 +18,12 @@ namespace TurnCard.Game.Battle
 
         /// <summary>触发这次效果的敌人自己（buff 触发型效果用，如「受击获得力量」）。</summary>
         public EnemyInstance SelfEnemy;
+
+        /// <summary>
+        /// 效果执行到「需要玩家选牌」时置位：后面的效果必须先停下，
+        /// 等玩家选完（BattleState.CompletePlay）再继续，否则会抢跑。
+        /// </summary>
+        public bool Suspended;
     }
 
     /// <summary>一条效果的实现。</summary>
@@ -69,6 +75,10 @@ namespace TurnCard.Game.Battle
                 { "flip_right_discard_left", new FlipRightDiscardLeftEffect() },
                 { "damage_per_attack", new DamagePerAttackCardsEffect() },
                 { "armor_per_skill", new ArmorPerSkillCardsEffect() },
+                { "choose_flip", new ChooseFlipEffect() },
+                { "choose_retain_status", new ChooseRetainEffect() },
+                { "pick_draw_pile", new PickFromDrawPileEffect() },
+                { "pick_discard_pile", new PickFromDiscardPileEffect() },
                 { "damage_times", new DamageTimesEffect() },
                 { "armor_times", new ArmorTimesEffect() },
                 { "flip_status", new FlipStatusEffect() },
@@ -84,7 +94,6 @@ namespace TurnCard.Game.Battle
                 { "retain_self", new RetainSelfEffect() },
                 { "flip_self", new FlipSelfEffect() },
                 { "flip_self_front", new FlipSelfToFrontEffect() },
-                { "choose_flip", new ChooseFlipEffect() },
                 { "self_damage", new SelfDamageEffect() },
                 { "self_heal", new SelfHealEffect() },
                 { "next_hits", new NextHitsEffect() },
@@ -115,6 +124,11 @@ namespace TurnCard.Game.Battle
 
             foreach (string token in spec.Split(';'))
             {
+                if (context.Suspended)
+                {
+                    break;
+                }
+
                 string entry = token.Trim();
                 if (entry.Length == 0)
                 {
@@ -302,6 +316,72 @@ namespace TurnCard.Game.Battle
 
                 // 临时力量的 buff id 在表里固定为 32（buff.xlsx）
                 context.State.ApplyBuff(context.State.PlayerBuffs, 32, stacks, -1);
+            }
+        }
+
+        /// <summary>选一张手牌翻面（条件反射）。</summary>
+        private sealed class ChooseFlipEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                context.State.BeginChoice(ChoiceKind.FlipHandCard);
+                context.Suspended = true;
+            }
+        }
+
+        /// <summary>选一张手牌（状态牌）保留到被打出为止（深吸 / 剑盾）。</summary>
+        private sealed class ChooseRetainEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                bool hasStatus = false;
+                foreach (CardInstance card in context.State.Hand)
+                {
+                    if (card != null && card.Face.Type == CardType.Status &&
+                        !ReferenceEquals(card, context.Card))
+                    {
+                        hasStatus = true;
+                        break;
+                    }
+                }
+
+                if (!hasStatus)
+                {
+                    return;
+                }
+
+                context.State.BeginChoice(ChoiceKind.RetainHandCard);
+                context.Suspended = true;
+            }
+        }
+
+        /// <summary>从抽牌堆选一张置入手牌（协议）。</summary>
+        private sealed class PickFromDrawPileEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                if (context.State.DrawPile.Count == 0)
+                {
+                    return;
+                }
+
+                context.State.BeginChoice(ChoiceKind.PickFromDrawPile);
+                context.Suspended = true;
+            }
+        }
+
+        /// <summary>从弃牌堆选一张置入手牌（追悔）。</summary>
+        private sealed class PickFromDiscardPileEffect : ICardEffect
+        {
+            public void Apply(CardEffectContext context, string[] args)
+            {
+                if (context.State.DiscardPile.Count == 0)
+                {
+                    return;
+                }
+
+                context.State.BeginChoice(ChoiceKind.PickFromDiscardPile);
+                context.Suspended = true;
             }
         }
 
@@ -902,15 +982,6 @@ namespace TurnCard.Game.Battle
                 {
                     context.State.RequestFlip(context.Card, BattleState.FlipSource.Keyword);
                 }
-            }
-        }
-
-        /// <summary>让玩家选一张手牌翻面。</summary>
-        private sealed class ChooseFlipEffect : ICardEffect
-        {
-            public void Apply(CardEffectContext context, string[] args)
-            {
-                context.State.BeginChoice(ChoiceKind.FlipHandCard);
             }
         }
 

@@ -21,7 +21,7 @@ MonoBehaviour:
   m_FrontDamage: 0
   m_FrontArmor: 0
   m_FrontDescription: "\u4ECE\u62BD\u724C\u5806\u4E2D\u9009\u53D6\u4E00\u5F20\u724C\u7F6E\u5165\u624B\u724C"
-  m_FrontEffects: 
+  m_FrontEffects: pick_draw_pile
   m_FrontParams: 
   m_FrontKeywords: 
   m_BackName: "\uFF01\u4E0D\u516C\uFF01"

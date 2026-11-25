@@ -17,6 +17,9 @@ namespace TurnCard.Game.Battle
         /// <summary>本回合结束时不进弃牌堆（「保留」效果临时打上的标记）。</summary>
         public bool RetainedThisTurn { get; set; }
 
+        /// <summary>「保留」直到这张牌再次被打出（深吸 / 剑盾 给状态牌的保留）。</summary>
+        public bool RetainUntilPlayed { get; set; }
+
         /// <summary>
         /// 「免费打出过」标记：贪婪让你 0 费打出这张牌时打上，
         /// 之后再打出它（以及翻面结算时）由「代价」读取。
@@ -320,6 +323,15 @@ namespace TurnCard.Game.Battle
 
         /// <summary>选一张手牌翻面（条件反射）。</summary>
         FlipHandCard,
+
+        /// <summary>选一张手牌（状态牌）获得「保留到打出为止」（深吸 / 剑盾）。</summary>
+        RetainHandCard,
+
+        /// <summary>从抽牌堆选一张置入手牌（协议）。</summary>
+        PickFromDrawPile,
+
+        /// <summary>从弃牌堆选一张置入手牌（追悔）。</summary>
+        PickFromDiscardPile,
     }
 
     public enum PlayResult
@@ -331,6 +343,9 @@ namespace TurnCard.Game.Battle
         InvalidTarget,
         BattleOver,
         Busy,       // 上一手还在播放结算动画，拒绝新的操作
+
+        /// <summary>这次出牌需要玩家先选一张牌（表现层进入选牌流程后再调 CompletePlay）。</summary>
+        NeedsChoice,
     }
 
     /// <summary>
@@ -1053,8 +1068,42 @@ namespace TurnCard.Game.Battle
                 return false;
             }
 
+            if (!CanSelectForChoice(card))
+            {
+                return false;
+            }
+
             SelectedForChoice = card;
             return true;
+        }
+
+        /// <summary>这张牌现在能不能被选（选牌 UI 用它决定亮/暗）。</summary>
+        public bool CanSelectForChoice(CardInstance card)
+        {
+            if (card == null)
+            {
+                return false;
+            }
+
+            switch (PendingChoice)
+            {
+                case ChoiceKind.FlipHandCard:
+                    // 手牌里任意一张（翻面它）
+                    return m_Hand.Contains(card);
+
+                case ChoiceKind.RetainHandCard:
+                    // 只能是状态牌
+                    return m_Hand.Contains(card) && card.Face.Type == CardType.Status;
+
+                case ChoiceKind.PickFromDrawPile:
+                    return m_DrawPile.Contains(card);
+
+                case ChoiceKind.PickFromDiscardPile:
+                    return m_DiscardPile.Contains(card);
+
+                default:
+                    return false;
+            }
         }
 
         /// <summary>确认选择，真正执行。</summary>
@@ -1071,11 +1120,34 @@ namespace TurnCard.Game.Battle
             PendingChoice = ChoiceKind.None;
             SelectedForChoice = null;
 
-            if (kind == ChoiceKind.FlipHandCard)
+            switch (kind)
             {
-                RequestFlip(card, FlipSource.Effect);
+                case ChoiceKind.FlipHandCard:
+                    RequestFlip(card, FlipSource.Effect);
+                    break;
+
+                case ChoiceKind.RetainHandCard:
+                    card.RetainUntilPlayed = true;
+                    break;
+
+                case ChoiceKind.PickFromDrawPile:
+                    if (m_DrawPile.Remove(card))
+                    {
+                        m_Hand.Add(card);
+                    }
+
+                    break;
+
+                case ChoiceKind.PickFromDiscardPile:
+                    if (m_DiscardPile.Remove(card))
+                    {
+                        m_Hand.Add(card);
+                    }
+
+                    break;
             }
 
+            RaiseChanged();
             return true;
         }
 
@@ -1235,6 +1307,12 @@ namespace TurnCard.Game.Battle
                 default:
                     return 0;
             }
+        }
+
+        /// <summary>给表现层用的费用查询（含 X 费与 buff 修饰）。</summary>
+        public int EffectiveCostFor(Data.CardFace face)
+        {
+            return EffectiveCost(face);
         }
 
         /// <summary>这张牌打出去的实际伤害；给了 target 就把目标的易伤也算进去。</summary>
@@ -1856,7 +1934,8 @@ namespace TurnCard.Game.Battle
             for (int i = m_Hand.Count - 1; i >= 0; i--)
             {
                 CardInstance card = m_Hand[i];
-                if (card.RetainedThisTurn || card.Face.HasKeyword(KeywordMechanics.Keep))
+                if (card.RetainedThisTurn || card.RetainUntilPlayed ||
+                    card.Face.HasKeyword(KeywordMechanics.Keep))
                 {
                     continue;
                 }
@@ -2385,7 +2464,12 @@ namespace TurnCard.Game.Battle
         /// 打出一张牌：执行这一面的效果 → 能量扣除 → 卡牌翻面并留在手牌（Q1、Q8）。
         /// 效果本身由 <see cref="CardEffects"/> 按表里的效果串分发。
         /// </summary>
-        public PlayResult PlayCard(CardInstance card, EnemyInstance target,
+        /// <summary>
+        /// 一次出牌的第一段：校验、扣费、记录 X、跑效果。
+        /// 效果里如果要求玩家选择，会停在 NeedsChoice —— 这时**不做翻面、不结算瞬发**。
+        /// 玩家确认后由 <see cref="CompletePlay"/> 继续。
+        /// </summary>
+        public PlayResult BeginPlay(CardInstance card, EnemyInstance target,
             out EnemyInstance flippedEnemy, out bool battleEnded)
         {
             flippedEnemy = null;
@@ -2444,14 +2528,25 @@ namespace TurnCard.Game.Battle
                 RunTriggers(PlayerBuffs, Data.BuffTrigger.CardPlayed, target);
                 CardEffects.ExecuteAll(context);
                 flippedEnemy = context.FlippedEnemy;
+                m_LastEffectFlipEnemy = context.FlippedEnemy;
 
-                // 翻面走统一入口：入队，由表现层在动画落地时 Commit。
-                RequestFlip(card, FlipSource.Play, target);
+                // 先挂起（如果需要玩家选择），否则立刻进第二段
+                m_PendingPlayCard = card;
+                m_PendingPlayTarget = target;
+                flippedEnemy = context.FlippedEnemy;
             }
             finally
             {
                 ExitCardContext(previousCard);
                 m_DeferDamage = false;
+            }
+
+            // 需要玩家选择：挂起，不做翻面/瞬发（由 CompletePlay 继续）
+            if (HasPendingChoice)
+            {
+                battleEnded = false;
+                m_PlayInProgress = true;
+                return PlayResult.NeedsChoice;
             }
 
             // 打出的牌离开手牌：它提供的能力（如果是能力牌）随之失效
@@ -2464,6 +2559,64 @@ namespace TurnCard.Game.Battle
 
             battleEnded = IsBattleOver;
             return PlayResult.Ok;
+        }
+
+        /// <summary>一次出牌是否正卡在「等玩家选牌」。</summary>
+        private bool m_PlayInProgress;
+
+        /// <summary>挂起中的出牌（等玩家选牌时用）。</summary>
+        private EnemyInstance m_LastEffectFlipEnemy;
+
+        private CardInstance m_PendingPlayCard;
+        private EnemyInstance m_PendingPlayTarget;
+
+        /// <summary>第二段：应用玩家选牌结果 → 翻面 → 收瞬发。没有挂起时直接返回 Ok。</summary>
+        public PlayResult CompletePlay(out EnemyInstance flippedEnemy, out bool battleEnded)
+        {
+            flippedEnemy = m_LastEffectFlipEnemy;
+            battleEnded = false;
+
+            if (!m_PlayInProgress)
+            {
+                return PlayResult.Ok;
+            }
+
+            m_PlayInProgress = false;
+            CardInstance card = m_PendingPlayCard;
+            EnemyInstance target = m_PendingPlayTarget;
+            m_PendingPlayCard = null;
+            m_PendingPlayTarget = null;
+
+            if (card != null)
+            {
+                RequestFlip(card, FlipSource.Play, target);
+            }
+
+            RefreshPowerCards();
+
+            if (!IsResolving)
+            {
+                CheckBattleEnd();
+            }
+
+            battleEnded = IsBattleOver;
+            return PlayResult.Ok;
+        }
+
+        /// <summary>
+        /// 出牌的唯一入口：先跑 <see cref="BeginPlay"/>；
+        /// 需要选择时返回 NeedsChoice（表现层等玩家选完再调 CompletePlay），否则直接完成。
+        /// </summary>
+        public PlayResult PlayCard(CardInstance card, EnemyInstance target,
+            out EnemyInstance flippedEnemy, out bool battleEnded)
+        {
+            PlayResult result = BeginPlay(card, target, out flippedEnemy, out battleEnded);
+            if (result != PlayResult.Ok)
+            {
+                return result;
+            }
+
+            return CompletePlay(out flippedEnemy, out battleEnded);
         }
 
         private int m_InstantDepth;

@@ -73,6 +73,12 @@ namespace Window.BattleForm
         /// <summary>开幕/关幕协程。</summary>
         private Coroutine m_BattleIntro;
 
+        /// <summary>选牌流程是否已完成（PlayCardRoutine 等这个）。</summary>
+        private bool m_ChoiceDone;
+
+        /// <summary>选牌后继续出牌的返回值。</summary>
+        private PlayResult m_ChoiceResult = PlayResult.Ok;
+
         /// <summary>消耗堆按钮（运行时克隆弃牌堆按钮得到）。</summary>
         private Button m_BtnExhaustPile;
         private TextMeshProUGUI m_ExhaustCountText;
@@ -1292,7 +1298,23 @@ namespace Window.BattleForm
                 return;
             }
 
-            StartCoroutine(FinishChoiceRoutine());
+            // 选牌只是「把选择交回去」，真正的翻面/瞬发由 PlayCardRoutine 继续驱动，
+            // 保证顺序是：选牌 → 翻面 → 瞬发。
+            m_ChoiceDone = true;
+        }
+
+        /// <summary>等玩家完成一次选牌（手牌点选 + √，或牌堆点一下）。</summary>
+        private IEnumerator RunChoiceRoutine()
+        {
+            m_ChoiceDone = false;
+            EnterChoiceMode();
+
+            while (!m_ChoiceDone)
+            {
+                yield return null;
+            }
+
+            ExitChoiceMode();
         }
 
         private IEnumerator FinishChoiceRoutine()
@@ -1330,14 +1352,61 @@ namespace Window.BattleForm
             m_ChoiceMode = true;
             m_ChoiceView = null;
 
+            // 牌堆类选择：直接打开对应牌堆，点一张就拿（不需要二次确认）
+            if (m_State.PendingChoice == ChoiceKind.PickFromDrawPile ||
+                m_State.PendingChoice == ChoiceKind.PickFromDiscardPile)
+            {
+                OpenPileForChoice(m_State.PendingChoice);
+                return;
+            }
+
             if (m_BtnConfirmChoice != null)
             {
                 m_BtnConfirmChoice.gameObject.SetActive(true);
                 m_BtnConfirmChoice.interactable = false;
             }
 
-            ShowHint("选择一张手牌翻面，然后点勾确认");
+            ShowHint(m_State.PendingChoice == ChoiceKind.RetainHandCard
+                ? "选择一张状态牌，让它获得【保留】，然后点勾确认"
+                : "选择一张手牌翻面，然后点勾确认");
             RefreshInteractivity();
+        }
+
+        /// <summary>牌堆类选择：开牌堆列表，点一张直接选中并确认。</summary>
+        private void OpenPileForChoice(ChoiceKind kind)
+        {
+            IReadOnlyList<CardInstance> pile = kind == ChoiceKind.PickFromDrawPile
+                ? m_State.DrawPile
+                : m_State.DiscardPile;
+
+            var list = new List<CardInstance>();
+            for (int i = 0; i < pile.Count; i++)
+            {
+                list.Add(pile[i]);
+            }
+
+            ClosePileList();
+
+            CardListViewScreen screen = UIHost.Shared.Open<CardListViewScreen>(
+                CardListViewScreen.ResourcePath);
+            if (screen == null)
+            {
+                m_ChoiceDone = true;
+                return;
+            }
+
+            m_ListView = screen;
+            screen.SetHeader(
+                kind == ChoiceKind.PickFromDrawPile ? "从抽牌堆选一张" : "从弃牌堆选一张",
+                "点一张牌，直接置入手牌");
+            screen.ShowCards(list, card =>
+            {
+                m_State.SelectForChoice(card);
+                m_State.ConfirmChoice();
+                ClosePileList();
+                m_ChoiceDone = true;
+            });
+            screen.OnCloseRequested = ClosePileList;
         }
 
         private void ExitChoiceMode()
@@ -1622,10 +1691,31 @@ namespace Window.BattleForm
         private IEnumerator PlayCardRoutine(CardView view, EnemyInstance target)
         {
 
-            PlayResult result = m_State.PlayCard(view.Card, target,
+            PlayResult result = m_State.BeginPlay(view.Card, target,
                 out EnemyInstance flippedEnemy, out bool battleEnded);
 
-            if (result != PlayResult.Ok)
+            if (result == PlayResult.NeedsChoice)
+            {
+                // 效果要求先选牌：此时**还没翻面、没结算瞬发**。
+                // 等玩家选完再调 CompletePlay 继续（见 OnConfirmChoiceClicked）。
+                m_Busy = true;
+                HideArrow();
+                view.SetLifted(false);
+                view.SnapHome();
+                RefreshHud();
+
+                yield return RunChoiceRoutine();
+
+                m_ChoiceResult = m_State.CompletePlay(out flippedEnemy, out battleEnded);
+                if (m_ChoiceResult != PlayResult.Ok)
+                {
+                    m_Busy = false;
+                    RefreshInteractivity();
+                    yield break;
+                }
+            }
+
+            if (result != PlayResult.Ok && result != PlayResult.NeedsChoice)
             {
                 ShowHint(DescribeFailure(result));
                 view.SetLifted(false);
@@ -2303,10 +2393,19 @@ namespace Window.BattleForm
                     continue;
                 }
 
-                // 选择模式下所有牌不可「打出」，但可以点选
-                view.Interactable = m_ChoiceMode ||
-                                    (!m_Busy && m_State != null && m_State.IsPlayerTurn &&
-                                     !m_State.IsBattleOver && view.Card.Face.Cost <= m_State.Energy);
+                if (m_ChoiceMode && m_State != null)
+                {
+                    // 选牌模式：能选的亮、不能选的暗；都不能「打出」
+                    bool selectable = m_State.CanSelectForChoice(view.Card);
+                    view.Interactable = selectable;
+                    view.SetChoiceDimmed(!selectable);
+                    continue;
+                }
+
+                view.SetChoiceDimmed(false);
+                view.Interactable =
+                    !m_Busy && m_State != null && m_State.IsPlayerTurn &&
+                    !m_State.IsBattleOver && m_State.EffectiveCostFor(view.Card.Face) <= m_State.Energy;
             }
         }
 

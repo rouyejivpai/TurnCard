@@ -66,6 +66,40 @@ namespace TurnCard.Game.UI
         /// <summary>
         /// 填入卡牌。onPick 为 null 表示只查看；不为 null 时点击任意一张都会回调。
         /// </summary>
+        /// <summary>
+        /// 用真实卡牌实例展示（选牌流程用）：点击回调直接给回同一个 CardInstance，
+        /// 这样翻面状态、临时保留标记都不会丢。
+        /// </summary>
+        public void ShowCards(IList<CardInstance> cards, Action<CardInstance> onPick)
+        {
+            List<CardDefinition> definitions = new List<CardDefinition>();
+            foreach (CardInstance card in cards)
+            {
+                definitions.Add(card != null ? card.Definition : null);
+            }
+
+            ShowCards(definitions, null);
+
+            if (onPick == null || m_Cards == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < m_Cards.Count && i < cards.Count; i++)
+            {
+                CardInstance instance = cards[i];
+                CardView view = m_Cards[i];
+                if (view == null || instance == null)
+                {
+                    continue;
+                }
+
+                view.ChoiceMode = true;
+                view.Interactable = true;
+                view.Clicked += _ => onPick(instance);
+            }
+        }
+
         public void ShowCards(IList<CardDefinition> cards, Action<CardDefinition> onPick)
         {
             ClearCards();
