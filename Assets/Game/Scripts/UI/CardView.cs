@@ -610,6 +610,18 @@ namespace TurnCard.Game.UI
         }
 
         /// <summary>
+        /// 由 ViewModel 驱动的费用显示（和血条一样：状态变了就重画）。
+        /// 传 null 表示退回卡面自身费用。
+        /// </summary>
+        public void SetCostPreview(int? cost)
+        {
+            m_CostPreview = cost;
+            RefreshCostText();
+        }
+
+        private int? m_CostPreview;
+
+        /// <summary>
         /// 按「当前显示的那一面」重算费用文本。
         /// X 费牌的费用随局面变化（能量、手牌状态牌数），翻面/刷新时都要重算，
         /// 否则会一直停在绑卡那一刻的数字。
@@ -624,6 +636,12 @@ namespace TurnCard.Game.UI
             FaceWidgets face = m_ShownSide == CardFaceSide.Back ? m_BackFace : m_FrontFace;
             if (face == null || face.CostText == null)
             {
+                return;
+            }
+
+            if (m_CostPreview.HasValue)
+            {
+                face.CostText.text = m_CostPreview.Value >= 0 ? m_CostPreview.Value.ToString() : string.Empty;
                 return;
             }
 

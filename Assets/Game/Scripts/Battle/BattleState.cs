@@ -3241,6 +3241,12 @@ namespace TurnCard.Game.Battle
 
         private int m_ForcedPlayDepth;
 
+        /// <summary>
+        /// 正在「强制打出」（放逐 / 重整旗鼓 连打状态牌正面）。
+        /// 这期间不能进入选牌流程 —— 没有界面承接，会把整个出牌卡死。
+        /// </summary>
+        public bool IsForcedPlaying => m_ForcedPlayDepth > 0;
+
         /// <summary>「抽到释放」：按抽到的那一面跑一次效果（不扣费、不离开手牌）。</summary>
         private void RunDrawRelease(CardInstance card)
         {

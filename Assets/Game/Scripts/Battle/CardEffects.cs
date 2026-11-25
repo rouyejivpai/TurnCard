@@ -472,6 +472,11 @@ namespace TurnCard.Game.Battle
         {
             public void Apply(CardEffectContext context, string[] args)
             {
+                if (context.State.IsForcedPlaying)
+                {
+                    return;
+                }
+
                 context.State.BeginChoice(ChoiceKind.FlipHandCard);
                 context.Suspended = true;
             }
@@ -493,7 +498,7 @@ namespace TurnCard.Game.Battle
                     }
                 }
 
-                if (!hasStatus)
+                if (!hasStatus || context.State.IsForcedPlaying)
                 {
                     return;
                 }
@@ -508,7 +513,7 @@ namespace TurnCard.Game.Battle
         {
             public void Apply(CardEffectContext context, string[] args)
             {
-                if (context.State.DrawPile.Count == 0)
+                if (context.State.DrawPile.Count == 0 || context.State.IsForcedPlaying)
                 {
                     return;
                 }
@@ -523,7 +528,7 @@ namespace TurnCard.Game.Battle
         {
             public void Apply(CardEffectContext context, string[] args)
             {
-                if (context.State.DiscardPile.Count == 0)
+                if (context.State.DiscardPile.Count == 0 || context.State.IsForcedPlaying)
                 {
                     return;
                 }

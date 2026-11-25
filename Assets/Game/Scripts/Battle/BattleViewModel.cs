@@ -38,6 +38,13 @@ namespace TurnCard.Game.Battle
             public int? Damage;
             public int? Armor;
             public bool Modified;
+
+            /// <summary>显示用的费用（已算 X 费、贪婪免费等修饰）。</summary>
+            public int Cost;
+
+            /// <summary>费用是不是 X（X 费牌卡面要显示实际值，这里给显示层用）。</summary>
+            public bool CostIsX;
+
             public IReadOnlyDictionary<string, int> Tokens;
         }
 
@@ -110,6 +117,8 @@ namespace TurnCard.Game.Battle
                 Hand.Add(new HandVm
                 {
                     Card = card,
+                    Cost = state.EffectiveCostFor(face),
+                    CostIsX = state.HasXCost(face),
                     Damage = damage.Value,
                     Armor = armor.Value,
                     Modified = damage.Modified || armor.Modified,

@@ -883,6 +883,7 @@ namespace Window.BattleForm
                 if (view != null)
                 {
                     view.SetValuePreview(vm.Damage, vm.Armor, true, vm.Tokens);   // 只给和原值不同的数字染色
+                    view.SetCostPreview(vm.CostIsX ? vm.Cost : (int?)null);        // X 费交给 VM 显示，普通费用仍用卡面
                 }
             }
 
@@ -1406,7 +1407,15 @@ namespace Window.BattleForm
                 ClosePileList();
                 m_ChoiceDone = true;
             });
-            screen.OnCloseRequested = ClosePileList;
+
+            // 关掉列表 = 放弃这次选牌：清掉选择态并结束等待，
+            // 不然 PlayCardRoutine 会一直停在等 m_ChoiceDone，整个战斗卡死。
+            screen.OnCloseRequested = () =>
+            {
+                ClosePileList();
+                m_State.ClearChoice();
+                m_ChoiceDone = true;
+            };
         }
 
         private void ExitChoiceMode()
@@ -2372,29 +2381,13 @@ namespace Window.BattleForm
         /// 贪婪生效时把手牌费用显示成 0（免额度用掉后恢复原价）。
         /// 只在状态切换时刷一次，避免每帧重刷整手牌。
         /// </summary>
+        /// <summary>
+        /// 费用显示现在由 ViewModel（<see cref="BattleViewModel.HandVm.Cost"/>）驱动，
+        /// 每次状态变化 FlushRender → ApplyHandViews 就会重画，不再需要单独的覆盖逻辑。
+        /// </summary>
         private void RefreshHandCosts()
         {
-            if (m_State == null)
-            {
-                return;
-            }
-
-            bool free = m_State.FreeCardAvailable;
-            if (free == m_CostFreeShown)
-            {
-                return;
-            }
-
-            m_CostFreeShown = free;
-            foreach (CardView view in m_HandViews)
-            {
-                if (view == null)
-                {
-                    continue;
-                }
-
-                view.SetCostOverride(free ? 0 : (int?)null);
-            }
+            // 保留空实现：调用点在 ApplyHandViews 里，语义已并入 VM
         }
 
         private void RefreshInteractivity()
