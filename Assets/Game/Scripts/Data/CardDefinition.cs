@@ -17,6 +17,9 @@ namespace TurnCard.Game.Data
         Attack = 0,
         Skill = 1,
         Power = 2,
+
+        /// <summary>状态牌：只能打出（无事发生）或靠其他牌丢弃/消耗来清理。</summary>
+        Status = 3,
     }
 
     public enum CardFaceSide

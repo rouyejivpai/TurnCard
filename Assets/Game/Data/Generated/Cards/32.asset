@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 58f3f1cc1a061c245b133af28c29060a, type: 3}
+  m_Name: 32
+  m_EditorClassIdentifier: 
+  m_Id: 32
+  m_StarterCount: 0
+  m_Quality: 1
+  m_FrontName: "\u4EE5\u543E\u4E4B\u540D"
+  m_FrontCost: 0
+  m_FrontType: 1
+  m_FrontDamage: 0
+  m_FrontArmor: 0
+  m_FrontDescription: "\u62BD\u5230\u65F6\u91CA\u653E\uFF0C\u5BF9\u6240\u6709\u5355\u4F4D\u65BD\u52A0\u4E00\u5C42\u6613\u4F24"
+  m_FrontEffects: 
+  m_FrontParams: 
+  m_FrontKeywords: 
+  m_BackName: "\u653E\u9010"
+  m_BackCost: 2
+  m_BackType: 1
+  m_BackDamage: 0
+  m_BackArmor: 0
+  m_BackDescription: "\u7FFB\u9762\u4F60\u624B\u724C\u4E2D\u6240\u6709\u7684\u72B6\u6001\u724C\uFF0C\u5E76\u6253\u51FA\u5B83\u4EEC\u7684\u6B63\u9762"
+  m_BackEffects: 
+  m_BackParams: 
+  m_BackKeywords: 

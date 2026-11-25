@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 58f3f1cc1a061c245b133af28c29060a, type: 3}
+  m_Name: 23
+  m_EditorClassIdentifier: 
+  m_Id: 23
+  m_StarterCount: 0
+  m_Quality: 2
+  m_FrontName: "\u529B\u7834\u4E07\u6CD5"
+  m_FrontCost: 2
+  m_FrontType: 0
+  m_FrontDamage: 10
+  m_FrontArmor: 0
+  m_FrontDescription: "\u9020\u6210 10 \u70B9\u4F24\u5BB3\u4E24\u6B21\uFF0C\u6B64\u724C\u4E0E\u72B6\u6001\u724C\u76F8\u90BB\u65F6\u6539\u4E3A\u56DB\u6B21"
+  m_FrontEffects: damage:10;damage:10
+  m_FrontParams: 
+  m_FrontKeywords: 
+  m_BackName: "\u6DF1\u5EA6\u75B2\u52B3"
+  m_BackCost: 1
+  m_BackType: 3
+  m_BackDamage: 0
+  m_BackArmor: 0
+  m_BackDescription: "**\u4FDD\u7559**"
+  m_BackEffects: 
+  m_BackParams: 
+  m_BackKeywords: "\u4FDD\u7559"

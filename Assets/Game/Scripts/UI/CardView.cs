@@ -730,7 +730,8 @@ namespace TurnCard.Game.UI
         public static string TypeName(CardType type)
         {
             return type == CardType.Attack ? "攻击" :
-                type == CardType.Skill ? "技能" : "能力";
+                type == CardType.Skill ? "技能" :
+                type == CardType.Status ? "状态" : "能力";
         }
 
         public void SetHome(Vector2 position)
