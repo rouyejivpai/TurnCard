@@ -894,6 +894,20 @@ namespace TurnCard.Game.UI
             m_Rect.DOScale(scale, 0.12f).SetEase(Ease.OutQuad).SetId("lift");
         }
 
+        /// <summary>向上弹一下再落回（触发式能力生效时用）。</summary>
+        public void PlayPulse()
+        {
+            if (m_Rect == null || IsFlipping)
+            {
+                return;
+            }
+
+            Vector2 home = m_HomePosition;
+            DG.Tweening.Sequence seq = DG.Tweening.DOTween.Sequence();
+            seq.Append(m_Rect.DOAnchorPos(home + new Vector2(0f, 22f), 0.09f).SetEase(Ease.OutQuad));
+            seq.Append(m_Rect.DOAnchorPos(home, 0.16f).SetEase(Ease.OutBack));
+        }
+
         /// <summary>发牌：从指定位置飞入并淡入，delay 用于错峰。</summary>
         public void PlayDeal(Vector2 fromPosition, float duration = 0.3f, float delay = 0f)
         {
@@ -921,7 +935,18 @@ namespace TurnCard.Game.UI
             m_Rect.DOKill();
             group.DOKill();
 
-            m_Rect.DOAnchorPos(targetPosition, duration).SetEase(Ease.InCubic);
+            // 走一条抛物线（二次贝塞尔），比直线平移更像「跳进牌堆」
+            Vector2 start = m_Rect.anchoredPosition;
+            Vector2 control = new Vector2(
+                Mathf.Lerp(start.x, targetPosition.x, 0.5f),
+                Mathf.Max(start.y, targetPosition.y) + 110f);
+
+            DOTween.To(() => 0f, t =>
+            {
+                float u = 1f - t;
+                m_Rect.anchoredPosition = u * u * start + 2f * u * t * control + t * t * targetPosition;
+            }, 1f, duration).SetEase(Ease.InQuad);
+
             m_Rect.DOScale(0.25f, duration).SetEase(Ease.InCubic);
             group.DOFade(0f, duration).SetEase(Ease.InQuad)
                 .OnComplete(() =>

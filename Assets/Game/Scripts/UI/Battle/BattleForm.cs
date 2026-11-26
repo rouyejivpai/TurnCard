@@ -929,6 +929,14 @@ namespace Window.BattleForm
             // 逐张重建会让手牌视图反复销毁/创建（抽 5 张要重建 5 次），
             // 销毁时打断正在跑的 tween，既刷警告也容易卡住。
             state.CardDrawn += _ => m_HandDirty = true;
+            state.CardRecovered += card =>
+            {
+                m_RecoveredCards.Add(card);
+                m_HandDirty = true;
+            };
+
+            // 触发式能力生效：让手牌里的能力牌弹一下
+            state.PowerTriggered += () => PlayPowerTriggerPulse();
 
             // 弃牌：不再整手重建，而是把被弃的那张飞向弃牌堆再销毁，
             // 否则视图会在动画开始前就被重建掉，看起来像「瞬间消失」。
@@ -1148,8 +1156,10 @@ namespace Window.BattleForm
 
                 if (fresh != null && fresh.Contains(view))
                 {
-                    // 新牌：从抽牌堆位置错峰飞入
-                    view.PlayDeal(HandLocalOfDrawPile(), 0.3f, i * 0.045f);
+                    // 新牌：默认从抽牌堆飞入；从弃牌堆捡回来的那张要从弃牌堆飞出
+                    bool fromDiscard = view.Card != null && m_RecoveredCards.Remove(view.Card);
+                    Vector2 from = fromDiscard ? HandLocalOfDiscardPile() : HandLocalOfDrawPile();
+                    view.PlayDeal(from, 0.3f, i * 0.045f);
                 }
                 else
                 {
@@ -1192,6 +1202,33 @@ namespace Window.BattleForm
         /// 一张牌被弃掉时的表现：从当前位置飞向弃牌堆并缩小淡出。
         /// 由 <c>CardDiscarded</c> 事件驱动，出牌效果弃牌与回合结束弃牌共用。
         /// </summary>
+        /// <summary>从弃牌堆捡回来的牌（动画起点用），处理完就移除。</summary>
+        private readonly HashSet<CardInstance> m_RecoveredCards = new HashSet<CardInstance>();
+
+        private Vector2 HandLocalOfDiscardPile()
+        {
+            return btnDiscardPile != null
+                ? HandLocalOf(btnDiscardPile.transform.position)
+                : new Vector2(-820f, -130f);
+        }
+
+        /// <summary>触发式能力生效时，把手牌里所有能力牌轻轻向上弹一下。</summary>
+        private void PlayPowerTriggerPulse()
+        {
+            foreach (CardView view in m_HandViews)
+            {
+                if (view == null || view.Card == null)
+                {
+                    continue;
+                }
+
+                if (view.Card.Face.Type == CardType.Power)
+                {
+                    view.PlayPulse();
+                }
+            }
+        }
+
         private void PlayDiscardAnimation(CardInstance card)
         {
             CardView view = FindView(card);
@@ -2256,7 +2293,16 @@ namespace Window.BattleForm
 
             RefreshPlayableStates();
 
-            UnityEngine.Debug.Log("[回合] 1 结束回合，开始弃手牌");
+            // 先把还没播完的出牌伤害/翻面动画结算干净，再进入弃牌阶段
+            int guard = 0;
+            while (m_State.IsResolving && guard < 8)
+            {
+                guard++;
+                CommitAndDispatchFlips();
+                yield return PlayDamageQueue(m_State.FirstAliveEnemy(), HitOrigin.Play);
+                yield return WaitForFlipAnimations();
+            }
+
             m_State.EndPlayerTurn();
             UnityEngine.Debug.Log("[回合] 2 弃牌完成，手牌=" + m_State.Hand.Count);
             ScatterHandToDiscard();
@@ -2334,14 +2380,12 @@ namespace Window.BattleForm
         /// 刷新每张手牌的「当前可打出」光边：
         /// 玩家回合 + 不在结算中 + 能量足够，三个条件同时满足才亮。
         /// </summary>
+        /// <summary>
+        /// 可打出高亮：完全由 ViewModel 驱动（HandVm.Playable 在 Update 里算好），
+        /// 视图不再自己读 BattleState 判断回合/能量/条件。
+        /// </summary>
         private void RefreshPlayableStates()
         {
-            if (m_State == null)
-            {
-                return;
-            }
-
-            bool canAct = m_State.IsPlayerTurn && !m_State.IsResolving && !m_Busy;
             foreach (CardView view in m_HandViews)
             {
                 if (view == null || view.Card == null)
@@ -2349,8 +2393,17 @@ namespace Window.BattleForm
                     continue;
                 }
 
-                bool playable = canAct && view.Card.Face.Cost <= m_State.Energy;
-                view.SetPlayable(playable);
+                bool playable = false;
+                foreach (BattleViewModel.HandVm vm in m_Vm.Hand)
+                {
+                    if (ReferenceEquals(vm.Card, view.Card))
+                    {
+                        playable = vm.Playable;
+                        break;
+                    }
+                }
+
+                view.SetPlayable(playable && !m_Busy && !m_ChoiceMode);
             }
         }
 
@@ -2416,9 +2469,18 @@ namespace Window.BattleForm
                 }
 
                 view.SetChoiceDimmed(false);
-                view.Interactable =
-                    !m_Busy && m_State != null && m_State.IsPlayerTurn &&
-                    !m_State.IsBattleOver && m_State.EffectiveCostFor(view.Card.Face) <= m_State.Energy;
+
+                bool playable = false;
+                foreach (BattleViewModel.HandVm vm in m_Vm.Hand)
+                {
+                    if (ReferenceEquals(vm.Card, view.Card))
+                    {
+                        playable = vm.Playable;
+                        break;
+                    }
+                }
+
+                view.Interactable = playable && !m_Busy;
             }
         }
 

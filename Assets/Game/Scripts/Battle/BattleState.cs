@@ -646,6 +646,9 @@ namespace TurnCard.Game.Battle
         /// 执行一条 buff 的「触发动作 + 触发效果」。不关心这个 buff 是不是常驻在容器里，
         /// 所以开幕效果（一次性，不挂 buff）也复用它。
         /// </summary>
+        /// <summary>触发式能力真正生效时抛一下，表现层据此让对应的能力牌弹一下。</summary>
+        public event Action PowerTriggered;
+
         private void ExecuteBuffTrigger(Data.BuffDefinition definition, int stacks,
             EnemyInstance enemyOwner, CardInstance self, EnemyInstance target,
             bool formBound = false)
@@ -658,6 +661,14 @@ namespace TurnCard.Game.Battle
             if (formBound)
             {
                 m_FormBoundDepth++;
+            }
+
+            // 触发式能力（triggerEffect 有内容）真正生效时通知表现层，让它把能力牌弹一下
+            bool firedAbility = definition.TriggerAction == Data.BuffTriggerAction.Effect &&
+                                !string.IsNullOrWhiteSpace(definition.TriggerEffect);
+            if (firedAbility)
+            {
+                PowerTriggered?.Invoke();
             }
 
             switch (definition.TriggerAction)
@@ -1149,7 +1160,7 @@ namespace TurnCard.Game.Battle
                     if (m_DiscardPile.Remove(card))
                     {
                         m_Hand.Add(card);
-                        CardDrawn?.Invoke(card);
+                        CardRecovered?.Invoke(card);
                     }
 
                     break;
@@ -1693,6 +1704,9 @@ namespace TurnCard.Game.Battle
 
         /// <summary>一张牌被消耗（进消耗堆）。</summary>
         public event Action<CardInstance> CardExhausted;
+
+        /// <summary>从弃牌堆捡回手牌（追悔）：界面用弃牌堆作为飞入起点。</summary>
+        public event Action<CardInstance> CardRecovered;
 
         /// <summary>回合开始 / 结束。</summary>
         public event Action<int> TurnStarted;

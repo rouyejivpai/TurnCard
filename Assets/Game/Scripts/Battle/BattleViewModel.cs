@@ -63,6 +63,12 @@ namespace TurnCard.Game.Battle
             /// <summary>费用是不是 X（X 费牌卡面要显示实际值，这里给显示层用）。</summary>
             public bool CostIsX;
 
+            /// <summary>
+            /// 这张牌现在能不能打出（回合、忙碌、费用、打出条件都在这里算好）。
+            /// 界面只读这个字段，不再自己去问 BattleState。
+            /// </summary>
+            public bool Playable;
+
             public IReadOnlyDictionary<string, int> Tokens;
         }
 
@@ -175,10 +181,13 @@ namespace TurnCard.Game.Battle
                 m_TokenBuffer.Clear();
                 state.CollectPreviewTokens(face, hover, m_TokenBuffer);
 
+                int cost = state.EffectiveCostFor(face);
                 Hand.Add(new HandVm
                 {
                     Card = card,
-                    Cost = state.EffectiveCostFor(face),
+                    Playable = state.IsPlayerTurn && !state.IsResolving && !state.IsBattleOver &&
+                               state.CanPlayFace(face) && cost <= state.Energy,
+                    Cost = cost,
                     CostIsX = state.HasXCost(face),
                     Damage = damage.Value,
                     Armor = armor.Value,
