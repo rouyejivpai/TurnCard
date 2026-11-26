@@ -79,10 +79,6 @@ namespace Window.BattleForm
         /// <summary>选牌后继续出牌的返回值。</summary>
         private PlayResult m_ChoiceResult = PlayResult.Ok;
 
-        /// <summary>消耗堆按钮（运行时克隆弃牌堆按钮得到）。</summary>
-        private Button m_BtnExhaustPile;
-        private TextMeshProUGUI m_ExhaustCountText;
-
         /// <summary>玩家血条下方的 buff 图标条（每场战斗重建，退出时销毁）。</summary>
         private BuffIconStrip m_PlayerBuffStrip;
 
@@ -361,7 +357,7 @@ namespace Window.BattleForm
             btnEndTurn.onClick.AddListener(OnEndTurnClicked);
             btnDrawPile.onClick.AddListener(OpenDrawPile);
             btnDiscardPile.onClick.AddListener(OpenDiscardPile);
-            BuildExhaustPileButton();
+            HookExhaustPileButton();
         }
 
         /// <summary>
@@ -845,9 +841,9 @@ namespace Window.BattleForm
                 txtDiscardCount.text = m_Vm.DiscardCount.ToString();
             }
 
-            if (m_ExhaustCountText != null)
+            if (txtExhaustCount != null)
             {
-                m_ExhaustCountText.text = "消耗 " + m_Vm.ExhaustCount;
+                txtExhaustCount.text = m_Vm.ExhaustCount.ToString();
             }
 
             // buff 图标也走 VM：state → ViewModel → 视图
@@ -2503,34 +2499,16 @@ namespace Window.BattleForm
             });
         }
 
-        /// <summary>消耗堆按钮：克隆弃牌堆按钮的外观（运行时创建，避免动 UIBind 预制体）。</summary>
-        private void BuildExhaustPileButton()
+        /// <summary>消耗堆按钮来自 BattleFormWindow.prefab（UIBind 绑定的 btnExhaustPile），不再运行时生成。</summary>
+        private void HookExhaustPileButton()
         {
-            if (m_BtnExhaustPile != null || btnDiscardPile == null)
+            if (btnExhaustPile == null)
             {
                 return;
             }
 
-            GameObject copy = Instantiate(btnDiscardPile.gameObject, btnDiscardPile.transform.parent);
-            copy.name = "btnExhaustPile";
-
-            var sourceRect = (RectTransform)btnDiscardPile.transform;
-            var rect = (RectTransform)copy.transform;
-            rect.anchoredPosition = sourceRect.anchoredPosition + new Vector2(0f, -96f);
-
-            m_BtnExhaustPile = copy.GetComponent<Button>();
-            if (m_BtnExhaustPile != null)
-            {
-                m_BtnExhaustPile.onClick.RemoveAllListeners();
-                m_BtnExhaustPile.onClick.AddListener(OpenExhaustPile);
-            }
-
-            foreach (TextMeshProUGUI label in copy.GetComponentsInChildren<TextMeshProUGUI>(true))
-            {
-                m_ExhaustCountText = label;
-                label.text = "消耗 0";
-                break;
-            }
+            btnExhaustPile.onClick.RemoveAllListeners();
+            btnExhaustPile.onClick.AddListener(OpenExhaustPile);
         }
 
         private void OpenExhaustPile()

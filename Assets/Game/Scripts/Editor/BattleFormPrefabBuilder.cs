@@ -77,6 +77,16 @@ namespace TurnCard.EditorTools
             UiFactory.CreateLabel(discardPile, "txtDiscardCount", "0", 34, Color.white,
                 new Vector2(170f, 40f), new Vector2(0.5f, 0.5f), new Vector2(0f, -18f));
 
+            RectTransform exhaustPile = UiFactory.CreateBox(root.transform, "btnExhaustPile",
+                new Color(0.13f, 0.15f, 0.20f), new Vector2(170f, 120f), new Vector2(1f, 0f),
+                new Vector2(-330f, 110f));
+            exhaustPile.gameObject.AddComponent<Button>();
+            UiFactory.CreateLabel(exhaustPile, "Caption", "消耗堆", 22,
+                new Color(0.75f, 0.78f, 0.85f), new Vector2(170f, 32f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 26f));
+            UiFactory.CreateLabel(exhaustPile, "txtExhaustCount", "0", 34, Color.white,
+                new Vector2(170f, 40f), new Vector2(0.5f, 0.5f), new Vector2(0f, -18f));
+
             UiFactory.CreateButton(root.transform, "btnEndTurn", "结束回合",
                 new Color(0.22f, 0.42f, 0.30f), new Vector2(220f, 72f), new Vector2(1f, 0f),
                 new Vector2(-170f, 280f), Color.white);
@@ -122,6 +132,9 @@ namespace TurnCard.EditorTools
                 Bind(mono, contents, "btnEndTurn", typeof(Button));
                 Bind(mono, contents, "btnDrawPile", typeof(Button));
                 Bind(mono, contents, "btnDiscardPile", typeof(Button));
+            Bind(mono, contents, "goHand", typeof(GameObject));
+            Bind(mono, contents, "btnExhaustPile", typeof(Button));
+            Bind(mono, contents, "txtExhaustCount", typeof(TMPro.TextMeshProUGUI));
 
                 PrefabUtility.SaveAsPrefabAsset(contents, PrefabPath);
             }

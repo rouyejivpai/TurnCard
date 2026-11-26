@@ -20,6 +20,8 @@ namespace Window.BattleForm
         protected UnityEngine.UI.Button btnDrawPile;
         protected UnityEngine.UI.Button btnDiscardPile;
         protected UnityEngine.GameObject goHand;
+        protected UnityEngine.UI.Button btnExhaustPile;
+        protected TMPro.TextMeshProUGUI txtExhaustCount;
         #endregion (禁止编辑)自动生成变量
 
         private void InitComponents()
@@ -37,6 +39,8 @@ namespace Window.BattleForm
             btnDrawPile = quickUI.UIObjectsArray[6] as UnityEngine.UI.Button;
             btnDiscardPile = quickUI.UIObjectsArray[7] as UnityEngine.UI.Button;
             goHand = quickUI.UIObjectsArray[8] as UnityEngine.GameObject;
+            btnExhaustPile = quickUI.UIObjectsArray[9] as UnityEngine.UI.Button;
+            txtExhaustCount = quickUI.UIObjectsArray[10] as TMPro.TextMeshProUGUI;
             #endregion (禁止编辑)自动生成绑定
         }
     }
