@@ -575,6 +575,16 @@ namespace UnityGameFramework.Runtime
 
         private void Update()
         {
+            // Awake 没跑过（编辑器里 domain reload / 组件后挂）时会变成空集合，
+            // 这里按需补一次，避免每帧 NullReferenceException。
+            if (m_LoadAssetInfos == null)
+            {
+                m_CachedAssets = m_CachedAssets ?? new Dictionary<string, UnityEngine.Object>(StringComparer.Ordinal);
+                m_LoadAssetInfos = new GameFrameworkLinkedList<LoadAssetInfo>();
+                m_LoadSceneInfos = new GameFrameworkLinkedList<LoadSceneInfo>();
+                m_UnloadSceneInfos = new GameFrameworkLinkedList<UnloadSceneInfo>();
+            }
+
             if (m_LoadAssetInfos.Count > 0)
             {
                 int count = 0;

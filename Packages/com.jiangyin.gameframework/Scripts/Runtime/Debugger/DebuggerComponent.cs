@@ -239,6 +239,23 @@ namespace UnityGameFramework.Runtime
 
         private void Update()
         {
+            // 管理器还没就绪时 Awake 会提前 return，m_FpsCounter 保持 null；
+            // 这里补建，拿不到管理器就先跳过这一帧，别每帧抛异常。
+            if (m_FpsCounter == null)
+            {
+                if (m_DebuggerManager == null)
+                {
+                    m_DebuggerManager = GameFrameworkEntry.GetModule<IDebuggerManager>();
+                }
+
+                if (m_DebuggerManager == null)
+                {
+                    return;
+                }
+
+                m_FpsCounter = new FpsCounter(0.5f);
+            }
+
             m_FpsCounter.Update(Time.deltaTime, Time.unscaledDeltaTime);
         }
 
@@ -414,7 +431,7 @@ namespace UnityGameFramework.Runtime
                 color = m_ConsoleWindow.GetLogStringColor(LogType.Log);
             }
 
-            string title = Utility.Text.Format("<color=#{0:x2}{1:x2}{2:x2}{3:x2}><b>FPS: {4:F2}</b></color>", color.r, color.g, color.b, color.a, m_FpsCounter.CurrentFps);
+            string title = Utility.Text.Format("<color=#{0:x2}{1:x2}{2:x2}{3:x2}><b>FPS: {4:F2}</b></color>", color.r, color.g, color.b, color.a, m_FpsCounter != null ? m_FpsCounter.CurrentFps : 0f);
             if (GUILayout.Button(title, GUILayout.Width(100f), GUILayout.Height(40f)))
             {
                 m_ShowFullWindow = true;
