@@ -330,45 +330,24 @@ namespace TurnCard.Game.Battle
             }
         }
 
-        /// <summary>放逐：翻面手牌里所有状态牌，并执行它们的正面效果。</summary>
+        /// <summary>
+        /// 放逐：登记手牌里的状态牌，之后由表现层逐张推进
+        /// （翻面动画 → 执行正面），全部处理完再继续。
+        /// </summary>
         private sealed class PlayAllStatusFrontEffect : ICardEffect
         {
             public void Apply(CardEffectContext context, string[] args)
             {
-                var statusCards = new List<CardInstance>();
-                foreach (CardInstance card in context.State.Hand)
-                {
-                    if (card != null && card.Face.Type == CardType.Status)
-                    {
-                        statusCards.Add(card);
-                    }
-                }
-
-                foreach (CardInstance card in statusCards)
-                {
-                    context.State.ForceFlipToFrontAndPlay(card);
-                }
+                context.State.BeginStatusExile(false);
             }
         }
 
-        /// <summary>重整旗鼓：打出并丢弃手牌里所有状态牌。</summary>
+        /// <summary>重整旗鼓：登记手牌里的状态牌，逐张翻面 → 打出正面 → 丢弃。</summary>
         private sealed class PlayDiscardAllStatusEffect : ICardEffect
         {
             public void Apply(CardEffectContext context, string[] args)
             {
-                var statusCards = new List<CardInstance>();
-                foreach (CardInstance card in context.State.Hand)
-                {
-                    if (card != null && card.Face.Type == CardType.Status)
-                    {
-                        statusCards.Add(card);
-                    }
-                }
-
-                foreach (CardInstance card in statusCards)
-                {
-                    context.State.PlayFrontThenDiscard(card);
-                }
+                context.State.BeginStatusExile(true);
             }
         }
 

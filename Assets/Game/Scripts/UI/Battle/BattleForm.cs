@@ -1346,6 +1346,38 @@ namespace Window.BattleForm
         }
 
         /// <summary>等玩家完成一次选牌（手牌点选 + √，或牌堆点一下）。</summary>
+        /// <summary>
+        /// 放逐 / 重整旗鼓的逐张推进：
+        /// 每张都是「请求翻到正面 → 派发动画 → 等播完 → 执行正面效果 → 播它的伤害」，
+        /// 顺序与卡面描述一致。
+        /// </summary>
+        private IEnumerator PlayExileSteps(EnemyInstance target)
+        {
+            int guard = 0;
+            while (m_State.HasPendingExile && guard < 20)
+            {
+                guard++;
+
+                // 1) 翻面（数据要等动画开始才翻，避免视觉上「先跳成正面」）
+                if (m_State.RequestExileFlip())
+                {
+                    CommitAndDispatchFlips();
+                    yield return WaitForFlipAnimations();
+                }
+
+                // 2) 这张翻完之后执行它的正面效果
+                bool more = m_State.AdvanceExile();
+
+                // 3) 把这一步产生的伤害/表现播完，再处理下一张
+                yield return PlayDamageQueue(target, HitOrigin.Play);
+
+                if (!more)
+                {
+                    break;
+                }
+            }
+        }
+
         private IEnumerator RunChoiceRoutine()
         {
             m_ChoiceDone = false;
@@ -1848,6 +1880,12 @@ namespace Window.BattleForm
                     {
                         break;
                     }
+                }
+
+                // 放逐 / 重整旗鼓：逐张「翻面 → 执行正面」
+                if (m_State.HasPendingExile)
+                {
+                    yield return PlayExileSteps(target);
                 }
             }
             finally

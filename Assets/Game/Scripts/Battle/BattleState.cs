@@ -886,6 +886,7 @@ namespace TurnCard.Game.Battle
             m_DrawPile.Clear();
             m_DiscardPile.Clear();
             m_ExhaustPile.Clear();
+            ClearExileQueue();
             m_Enemies.Clear();
             m_Pending.Clear();
             m_PendingFlips.Clear();
@@ -964,6 +965,7 @@ namespace TurnCard.Game.Battle
             m_PendingInstants.Clear();
             m_PendingFlips.Clear();
             m_ExhaustPile.Clear();
+            ClearExileQueue();
             m_ForcedPlayDepth = 0;
             m_DrawReleaseDepth = 0;
             m_PowerBuffs.Clear();
@@ -3257,6 +3259,87 @@ namespace TurnCard.Game.Battle
         }
 
         private int m_ForcedPlayDepth;
+
+        /// <summary>放逐 / 重整旗鼓 待逐张处理的牌（表现层一张一张驱动）。</summary>
+        private readonly List<CardInstance> m_StatusExileQueue = new List<CardInstance>();
+
+        private bool m_ExileDiscardAfter;
+
+        /// <summary>还有状态牌等着「翻面 → 执行正面」。</summary>
+        public bool HasPendingExile => m_StatusExileQueue.Count > 0;
+
+        /// <summary>队首那张（表现层用来翻面）。</summary>
+        public CardInstance PeekPendingExile =>
+            m_StatusExileQueue.Count > 0 ? m_StatusExileQueue[0] : null;
+
+        /// <summary>
+        /// 收集手牌里的状态牌，登记成待处理队列。
+        /// <paramref name="discardAfter"/> = true 时每张打完再丢弃（重整旗鼓）。
+        /// </summary>
+        public int BeginStatusExile(bool discardAfter)
+        {
+            m_StatusExileQueue.Clear();
+            m_ExileDiscardAfter = discardAfter;
+
+            foreach (CardInstance card in m_Hand)
+            {
+                if (card != null && card.Face.Type == CardType.Status)
+                {
+                    m_StatusExileQueue.Add(card);
+                }
+            }
+
+            return m_StatusExileQueue.Count;
+        }
+
+        /// <summary>
+        /// 队首这张如果还没翻到正面就先请求翻面（入队，等表现层提交）。
+        /// 返回是否真的发出了翻面请求。
+        /// </summary>
+        public bool RequestExileFlip()
+        {
+            CardInstance card = PeekPendingExile;
+            if (card == null || card.Side == CardFaceSide.Front)
+            {
+                return false;
+            }
+
+            RequestFlipTo(card, CardFaceSide.Front, FlipSource.Effect);
+            return true;
+        }
+
+        /// <summary>
+        /// 队首这张翻面动画播完后调用：执行它的正面效果（以及可选地丢弃它）。
+        /// 返回是否还有下一张。
+        /// </summary>
+        public bool AdvanceExile()
+        {
+            if (m_StatusExileQueue.Count == 0)
+            {
+                return false;
+            }
+
+            CardInstance card = m_StatusExileQueue[0];
+            m_StatusExileQueue.RemoveAt(0);
+
+            if (card != null)
+            {
+                ForceFlipToFrontAndPlay(card);
+
+                if (m_ExileDiscardAfter)
+                {
+                    DiscardCard(card);
+                }
+            }
+
+            return m_StatusExileQueue.Count > 0;
+        }
+
+        private void ClearExileQueue()
+        {
+            m_StatusExileQueue.Clear();
+            m_ExileDiscardAfter = false;
+        }
 
         /// <summary>
         /// 正在「强制打出」（放逐 / 重整旗鼓 连打状态牌正面）。
