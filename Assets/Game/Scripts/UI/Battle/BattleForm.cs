@@ -2338,8 +2338,15 @@ namespace Window.BattleForm
                 yield return WaitForFlipAnimations();
             }
 
-            m_State.EndPlayerTurn();
-            UnityEngine.Debug.Log("[回合] 2 弃牌完成，手牌=" + m_State.Hand.Count);
+            // 第一段：跑「回合结束」触发（佯攻 / 损伤这类能力牌在这一步生效）
+            m_State.BeginEndTurn();
+
+            // 让手牌里的能力牌弹一下，并等它播完再弃牌 —— 否则牌先飞走了，看不到触发
+            PlayPowerTriggerPulse();
+            yield return new WaitForSeconds(0.28f);
+
+            // 第二段：弃手牌 → 进敌人回合
+            m_State.FinishEndTurn();
             ScatterHandToDiscard();
             UnityEngine.Debug.Log("[回合] 3 散牌动画启动");   // 没被事件接管的残留视图也一并飞走
             RefreshHud();

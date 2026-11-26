@@ -209,8 +209,18 @@ namespace TurnCard.Game.Battle
                 return;
             }
 
-            string spec = face.Effects;
-            if (string.IsNullOrWhiteSpace(spec))
+            CollectTokensFromSpec(face, face.Effects, state, target, tokens);
+        }
+
+        /// <summary>
+        /// 按一段效果串收预览 token。
+        /// 能力牌的数值常常写在 buff 的 triggerEffect 里（佯攻、损伤、计谋），
+        /// 所以遇到 <c>buff:id,...</c> 时会把那个 buff 的 triggerEffect 也解析一遍。
+        /// </summary>
+        private static void CollectTokensFromSpec(CardFace face, string spec, BattleState state,
+            EnemyInstance target, IDictionary<string, int> tokens)
+        {
+            if (state == null || tokens == null || string.IsNullOrWhiteSpace(spec))
             {
                 return;
             }
@@ -260,6 +270,17 @@ namespace TurnCard.Game.Battle
                 if (effect is ICardEffectPreview preview)
                 {
                     preview.CollectPreview(context, args, tokens);
+                }
+
+                // 能力牌的数值常在 buff 的触发效果里：buff:35,1,-1,player → 解析 buff35.TriggerEffect
+                if (string.Equals(key, "buff", StringComparison.OrdinalIgnoreCase) && args.Length > 0 &&
+                    int.TryParse(args[0], out int buffId))
+                {
+                    BuffDefinition definition = state.FindBuff(buffId);
+                    if (definition != null && !string.IsNullOrWhiteSpace(definition.TriggerEffect))
+                    {
+                        CollectTokensFromSpec(face, definition.TriggerEffect, state, target, tokens);
+                    }
                 }
             }
         }

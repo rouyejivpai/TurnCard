@@ -2001,6 +2001,16 @@ namespace TurnCard.Game.Battle
         /// <summary>结束玩家回合：手牌全部进弃牌堆（Q2），然后敌人行动。</summary>
         public void EndPlayerTurn()
         {
+            BeginEndTurn();
+            FinishEndTurn();
+        }
+
+        /// <summary>
+        /// 结束回合第一段：锁输入 + 跑玩家的「回合结束」触发。
+        /// 表现层可以在这之后播能力牌的触发动画，再调 <see cref="FinishEndTurn"/>。
+        /// </summary>
+        public void BeginEndTurn()
+        {
             if (!IsPlayerTurn || IsBattleOver || IsResolving)
             {
                 return;
@@ -2009,9 +2019,17 @@ namespace TurnCard.Game.Battle
             IsPlayerTurn = false;
             TurnEnded?.Invoke();
 
-            // 玩家回合结束的被动要按「弃牌之前的手牌」结算（佯攻、损伤都数手牌里的状态牌），
-            // 所以先跑 TurnEnd 触发，再弃牌。
+            // 玩家回合结束的被动要按「弃牌之前的手牌」结算（佯攻、损伤都数手牌里的状态牌）
             RunTriggers(PlayerBuffs, Data.BuffTrigger.TurnEnd, PickRandomAliveEnemy());
+        }
+
+        /// <summary>结束回合第二段：弃手牌 → 进敌人回合。</summary>
+        public void FinishEndTurn()
+        {
+            if (IsPlayerTurn || IsBattleOver)
+            {
+                return;
+            }
 
             // 「保留」的牌回合结束时不进弃牌堆，留在手上（关键词机制，见 keywords 列）
             for (int i = m_Hand.Count - 1; i >= 0; i--)
