@@ -30,7 +30,8 @@ MonoBehaviour:
   m_BackType: 2
   m_BackDamage: 0
   m_BackArmor: 0
-  m_BackDescription: "\u83B7\u5F97 {x} \u70B9**\u4E34\u65F6\u529B\u91CF**\uFF08\u56DE\u5408\u7ED3\u675F\u6D88\u5931\uFF09"
+  m_BackDescription: "\u624B\u724C\u4E2D\u6BCF\u6709\u4E00\u5F20\u72B6\u6001\u724C\uFF0C\u83B7\u5F97
+    1 \u70B9**\u4E34\u65F6\u529B\u91CF**\uFF08\u5171 {total_strength} \u70B9\uFF09"
   m_BackEffects: temp_strength:{X}
   m_BackParams: x=status
   m_BackKeywords: 

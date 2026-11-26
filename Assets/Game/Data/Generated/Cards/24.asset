@@ -20,8 +20,8 @@ MonoBehaviour:
   m_FrontType: 1
   m_FrontDamage: 0
   m_FrontArmor: 0
-  m_FrontDescription: "\u4F7F\u624B\u4E2D\u524D X \u5F20\u72B6\u6001\u724C\u7FFB\u9762\uFF0C\u83B7\u5F97
-    5 \u70B9\u62A4\u7532 X \u6B21"
+  m_FrontDescription: "\u4F7F\u624B\u4E2D\u524D X \u5F20\u72B6\u6001\u724C\u7FFB\u9762\uFF0C\u6BCF\u5F20\u83B7\u5F97
+    5 \u70B9\u62A4\u7532\uFF08\u5171 {total_armor} \u70B9\uFF09"
   m_FrontEffects: flip_status:{X};armor_times:5,{X}
   m_FrontParams: x=energy;xcost=energy
   m_FrontKeywords: 

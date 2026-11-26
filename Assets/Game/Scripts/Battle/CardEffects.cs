@@ -223,6 +223,9 @@ namespace TurnCard.Game.Battle
                 Face = face,
             };
 
+            // 预览时把 {X} 也换成真实值，否则「5×X」这类效果算不出总量
+            int xValue = state.EvaluateX(face);
+
             foreach (string token in spec.Split(';'))
             {
                 string entry = token.Trim();
@@ -230,6 +233,9 @@ namespace TurnCard.Game.Battle
                 {
                     continue;
                 }
+
+                entry = entry.Replace("{X}", xValue.ToString()).Replace("{x}", xValue.ToString())
+                    .Replace("{X }", xValue.ToString()).Replace("{ X}", xValue.ToString());
 
                 string key = entry;
                 string[] args = Array.Empty<string>();
@@ -261,8 +267,23 @@ namespace TurnCard.Game.Battle
         /// <summary>
         /// 力破万法：造成 base 点伤害 normalTimes 次；若这张牌左右相邻有「状态牌」则改成 statusTimes 次。
         /// </summary>
-        private sealed class DamageTimesAdjacentStatusEffect : ICardEffect
+        private sealed class DamageTimesAdjacentStatusEffect : ICardEffect, ICardEffectPreview
         {
+            public void CollectPreview(CardEffectContext context, string[] args,
+                IDictionary<string, int> tokens)
+            {
+                int baseDamage = Arg(args, 0, 0);
+                int normalTimes = args.Length > 1 ? Arg(args, 1, 1) : 1;
+                int boostedTimes = args.Length > 2 ? Arg(args, 2, normalTimes) : normalTimes;
+
+                // 预览拿不到手牌位置时就按基础次数算
+                if (baseDamage > 0 && normalTimes > 0)
+                {
+                    tokens["total_damage"] = baseDamage * normalTimes;
+                    tokens["total_damage_max"] = baseDamage * boostedTimes;
+                }
+            }
+
             public void Apply(CardEffectContext context, string[] args)
             {
                 int baseDamage = Arg(args, 0, 0);
@@ -352,8 +373,19 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>获得「每张手牌状态牌 × mult」点护甲（佯攻）。</summary>
-        private sealed class ArmorPerStatusEffect : ICardEffect
+        private sealed class ArmorPerStatusEffect : ICardEffect, ICardEffectPreview
         {
+            public void CollectPreview(CardEffectContext context, string[] args,
+                IDictionary<string, int> tokens)
+            {
+                int mult = Arg(args, 0, 1);
+                int count = context.State == null ? 0 : context.State.CountHandOfType(CardType.Status);
+                if (count > 0 && mult > 0)
+                {
+                    tokens["total_armor"] = count * mult;
+                }
+            }
+
             public void Apply(CardEffectContext context, string[] args)
             {
                 int mult = Arg(args, 0, 1);
@@ -380,8 +412,19 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>造成 a 点伤害，重复 count 次（每次独立入队，表现层逐段播）。</summary>
-        private sealed class DamageTimesEffect : ICardEffect
+        private sealed class DamageTimesEffect : ICardEffect, ICardEffectPreview
         {
+            public void CollectPreview(CardEffectContext context, string[] args,
+                IDictionary<string, int> tokens)
+            {
+                int amount = Arg(args, 0, 0);
+                int times = args.Length > 1 ? Arg(args, 1, 1) : 1;
+                if (amount > 0 && times > 0)
+                {
+                    tokens["total_damage"] = amount * times;
+                }
+            }
+
             public void Apply(CardEffectContext context, string[] args)
             {
                 int amount = Arg(args, 0, 0);
@@ -394,8 +437,19 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>获得 a 点护甲，重复 count 次。</summary>
-        private sealed class ArmorTimesEffect : ICardEffect
+        private sealed class ArmorTimesEffect : ICardEffect, ICardEffectPreview
         {
+            public void CollectPreview(CardEffectContext context, string[] args,
+                IDictionary<string, int> tokens)
+            {
+                int amount = Arg(args, 0, 0);
+                int times = args.Length > 1 ? Arg(args, 1, 1) : 1;
+                if (amount > 0 && times > 0)
+                {
+                    tokens["total_armor"] = amount * times;
+                }
+            }
+
             public void Apply(CardEffectContext context, string[] args)
             {
                 int amount = Arg(args, 0, 0);
@@ -431,8 +485,18 @@ namespace TurnCard.Game.Battle
         }
 
         /// <summary>获得临时力量（回合结束消失）。</summary>
-        private sealed class TempStrengthEffect : ICardEffect
+        private sealed class TempStrengthEffect : ICardEffect, ICardEffectPreview
         {
+            public void CollectPreview(CardEffectContext context, string[] args,
+                IDictionary<string, int> tokens)
+            {
+                int stacks = args.Length > 0 ? Arg(args, 0, 1) : 1;
+                if (stacks > 0)
+                {
+                    tokens["total_strength"] = stacks;
+                }
+            }
+
             public void Apply(CardEffectContext context, string[] args)
             {
                 int stacks = Arg(args, 0, 1);
