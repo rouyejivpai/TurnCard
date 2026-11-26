@@ -193,6 +193,54 @@ namespace TurnCard.Game.UI
             RefreshArmor();
         }
 
+        /// <summary>
+        /// 由 ViewModel 推过来的数值（血、护甲、名字）。
+        /// 视图不再自己去读 Enemy —— 和数据源解耦，和玩家血条同一套刷新方式。
+        /// </summary>
+        public void ApplyVm(int hp, int hpMax, int armor, string name,
+            System.Collections.Generic.IReadOnlyList<BattleViewModel.BuffVm> buffs = null)
+        {
+            float ratio = hpMax <= 0 ? 0f : Mathf.Clamp01(hp / (float)hpMax);
+
+            if (m_HpClip != null)
+            {
+                Vector2 anchorMax = m_HpClip.anchorMax;
+                anchorMax.x = ratio;
+                m_HpClip.anchorMax = anchorMax;
+            }
+            else if (m_HpFill != null)
+            {
+                m_HpFill.fillAmount = ratio;
+            }
+
+            if (m_HpText != null)
+            {
+                m_HpText.text = hp + "/" + hpMax;
+            }
+
+            bool hasArmor = armor > 0;
+            if (m_ArmorRoot != null)
+            {
+                m_ArmorRoot.SetActive(hasArmor);
+            }
+
+            if (hasArmor && m_ArmorText != null)
+            {
+                m_ArmorText.text = armor.ToString();
+            }
+
+            if (m_NameText != null)
+            {
+                m_NameText.text = name ?? string.Empty;
+                m_NameText.gameObject.SetActive(!string.IsNullOrEmpty(name));
+            }
+
+            if (buffs != null && m_BuffStrip != null)
+            {
+                m_BuffStrip.Apply(buffs);
+            }
+        }
+
         /// <summary>血条上方的名字：显示当前形态名（翻面会跟着换）。</summary>
         private void RefreshName()
         {

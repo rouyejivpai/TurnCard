@@ -71,6 +71,39 @@ namespace TurnCard.Game.UI
             Rebuild();
         }
 
+        /// <summary>
+        /// 由 ViewModel 驱动：拿一份 buff 快照重画图标条。
+        /// 这样视图不再订阅 BuffContainer，数据流统一成 state → VM → 视图。
+        /// </summary>
+        public void Apply(IReadOnlyList<BattleViewModel.BuffVm> buffs)
+        {
+            foreach (GameObject icon in m_Icons)
+            {
+                if (icon != null)
+                {
+                    Destroy(icon);
+                }
+            }
+
+            m_Icons.Clear();
+
+            if (buffs == null || m_Root == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < buffs.Count; i++)
+            {
+                BattleViewModel.BuffVm vm = buffs[i];
+                if (vm.Definition == null || vm.Stacks <= 0)
+                {
+                    continue;
+                }
+
+                CreateIcon(vm.Definition, vm.Stacks, i);
+            }
+        }
+
         private void Rebuild()
         {
             foreach (GameObject icon in m_Icons)
@@ -109,7 +142,12 @@ namespace TurnCard.Game.UI
 
         private void CreateIcon(BuffInstance buff, int index)
         {
-            var go = new GameObject("Buff_" + buff.Definition.Name, typeof(RectTransform), typeof(Image));
+            CreateIcon(buff.Definition, buff.Stacks, index);
+        }
+
+        private void CreateIcon(BuffDefinition definition, int stacks, int index)
+        {
+            var go = new GameObject("Buff_" + definition.Name, typeof(RectTransform), typeof(Image));
             var rect = (RectTransform)go.transform;
             rect.SetParent(m_Root, false);
             rect.anchorMin = new Vector2(0f, 0.5f);
@@ -121,22 +159,22 @@ namespace TurnCard.Game.UI
             var image = go.GetComponent<Image>();
             image.raycastTarget = true;   // 要能接收悬浮事件
             image.preserveAspect = true;
-            image.sprite = LoadIcon(buff.Definition.Icon);
+            image.sprite = LoadIcon(definition.Icon);
 
             if (image.sprite == null)
             {
                 // 没有图标素材时的兜底：底色块 + 首字
-                image.color = ColorFor(buff.Definition.Name);
+                image.color = ColorFor(definition.Name);
             }
 
             // 层数
-            TextMeshProUGUI label = UiFactory.CreateLabel(rect, "Stacks", buff.Stacks.ToString(), 14,
+            TextMeshProUGUI label = UiFactory.CreateLabel(rect, "Stacks", stacks.ToString(), 14,
                 Color.white, new Vector2(IconSize, 14f), new Vector2(1f, 0f), new Vector2(2f, -2f));
             label.alignment = TextAlignmentOptions.BottomRight;
             label.raycastTarget = false;
 
-            // 悬浮弹说明，复用关键词提示面板
-            BuffIconHover.Attach(go, rect, m_Container, buff.Definition.Id);
+            // 悬浮弹说明，复用关键词提示面板（容器可能为空：VM 驱动时只按 id 取定义）
+            BuffIconHover.Attach(go, rect, m_Container, definition.Id);
 
             m_Icons.Add(go);
         }

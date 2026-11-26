@@ -837,17 +837,23 @@ namespace Window.BattleForm
 
             if (txtDrawCount != null)
             {
-                txtDrawCount.text = m_State.DrawPile.Count.ToString();
+                txtDrawCount.text = m_Vm.DrawCount.ToString();
             }
 
             if (txtDiscardCount != null)
             {
-                txtDiscardCount.text = m_State.DiscardPile.Count.ToString();
+                txtDiscardCount.text = m_Vm.DiscardCount.ToString();
             }
 
             if (m_ExhaustCountText != null)
             {
-                m_ExhaustCountText.text = "消耗 " + m_State.ExhaustPile.Count;
+                m_ExhaustCountText.text = "消耗 " + m_Vm.ExhaustCount;
+            }
+
+            // buff 图标也走 VM：state → ViewModel → 视图
+            if (m_PlayerBuffStrip != null)
+            {
+                m_PlayerBuffStrip.Apply(m_Vm.PlayerBuffs);
             }
         }
 
@@ -871,6 +877,7 @@ namespace Window.BattleForm
                 if (view != null)
                 {
                     view.SetIntentPreview(vm.IntentValue, vm.IntentModified);
+                    view.ApplyVm(vm.Hp, vm.HpMax, vm.Armor, vm.Name, vm.Buffs);
                 }
             }
         }

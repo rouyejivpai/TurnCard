@@ -29,6 +29,24 @@ namespace TurnCard.Game.Battle
 
             /// <summary>和招式原值不同（界面标红）。</summary>
             public bool IntentModified;
+
+            /// <summary>血量 / 最大血量。</summary>
+            public int Hp;
+
+            public int HpMax;
+
+            /// <summary>当前形态名（翻面会变）。</summary>
+            public string Name;
+
+            /// <summary>敌人身上的 buff（图标条直接画这个）。</summary>
+            public List<BuffVm> Buffs;
+        }
+
+        /// <summary>一个 buff 图标的显示数据（层数已过滤隐藏 buff）。</summary>
+        public struct BuffVm
+        {
+            public Data.BuffDefinition Definition;
+            public int Stacks;
         }
 
         /// <summary>一张手牌的显示数据。</summary>
@@ -53,18 +71,53 @@ namespace TurnCard.Game.Battle
         public int PlayerArmor { get; private set; }
         public int Energy { get; private set; }
         public int MaxEnergy { get; private set; }
+
+        /// <summary>抽牌堆 / 弃牌堆 / 消耗堆的张数（界面只读这里，不再直接读 state）。</summary>
+        public int DrawCount { get; private set; }
+
+        public int DiscardCount { get; private set; }
+        public int ExhaustCount { get; private set; }
         public float PlayerHpRatio { get; private set; }
+
+        /// <summary>玩家身上的 buff（图标条直接画这个）。</summary>
+        public readonly List<BuffVm> PlayerBuffs = new List<BuffVm>();
 
         public readonly List<EnemyVm> Enemies = new List<EnemyVm>();
         public readonly List<HandVm> Hand = new List<HandVm>();
 
         private readonly Dictionary<string, int> m_TokenBuffer = new Dictionary<string, int>();
+        private readonly List<BuffVm> m_BuffBuffer = new List<BuffVm>();
+
+        /// <summary>把 BuffContainer 拷成快照（跳过隐藏 buff 与 0 层）。</summary>
+        private static List<BuffVm> CollectBuffs(BuffContainer container, List<BuffVm> into = null)
+        {
+            List<BuffVm> list = into ?? new List<BuffVm>();
+            list.Clear();
+
+            if (container == null)
+            {
+                return list;
+            }
+
+            foreach (BuffInstance buff in container.Buffs)
+            {
+                if (buff == null || buff.Definition == null || buff.Stacks <= 0 || buff.Definition.Hidden)
+                {
+                    continue;
+                }
+
+                list.Add(new BuffVm { Definition = buff.Definition, Stacks = buff.Stacks });
+            }
+
+            return list;
+        }
 
         /// <summary>按当前战斗状态重算一遍快照。传 hover 时手牌伤害会算上该目标的易伤。</summary>
         public void Update(BattleState state, EnemyInstance hover)
         {
             Enemies.Clear();
             Hand.Clear();
+            PlayerBuffs.Clear();
 
             if (state == null)
             {
@@ -73,6 +126,10 @@ namespace TurnCard.Game.Battle
 
             PlayerHpMax = BattleState.PlayerMaxHp;
             PlayerHp = state.PlayerHp;
+            CollectBuffs(state.PlayerBuffs, PlayerBuffs);
+            DrawCount = state.DrawPile.Count;
+            DiscardCount = state.DiscardPile.Count;
+            ExhaustCount = state.ExhaustPile.Count;
             PlayerArmor = state.PlayerArmor;
             Energy = state.Energy;
             MaxEnergy = BattleState.MaxEnergy;
@@ -93,8 +150,12 @@ namespace TurnCard.Game.Battle
                     Enemy = enemy,
                     HpRatio = form.MaxHp <= 0 ? 0f : UnityEngine.Mathf.Clamp01(enemy.Hp / (float)form.MaxHp),
                     HpText = enemy.Hp + "/" + form.MaxHp,
+                    Hp = enemy.Hp,
+                    HpMax = form.MaxHp,
+                    Name = form.DisplayName,
                     Armor = enemy.Armor,
                     ArmorVisible = enemy.Armor > 0,
+                    Buffs = CollectBuffs(enemy.Buffs),
                     IntentValue = attack.Value,
                     IntentModified = attack.Modified,
                 });
