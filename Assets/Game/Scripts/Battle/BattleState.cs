@@ -1139,6 +1139,8 @@ namespace TurnCard.Game.Battle
                     if (m_DrawPile.Remove(card))
                     {
                         m_Hand.Add(card);
+                        // 和普通抽牌同一条链路：界面据此重建手牌并播抽牌动画
+                        CardDrawn?.Invoke(card);
                     }
 
                     break;
@@ -1147,6 +1149,7 @@ namespace TurnCard.Game.Battle
                     if (m_DiscardPile.Remove(card))
                     {
                         m_Hand.Add(card);
+                        CardDrawn?.Invoke(card);
                     }
 
                     break;
