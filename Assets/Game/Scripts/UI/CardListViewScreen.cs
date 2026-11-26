@@ -130,6 +130,16 @@ namespace TurnCard.Game.UI
                 var instance = new CardInstance(cards[i]);
                 CardView view = CardView.Create(goContent, instance, scale);
 
+                // 卡牌自己会处理拖拽（战斗里拖出牌），会吃掉列表的拖拽事件；
+                // 挂一个转发器，让「按住列表拖」也能滚动。
+                var relay = view.gameObject.GetComponent<ScrollDragRelay>();
+                if (relay == null)
+                {
+                    relay = view.gameObject.AddComponent<ScrollDragRelay>();
+                }
+
+                relay.Target = scrollList;
+
                 // 战斗里打开牌组列表时也显示真实数值（非战斗时自动保持原值）
                 CardPreviewSource.Apply(view, instance.Face);
 
