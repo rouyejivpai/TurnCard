@@ -30,6 +30,15 @@ namespace TurnCard.Game.Battle
             /// <summary>和招式原值不同（界面标红）。</summary>
             public bool IntentModified;
 
+            /// <summary>当前意图定义（没有意图时为 null）。</summary>
+            public Data.EnemyIntentDefinition Intent;
+
+            /// <summary>当前意图类型（没有意图时为 None）。</summary>
+            public Data.EnemyIntentType IntentType;
+
+            /// <summary>意图文本（"12×2" / "+2" / "-1" 这类，符号已在 VM 里算好）。</summary>
+            public string IntentText;
+
             /// <summary>血量 / 最大血量。</summary>
             public int Hp;
 
@@ -93,6 +102,37 @@ namespace TurnCard.Game.Battle
 
         private readonly Dictionary<string, int> m_TokenBuffer = new Dictionary<string, int>();
         private readonly List<BuffVm> m_BuffBuffer = new List<BuffVm>();
+
+        /// <summary>
+        /// 意图文本：符号、倍率都在这里算好，界面只负责配色与图标。
+        /// </summary>
+        private static string DescribeIntent(Data.EnemyIntentDefinition intent)
+        {
+            if (intent == null)
+            {
+                return string.Empty;
+            }
+
+            switch (intent.Intent)
+            {
+                case Data.EnemyIntentType.Attack:
+                    return intent.Hits > 1
+                        ? intent.Value + "\u00d7" + intent.Hits
+                        : intent.Value.ToString();
+
+                case Data.EnemyIntentType.Buff:
+                    return "+" + intent.Value;
+
+                case Data.EnemyIntentType.Debuff:
+                    return "-" + intent.Value;
+
+                case Data.EnemyIntentType.ApplyBuff:
+                    return (intent.BuffTarget == Data.BuffTarget.Player ? "-" : "+") + intent.Value;
+
+                default:
+                    return intent.Value.ToString();
+            }
+        }
 
         /// <summary>把 BuffContainer 拷成快照（跳过隐藏 buff 与 0 层）。</summary>
         private static List<BuffVm> CollectBuffs(BuffContainer container, List<BuffVm> into = null)
@@ -164,6 +204,11 @@ namespace TurnCard.Game.Battle
                     Buffs = CollectBuffs(enemy.Buffs),
                     IntentValue = attack.Value,
                     IntentModified = attack.Modified,
+                    Intent = enemy.CurrentIntent,
+                    IntentType = enemy.CurrentIntent == null
+                        ? Data.EnemyIntentType.Attack
+                        : enemy.CurrentIntent.Intent,
+                    IntentText = DescribeIntent(enemy.CurrentIntent),
                 });
             }
 

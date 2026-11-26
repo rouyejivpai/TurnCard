@@ -198,7 +198,9 @@ namespace TurnCard.Game.UI
         /// 视图不再自己去读 Enemy —— 和数据源解耦，和玩家血条同一套刷新方式。
         /// </summary>
         public void ApplyVm(int hp, int hpMax, int armor, string name,
-            System.Collections.Generic.IReadOnlyList<BattleViewModel.BuffVm> buffs = null)
+            System.Collections.Generic.IReadOnlyList<BattleViewModel.BuffVm> buffs = null,
+            TurnCard.Game.Data.EnemyIntentDefinition intent = null, string intentText = null,
+            TurnCard.Game.Data.EnemyIntentType intentType = TurnCard.Game.Data.EnemyIntentType.Attack)
         {
             float ratio = hpMax <= 0 ? 0f : Mathf.Clamp01(hp / (float)hpMax);
 
@@ -238,6 +240,55 @@ namespace TurnCard.Game.UI
             if (buffs != null && m_BuffStrip != null)
             {
                 m_BuffStrip.Apply(buffs);
+            }
+
+            ApplyIntentVm(intent, intentText, intentType);
+        }
+
+        /// <summary>意图显示：图标按类型取，文本和配色由 VM 给的内容决定。</summary>
+        public void ApplyIntentVm(TurnCard.Game.Data.EnemyIntentDefinition intent, string text,
+            TurnCard.Game.Data.EnemyIntentType type)
+        {
+            if (m_IntentRoot == null)
+            {
+                return;
+            }
+
+            if (intent == null)
+            {
+                m_IntentRoot.SetActive(false);
+                return;
+            }
+
+            m_IntentRoot.SetActive(true);
+
+            if (m_IntentIcon != null)
+            {
+                m_IntentIcon.sprite = ResolveIntentIcon(intent);
+                m_IntentIcon.preserveAspect = true;
+            }
+
+            if (m_IntentValue == null)
+            {
+                return;
+            }
+
+            m_IntentValue.text = text ?? string.Empty;
+            m_IntentValue.color = IntentColor(type);
+        }
+
+        private static Color IntentColor(TurnCard.Game.Data.EnemyIntentType type)
+        {
+            switch (type)
+            {
+                case TurnCard.Game.Data.EnemyIntentType.Attack:
+                    return new Color(1f, 0.72f, 0.62f);
+                case TurnCard.Game.Data.EnemyIntentType.Defend:
+                    return new Color(0.66f, 0.84f, 1f);
+                case TurnCard.Game.Data.EnemyIntentType.Buff:
+                    return new Color(0.75f, 1f, 0.7f);
+                default:
+                    return new Color(0.92f, 0.78f, 1f);
             }
         }
 

@@ -873,7 +873,8 @@ namespace Window.BattleForm
                 if (view != null)
                 {
                     view.SetIntentPreview(vm.IntentValue, vm.IntentModified);
-                    view.ApplyVm(vm.Hp, vm.HpMax, vm.Armor, vm.Name, vm.Buffs);
+                    view.ApplyVm(vm.Hp, vm.HpMax, vm.Armor, vm.Name, vm.Buffs,
+                        vm.Intent, vm.IntentText, vm.IntentType);
                 }
             }
         }
